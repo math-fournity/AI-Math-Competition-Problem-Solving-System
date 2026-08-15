@@ -130,26 +130,22 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                  max_runtime=DEFAULT_MAX_RUNTIME_SECONDS,
                  stall_seconds=DEFAULT_STALL_SECONDS,
                  poll_seconds=DEFAULT_POLL_SECONDS):
-    """并发启动一个批次的分析"""
+    """并发启动一个批次的分析
+
+    改造后：从Redis pending队列dequeue取题（不再从内存list取题）。
+    feeder.py负责将prepared的run入Redis pending队列。
+    launcher只负责从pending队列取题、启动tmux session、监控状态。
+
+    兼容模式：如果Redis pending队列为空但prepared.json存在，
+    降级为从prepared.json加载（向后兼容旧流程）。
+    """
     logger.info(f"启动分析批次 batch={batch_id} concurrency={concurrency} max_runtime={max_runtime}")
     print(f"=== 启动分析批次 batch={batch_id} concurrency={concurrency} ===")
-
-    # 加载prepared列表
-    prepared_path = OUTPUT_BASE / batch_id / "prepared.json"
-    if not prepared_path.exists():
-        print(f"ERROR: prepared.json not found at {prepared_path}")
-        print("请先运行 data_collector")
-        return
-
-    with open(str(prepared_path)) as f:
-        prepared_data = json.load(f)
-    prepared = prepared_data["prepared"]
-    print(f"  待分析: {len(prepared)}")
 
     db = connect_db()
     ensure_schema(db)
 
-    # 连接Redis
+    # 连接Redis（必须可用——新架构依赖Redis队列调度）
     try:
         r = get_redis()
         r.ping()
@@ -158,8 +154,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         logger.info("Redis连接成功")
     except Exception as e:
         use_redis = False
-        print(f"  Redis: 连接失败({e})，降级为纯内存模式")
-        logger.warning(f"Redis连接失败，降级为纯内存模式: {e}")
+        print(f"  Redis: 连接失败({e})")
+        logger.error(f"Redis连接失败: {e}")
+        print("  新架构需要Redis——请先启动Redis，或用旧流程（feeder+launcher分离模式）")
+        return
 
     # 更新batch状态
     update_batch(db, batch_id, {
@@ -169,20 +167,33 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         "timeouts": {"max_runtime_seconds": max_runtime, "stall_seconds": stall_seconds},
     })
 
-    # 将所有prepared任务加入Redis pending队列
-    if use_redis:
-        clear_all(r)  # 清空旧队列
-        for item in prepared:
-            run_key = item.get("run_key", _run_key(item["problem_id"], batch_id))
-            enqueue_pending(r, run_key, priority=0)
-        print(f"  Redis: {len(prepared)}个任务入队")
-        update_stats(r)
+    # 检查Redis pending队列是否有题
+    pending_in_redis = r.zcard("analysis:pending")
+    if pending_in_redis == 0:
+        # 兼容模式：检查DB中是否有status=prepared或queued的题
+        aql = (
+            f"FOR run IN analysis_runs "
+            f"FILTER run.batch_id == @bid "
+            f"FILTER run.status IN ['prepared', 'queued', 'pending_retry'] "
+            f"COLLECT WITH COUNT INTO c RETURN c"
+        )
+        cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=60)
+        db_pending = list(cursor)[0] if cursor.batch else 0
+        if db_pending > 0:
+            print(f"  Redis pending为空, 但DB中有{db_pending}个待分析run")
+            print(f"  请先运行feeder: python -m src.feeder --batch-id {batch_id}")
+            print(f"  或用run_pipeline.py --step launch --auto-feed")
+            return
+        else:
+            print(f"  无待分析任务（Redis pending为空, DB中也无prepared/queued）")
+            return
+
+    print(f"  Redis pending: {pending_in_redis}个任务待启动")
 
     # 状态跟踪
     running = {}  # {analysis_exp_id: {session_name, work_dir, started_at, last_activity, run_key}}
     completed = []
     failed = []
-    pending = list(prepared)
 
     # 动态并发：跟踪当前生效的并发数，每轮从DB读取batch.concurrency
     # 支持运行中通过 set-concurrency 命令调整并发数
@@ -190,7 +201,11 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
     print(f"  开始并发启动（concurrency={concurrency}）...")
 
-    while pending or running:
+    while True:
+        # 检查退出条件：无running且pending队列为空
+        if not running and r.zcard("analysis:pending") == 0:
+            break
+
         # 动态并发：每轮从DB读取batch.concurrency，支持运行中调整
         try:
             batch_doc = db.collection(ANALYSIS_BATCHES_COLLECTION).get(batch_id)
@@ -207,14 +222,41 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         except Exception:
             pass  # DB读取失败时保持当前并发数
 
-        # 启动新的（填满并发槽）
-        while pending and len(running) < concurrency:
-            item = pending.pop(0)
-            analysis_exp_id = item["analysis_exp_id"]
-            work_dir = item["work_dir"]
-            run_key = item.get("run_key", _run_key(item["problem_id"], batch_id))
+        # 启动新的（填满并发槽）——从Redis pending队列dequeue
+        while len(running) < concurrency and r.zcard("analysis:pending") > 0:
+            # 从Redis pending队列原子取出
+            items = dequeue_pending(r, count=1)
+            if not items:
+                break
+            run_key, priority = items[0]
 
-            print(f"  [launch] {item['problem_id']}")
+            # 从DB查run记录获取work_dir和analysis_exp_id
+            run_doc = db.collection("analysis_runs").get(run_key)
+            if not run_doc:
+                logger.warning(f"DB中找不到run_key={run_key}, 跳过")
+                continue
+            analysis_exp_id = run_doc.get("analysis_exp_id", run_key)
+            work_dir = run_doc.get("work_dir", "")
+            problem_id = run_doc.get("problem_id", "")
+
+            if not work_dir or not Path(work_dir).exists():
+                logger.error(f"work_dir不存在: {work_dir}, run_key={run_key}")
+                add_failed(r, {
+                    "run_key": run_key,
+                    "reason": "launch_error",
+                    "failure_type": "infra",
+                    "batch_id": batch_id,
+                })
+                update_run(db, run_key, {
+                    "status": "launch_error",
+                    "updated_at": utc_now(),
+                    "end_reason": "work_dir_not_found",
+                    "verdict": make_verdict("failed", "work_dir_not_found", "high", True),
+                })
+                update_stats(r)
+                continue
+
+            print(f"  [launch] {problem_id}")
             session_name = launch_one(analysis_exp_id, work_dir)
 
             now_ts = time.time()
@@ -222,7 +264,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             running[analysis_exp_id] = {
                 "session_name": session_name,
                 "work_dir": work_dir,
-                "problem_id": item["problem_id"],
+                "problem_id": problem_id,
                 "run_key": run_key,
                 "started_at": now_ts,
                 "started_at_iso": now_iso,
@@ -244,17 +286,16 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 pass
 
             # 更新Redis running队列
-            if use_redis:
-                add_running(r, run_key, {
-                    "analysis_exp_id": analysis_exp_id,
-                    "problem_id": item["problem_id"],
-                    "tmux_session": session_name,
-                    "started_at": now_ts,
-                })
-                update_stats(r)
+            add_running(r, run_key, {
+                "analysis_exp_id": analysis_exp_id,
+                "problem_id": problem_id,
+                "tmux_session": session_name,
+                "started_at": now_ts,
+            })
+            update_stats(r)
 
             insert_event(db, batch_id, "analysis_launched", {
-                "problem_id": item["problem_id"],
+                "problem_id": problem_id,
                 "analysis_exp_id": analysis_exp_id,
                 "tmux_session": session_name,
             }, run_key=run_key)
@@ -508,13 +549,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             running.pop(key, None)
 
         # 状态报告
-        if pending or running:
-            print(f"  [status] running={len(running)} pending={len(pending)} "
+        redis_pending = r.zcard("analysis:pending")
+        if running or redis_pending > 0:
+            print(f"  [status] running={len(running)} pending={redis_pending} "
                   f"completed={len(completed)} failed={len(failed)}")
-            if use_redis:
-                stats = get_stats(r)
-                print(f"  [redis] pending={stats.get('pending',0)} running={stats.get('running',0)} "
-                      f"completed={stats.get('completed',0)} failed={stats.get('failed',0)}")
+            stats = get_stats(r)
+            print(f"  [redis] pending={stats.get('pending',0)} running={stats.get('running',0)} "
+                  f"completed={stats.get('completed',0)} failed={stats.get('failed',0)}")
             time.sleep(poll_seconds)
 
     print(f"\n=== 批次完成 ===")
@@ -600,6 +641,8 @@ def main():
     parser.add_argument("--poll-seconds", type=int, default=DEFAULT_POLL_SECONDS, help="轮询间隔（秒）")
     parser.add_argument("--status", action="store_true", help="查看状态")
     parser.add_argument("--stop", action="store_true", help="停止所有")
+    parser.add_argument("--auto-feed", action="store_true",
+                        help="启动前自动调用feeder一次性入队所有prepared的题")
     args = parser.parse_args()
 
     if args.status:
@@ -607,6 +650,25 @@ def main():
     elif args.stop:
         stop_batch(args.batch_id)
     else:
+        # --auto-feed: 启动前自动入队
+        if args.auto_feed:
+            from src.feeder import feed_batch
+            from monitoring.redis_queue import get_redis, ping, update_stats
+            if not ping():
+                print("Redis连接失败")
+                return
+            r = get_redis()
+            db = connect_db()
+            # 一次性入队所有prepared的题
+            total = 0
+            while True:
+                count = feed_batch(db, r, args.batch_id, batch_size=500)
+                if count == 0:
+                    break
+                total += count
+                update_stats(r)
+            print(f"  [auto-feed] 入队{total}题到Redis pending")
+
         launch_batch(
             args.batch_id,
             concurrency=args.concurrency,

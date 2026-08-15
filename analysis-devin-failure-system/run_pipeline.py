@@ -23,6 +23,7 @@ from src.data_collector import collect_and_prepare
 from src.analysis_launcher import launch_batch, status_batch, stop_batch
 from src.result_collector import collect_batch
 from src.aggregator import aggregate
+from src.db_schema import connect_db
 from src.config import (
     DEFAULT_CONCURRENCY, DEFAULT_MAX_RUNTIME_SECONDS,
     DEFAULT_STALL_SECONDS, DEFAULT_POLL_SECONDS,
@@ -55,6 +56,26 @@ def main():
         collect_and_prepare(args.batch_id, limit=args.limit, problem_ids=problem_ids)
 
     if args.step in ["all", "launch"]:
+        # 新架构：先feeder入队，再launcher从队列取题
+        # --auto-feed模式：launcher内部自动调用feeder一次性入队
+        # 也可以分开运行：python -m src.feeder --batch-id <id> 然后 python -m src.analysis_launcher --batch-id <id>
+        from src.feeder import feed_batch
+        from monitoring.redis_queue import get_redis, ping, update_stats, pending_count
+        if not ping():
+            print("Redis连接失败")
+            return
+        r = get_redis()
+        db = connect_db()
+        # 一次性入队所有prepared的题
+        total = 0
+        while True:
+            count = feed_batch(db, r, args.batch_id, batch_size=500)
+            if count == 0:
+                break
+            total += count
+            update_stats(r)
+        print(f"  [feeder] 入队{total}题到Redis pending (pending={pending_count(r)})")
+
         launch_batch(
             args.batch_id,
             concurrency=args.concurrency,

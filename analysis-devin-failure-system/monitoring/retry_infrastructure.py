@@ -129,6 +129,10 @@ def retry_failed(r, db, max_retries: int, dry_run: bool = False) -> dict:
                 logger.error(f"DB更新失败: {run_key} error={e}")
             logger.info(f"重试 {run_key}: {reason} -> pending (第{retry_count+1}次)")
 
+        # 更新Redis统计
+        from monitoring.redis_queue import update_stats
+        update_stats(r)
+
     result = {
         "total_failed": len(failed_items),
         "infra_failures": infra_count,
