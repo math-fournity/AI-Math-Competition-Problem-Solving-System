@@ -81,3 +81,20 @@ THINKING_PRIORITY = [
 ANALYSIS_COMPLETE_MARKER = "### ANALYSIS COMPLETE"
 XML_BLOCK_START = "<analysis>"
 XML_BLOCK_END = "</analysis>"
+
+# === 错误模式检测（对齐solver_harness的collector.py）===
+# 基础设施失败——重试
+RATE_LIMIT_PATTERNS = ["rate limit", "rate_limit", "429", "Too Many Requests",
+                       "message rate limit", "http 429", "status 429"]
+CONNECTION_PATTERNS = ["connection error", "ECONNREFUSED", "ETIMEDOUT",
+                       "socket hang up", "fetch failed", "network error",
+                       "network request failed", "ECONNRESET"]
+
+# 失败分类（对齐solver_harness）
+# 基础设施失败——重试（网络问题、API限流、进程异常退出）
+INFRA_FAILURES = {"rate_limited", "failed_connection", "launch_error", "dead_session"}
+# 模型能力失败——不重试（分析超时、分析卡住、无XML输出）
+MODEL_FAILURES = {"failed_timeout", "failed_stall", "failed_no_xml", "failed_incomplete"}
+
+# 重试配置
+MAX_RETRIES = 3

@@ -28,6 +28,8 @@ from src.config import (
     DEVIN_MODEL, DEVIN_PERMISSION_MODE, DEVIN_PROMPT,
     DEFAULT_CONCURRENCY, DEFAULT_MAX_RUNTIME_SECONDS, DEFAULT_STALL_SECONDS,
     DEFAULT_POLL_SECONDS, ANALYSIS_COMPLETE_MARKER, XML_BLOCK_END,
+    RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS,
+    INFRA_FAILURES, MODEL_FAILURES,
 )
 from src.db_schema import (
     connect_db, ensure_schema, insert_event, update_run, update_batch,
@@ -309,6 +311,60 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     update_stats(r)
                 continue
 
+            # === 基础设施错误检测（对齐solver_harness的classify逻辑）===
+            # 检测rate_limit和connection_error——即使session还在运行也要检测
+            # 否则rate_limited的session要等到timeout才会被处理，浪费并发槽位
+            detect_lower = agent_output.lower()
+            detected_error = None
+            for p in RATE_LIMIT_PATTERNS:
+                if p.lower() in detect_lower:
+                    detected_error = "rate_limited"
+                    break
+            if not detected_error:
+                for p in CONNECTION_PATTERNS:
+                    if p.lower() in detect_lower:
+                        detected_error = "failed_connection"
+                        break
+
+            if detected_error:
+                elapsed_sec = int(time.time() - info["started_at"])
+                print(f"  [{detected_error}] {info['problem_id']} — {elapsed_sec}s")
+                logger.warning(f"基础设施失败: {detected_error} problem={info['problem_id']} elapsed={elapsed_sec}s")
+                failed.append({
+                    "problem_id": info["problem_id"],
+                    "analysis_exp_id": analysis_exp_id,
+                    "reason": detected_error,
+                    "run_key": run_key,
+                    "failure_type": "infra",  # 标记为基础设施失败，可重试
+                })
+                to_remove.append(analysis_exp_id)
+                subprocess.run(["tmux", "kill-session", "-t", session_name],
+                               capture_output=True, timeout=5)
+                now_iso = utc_now()
+                try:
+                    update_run(db, run_key, {
+                        "status": detected_error,
+                        "ended_at": now_iso,
+                        "updated_at": now_iso,
+                        "runtime_seconds": elapsed_sec,
+                        "end_reason": detected_error,
+                        "verdict": make_verdict(detected_error, detected_error),
+                    })
+                    insert_event(db, batch_id, "infra_failure", {
+                        "run_key": run_key,
+                        "problem_id": info["problem_id"],
+                        "failure_type": detected_error,
+                        "elapsed": elapsed_sec,
+                    })
+                except Exception:
+                    pass
+                if use_redis:
+                    remove_running(r, run_key)
+                    add_failed(r, {"run_key": run_key, "reason": detected_error,
+                                   "failure_type": "infra"})
+                    update_stats(r)
+                continue
+
             # 检测stall/timeout
             elapsed = time.time() - info["started_at"]
             pane_hash = hash(pane_text[-500:])
@@ -320,31 +376,70 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             is_running = tmux_running(session_name)
 
             if not is_running:
+                # tmux session已退出——区分dead_session和正常完成
+                # dead_session: session退出但没有</analysis>标记（devin cli异常退出）
                 elapsed_sec = int(elapsed)
-                print(f"  [done] {info['problem_id']} — session ended ({elapsed_sec}s)")
-                completed.append({
-                    "problem_id": info["problem_id"],
-                    "analysis_exp_id": analysis_exp_id,
-                    "session_name": session_name,
-                    "run_key": run_key,
-                })
-                to_remove.append(analysis_exp_id)
-                now_iso = utc_now()
-                try:
-                    update_run(db, run_key, {
-                        "status": "completed",
-                        "ended_at": now_iso,
-                        "updated_at": now_iso,
-                        "runtime_seconds": elapsed_sec,
-                        "end_reason": "tmux_session_ended",
-                        "verdict": make_verdict("completed", "session_ended"),
+                if XML_BLOCK_END in agent_output or "分析完成" in agent_output:
+                    # 有完成标记但之前没检测到——算完成
+                    print(f"  [done] {info['problem_id']} — session ended ({elapsed_sec}s)")
+                    completed.append({
+                        "problem_id": info["problem_id"],
+                        "analysis_exp_id": analysis_exp_id,
+                        "session_name": session_name,
+                        "run_key": run_key,
                     })
-                except Exception:
-                    pass
-                if use_redis:
-                    remove_running(r, run_key)
-                    add_completed(r, {"run_key": run_key, "analysis_exp_id": analysis_exp_id})
-                    update_stats(r)
+                    to_remove.append(analysis_exp_id)
+                    now_iso = utc_now()
+                    try:
+                        update_run(db, run_key, {
+                            "status": "completed",
+                            "ended_at": now_iso,
+                            "updated_at": now_iso,
+                            "runtime_seconds": elapsed_sec,
+                            "end_reason": "tmux_session_ended",
+                            "verdict": make_verdict("completed", "session_ended"),
+                        })
+                    except Exception:
+                        pass
+                    if use_redis:
+                        remove_running(r, run_key)
+                        add_completed(r, {"run_key": run_key, "analysis_exp_id": analysis_exp_id})
+                        update_stats(r)
+                else:
+                    # dead_session: session退出但没有完成标记——基础设施失败，可重试
+                    print(f"  [dead_session] {info['problem_id']} — session died ({elapsed_sec}s)")
+                    logger.warning(f"dead_session: problem={info['problem_id']} elapsed={elapsed_sec}s")
+                    failed.append({
+                        "problem_id": info["problem_id"],
+                        "analysis_exp_id": analysis_exp_id,
+                        "reason": "dead_session",
+                        "run_key": run_key,
+                        "failure_type": "infra",  # 标记为基础设施失败，可重试
+                    })
+                    to_remove.append(analysis_exp_id)
+                    now_iso = utc_now()
+                    try:
+                        update_run(db, run_key, {
+                            "status": "dead_session",
+                            "ended_at": now_iso,
+                            "updated_at": now_iso,
+                            "runtime_seconds": elapsed_sec,
+                            "end_reason": "dead_session",
+                            "verdict": make_verdict("dead_session", "dead_session"),
+                        })
+                        insert_event(db, batch_id, "infra_failure", {
+                            "run_key": run_key,
+                            "problem_id": info["problem_id"],
+                            "failure_type": "dead_session",
+                            "elapsed": elapsed_sec,
+                        })
+                    except Exception:
+                        pass
+                    if use_redis:
+                        remove_running(r, run_key)
+                        add_failed(r, {"run_key": run_key, "reason": "dead_session",
+                                       "failure_type": "infra"})
+                        update_stats(r)
                 continue
 
             if elapsed > max_runtime:
@@ -355,6 +450,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "analysis_exp_id": analysis_exp_id,
                     "reason": "timeout",
                     "run_key": run_key,
+                    "failure_type": "model",  # 模型能力失败，不重试
                 })
                 to_remove.append(analysis_exp_id)
                 subprocess.run(["tmux", "kill-session", "-t", session_name],
@@ -385,6 +481,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "analysis_exp_id": analysis_exp_id,
                     "reason": "stall",
                     "run_key": run_key,
+                    "failure_type": "model",  # 模型能力失败，不重试
                 })
                 to_remove.append(analysis_exp_id)
                 subprocess.run(["tmux", "kill-session", "-t", session_name],

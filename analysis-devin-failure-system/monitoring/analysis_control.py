@@ -373,6 +373,12 @@ def main():
     p_setc.add_argument("--batch-id", required=True, help="批次ID")
     p_setc.add_argument("--concurrency", type=int, required=True, help="新的并发数")
 
+    p_retry = sub.add_parser("retry", help="重试基础设施失败的题目")
+    p_retry.add_argument("--max-retries", type=int, default=3, help="最大重试次数")
+    p_retry.add_argument("--dry-run", action="store_true", help="只看不执行")
+    p_retry.add_argument("--once", action="store_true", help="执行一次后退出（默认循环）")
+    p_retry.add_argument("--interval", type=int, default=120, help="循环模式间隔秒数")
+
     args = parser.parse_args()
 
     if args.command == "status":
@@ -387,6 +393,17 @@ def main():
         cmd_logs(args.lines, args.module)
     elif args.command == "set-concurrency":
         cmd_set_concurrency(args.batch_id, args.concurrency)
+    elif args.command == "retry":
+        from monitoring.retry_infrastructure import main as retry_main
+        # 构造参数并调用
+        sys.argv = ["retry_infrastructure"]
+        if args.dry_run:
+            sys.argv.append("--dry-run")
+        if args.once:
+            sys.argv.append("--once")
+        sys.argv.extend(["--max-retries", str(args.max_retries)])
+        sys.argv.extend(["--interval", str(args.interval)])
+        retry_main()
     else:
         parser.print_help()
 
