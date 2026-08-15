@@ -247,6 +247,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             pane_text = tmux_pane_text(session_name)
 
             # 检测完成标记
+            # 注意：prompt中包含"### ANALYSIS COMPLETE"，不能用来检测完成
+            # 只依赖</analysis>标记和"分析完成"中文标记
             pane_lines = pane_text.split("\n")
             last_prompt_idx = -1
             for j, line in enumerate(pane_lines):
@@ -255,7 +257,6 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             agent_output = "\n".join(pane_lines[last_prompt_idx+1:]) if last_prompt_idx >= 0 else pane_text
             is_complete = (
                 XML_BLOCK_END in agent_output
-                or ANALYSIS_COMPLETE_MARKER in agent_output
                 or "分析完成" in agent_output
             )
             if is_complete:
