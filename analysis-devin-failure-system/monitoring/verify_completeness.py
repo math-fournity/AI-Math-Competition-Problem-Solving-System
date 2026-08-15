@@ -168,12 +168,53 @@ def check_db_sync(batch_id=None):
         return False
 
 
+def check_redis_sync(batch_id=None):
+    """DM-05: Redis与DB一致性——Redis队列计数 vs DB终态记录数"""
+    print("\n=== 检查5: Redis与DB一致性 ===")
+    from monitoring.redis_queue import (
+        get_redis, ping, pending_count, running_count,
+        completed_count, failed_count,
+    )
+
+    if not ping():
+        print("  ❌ Redis连接失败")
+        return False
+
+    r = get_redis()
+    redis_completed = completed_count(r)
+    redis_failed = failed_count(r)
+    redis_running = running_count(r)
+    redis_pending = pending_count(r)
+
+    db = connect_db()
+    # DB中completed的run数
+    aql = f"FOR r IN {ANALYSIS_RUNS_COLLECTION} FILTER r.status == 'completed' COLLECT WITH COUNT INTO c RETURN c"
+    db_completed = list(db.aql.execute(aql, ttl=300))[0]
+
+    # DB中failed的run数（所有失败类型）
+    aql = f"FOR r IN {ANALYSIS_RUNS_COLLECTION} FILTER r.status IN ['failed_timeout','failed_stall','rate_limited','failed_connection','dead_session'] COLLECT WITH COUNT INTO c RETURN c"
+    db_failed = list(db.aql.execute(aql, ttl=300))[0]
+
+    # DB中running的run数
+    aql = f"FOR r IN {ANALYSIS_RUNS_COLLECTION} FILTER r.status == 'running' OR r.status == 'launching' COLLECT WITH COUNT INTO c RETURN c"
+    db_running = list(db.aql.execute(aql, ttl=300))[0]
+
+    print(f"  Redis:  pending={redis_pending} running={redis_running} completed={redis_completed} failed={redis_failed}")
+    print(f"  DB:     running={db_running} completed={db_completed} failed={db_failed}")
+    print(f"  completed匹配: {'✅' if redis_completed == db_completed else '❌'} ({redis_completed} vs {db_completed})")
+    print(f"  failed匹配:    {'✅' if redis_failed == db_failed else '❌'} ({redis_failed} vs {db_failed})")
+    print(f"  running匹配:   {'✅' if redis_running == db_running else '❌'} ({redis_running} vs {db_running})")
+
+    return redis_completed == db_completed and redis_failed == db_failed and redis_running == db_running
+
+
 def main():
     parser = argparse.ArgumentParser(description="数据完备性验证")
     parser.add_argument("--check-ids", action="store_true", help="检查problem_id唯一性")
     parser.add_argument("--check-files", action="store_true", help="检查文件完整性")
     parser.add_argument("--check-tmux", action="store_true", help="检查tmux session一致性")
     parser.add_argument("--check-db-sync", action="store_true", help="检查DB与文件同步")
+    parser.add_argument("--check-redis-sync", action="store_true", help="检查Redis与DB一致性")
     parser.add_argument("--all", action="store_true", help="全部检查")
     parser.add_argument("--batch-id", help="指定批次")
     args = parser.parse_args()
@@ -189,6 +230,8 @@ def main():
         results.append(check_tmux())
     if args.all or args.check_db_sync:
         results.append(check_db_sync(args.batch_id))
+    if args.all or args.check_redis_sync:
+        results.append(check_redis_sync(args.batch_id))
 
     if not results:
         parser.print_help()
