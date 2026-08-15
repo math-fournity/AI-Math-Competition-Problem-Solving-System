@@ -187,17 +187,16 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             pane_text = tmux_pane_text(session_name)
 
             # 检测完成标记
-            # 注意：ANALYSIS COMPLETE可能出现在prompt中（因为prompt包含"结尾输出 ### ANALYSIS COMPLETE"）
-            # 只检测pane最后部分（agent输出区域），不检测prompt区域
-            # agent输出在prompt之后——取pane最后200行，且去掉prompt行
+            # 注意：prompt中包含"### ANALYSIS COMPLETE"，不能直接检测整个pane
+            # 策略：找最后一个用户输入的prompt行（包含"请按AGENTS.md"），
+            # 然后检测该行之后的内容中是否有完成标记
             pane_lines = pane_text.split("\n")
-            # 找最后一个prompt行（以❭开头或包含"请按AGENTS.md"）
             last_prompt_idx = -1
             for j, line in enumerate(pane_lines):
-                if "请按AGENTS.md" in line or "❭" in line:
+                if "请按AGENTS.md" in line:
                     last_prompt_idx = j
             agent_output = "\n".join(pane_lines[last_prompt_idx+1:]) if last_prompt_idx >= 0 else pane_text
-            # 完成标记：XML结束标签 或 ANALYSIS COMPLETE 或 "分析完成"
+            # 完成标记：XML结束标签 或 ANALYSIS COMPLETE（在agent输出中）或 "分析完成"
             is_complete = (
                 XML_BLOCK_END in agent_output
                 or ANALYSIS_COMPLETE_MARKER in agent_output

@@ -91,14 +91,35 @@ def parse_xml(xml_string):
                         dimension2_turning_point_type, dimension2_explanation,
                         ai_direction_summary, standard_solution_key_technique, confidence
     """
+    # 先尝试标准XML解析
     try:
         root = ET.fromstring(xml_string)
         result = {}
         for child in root:
             result[child.tag] = child.text.strip() if child.text else ""
         return result
-    except ET.ParseError as e:
-        return {"_parse_error": str(e), "_raw_xml": xml_string[:500]}
+    except ET.ParseError:
+        pass
+
+    # 标准解析失败——用正则逐字段提取（处理数学公式中的<>/嵌套问题）
+    result = {}
+    target_tags = [
+        "problem_id", "dimension1_verdict", "dimension1_explanation",
+        "dimension2_turning_point_type", "dimension2_explanation",
+        "ai_direction_summary", "standard_solution_key_technique", "confidence",
+    ]
+    for tag in target_tags:
+        # 匹配 <tag>...</tag>（非贪婪）
+        pattern = rf"<{tag}>(.*?)</{tag}>"
+        m = re.search(pattern, xml_string, re.DOTALL)
+        if m:
+            result[tag] = m.group(1).strip()
+    
+    if result:
+        return result
+    
+    # 都失败了——返回原始XML
+    return {"_parse_error": "regex_extraction_failed", "_raw_xml": xml_string[:500]}
 
 
 def get_export_text(analysis_exp_id):
