@@ -29,6 +29,9 @@ from src.config import (
     ANALYSIS_COMPLETE_MARKER, XML_BLOCK_START, XML_BLOCK_END,
 )
 from src.db_schema import connect_db, ensure_schema, insert_result
+from monitoring.shared_logger import get_logger
+
+logger = get_logger("result_collector")
 
 
 def extract_xml_block(text):
@@ -228,6 +231,7 @@ def collect_one(analysis_exp_id, problem_id, batch_id):
 
 def collect_batch(batch_id):
     """收集一个批次的所有分析结果"""
+    logger.info(f"结果收集开始 batch={batch_id}")
     print(f"=== 收集结果 batch={batch_id} ===")
 
     # 加载launch_results
@@ -282,6 +286,7 @@ def collect_batch(batch_id):
     print(f"    no_xml: {no_xml_count}")
     print(f"    no_output: {no_output_count}")
     print(f"    incomplete: {incomplete_count}")
+    logger.info(f"结果收集完成 batch={batch_id}: parsed={parsed_count}, no_xml={no_xml_count}, no_output={no_output_count}, incomplete={incomplete_count}")
 
     # 保存结果
     output_path = OUTPUT_BASE / batch_id / "collected_results.json"

@@ -30,6 +30,9 @@ from src.config import (
     DEFAULT_POLL_SECONDS, ANALYSIS_COMPLETE_MARKER, XML_BLOCK_END,
 )
 from src.db_schema import connect_db, ensure_schema, insert_event, update_run
+from monitoring.shared_logger import get_logger
+
+logger = get_logger("launcher")
 
 
 def utc_now():
@@ -118,6 +121,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                  stall_seconds=DEFAULT_STALL_SECONDS,
                  poll_seconds=DEFAULT_POLL_SECONDS):
     """并发启动一个批次的分析"""
+    logger.info(f"启动分析批次 batch={batch_id} concurrency={concurrency} max_runtime={max_runtime}")
     print(f"=== 启动分析批次 batch={batch_id} concurrency={concurrency} ===")
 
     # 加载prepared列表
@@ -303,6 +307,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     print(f"\n=== 批次完成 ===")
     print(f"  completed: {len(completed)}")
     print(f"  failed: {len(failed)}")
+    logger.info(f"批次完成 batch={batch_id}: completed={len(completed)}, failed={len(failed)}")
 
     # 保存结果
     results_path = OUTPUT_BASE / batch_id / "launch_results.json"

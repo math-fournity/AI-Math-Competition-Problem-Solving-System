@@ -26,6 +26,9 @@ from src.config import (
     THINKING_PRIORITY,
 )
 from src.db_schema import connect_db, ensure_schema, insert_run, insert_event
+from monitoring.shared_logger import get_logger
+
+logger = get_logger("data_collector")
 
 
 # ============================================================
@@ -413,12 +416,14 @@ def build_agents_md(problem_id, problem_text, standard_solution, ai_thinking):
 
 def collect_and_prepare(batch_id, limit=None, problem_ids=None):
     """收集数据，构造AGENTS.md，写入工作目录，写入DB记录"""
+    logger.info(f"数据收集开始 batch={batch_id} limit={limit}")
     print(f"=== 数据收集 batch={batch_id} ===")
 
     # 1. 获取失败题列表
     print("  获取失败题列表...")
     failed = get_failed_problems(limit=limit, problem_ids=problem_ids)
     print(f"  失败题: {len(failed)}")
+    logger.info(f"失败题: {len(failed)}")
 
     # 2. 加载题库
     print("  加载题库...")
@@ -427,9 +432,11 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
         print(f"    {name}...", end=" ", flush=True)
         datasets[name] = loader()
         print(f"{len(datasets[name])}条")
+        logger.info(f"题库 {name}: {len(datasets[name])}条")
 
     # 3. 为每道题构造AGENTS.md
     print("  构造AGENTS.md...")
+    logger.info("开始构造AGENTS.md")
     batch_dir = ANALYSIS_SOLVER_BASE / batch_id
     batch_dir.mkdir(parents=True, exist_ok=True)
 
@@ -446,6 +453,7 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
 
         if (i + 1) % 100 == 0:
             print(f"    进度: {i+1}/{len(failed)}")
+            logger.info(f"进度: {i+1}/{len(failed)}")
 
         # 获取标准答案
         sol_data, source = match_problem_to_solution(pid, datasets)
@@ -509,6 +517,7 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
 
     print(f"\n  已准备: {len(prepared)}")
     print(f"  跳过: {len(skipped)}")
+    logger.info(f"数据收集完成: prepared={len(prepared)}, skipped={len(skipped)}")
 
     # 统计跳过原因
     from collections import Counter
@@ -516,6 +525,7 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
     print("  跳过原因:")
     for reason, count in skip_reasons.most_common():
         print(f"    {reason}: {count}")
+        logger.info(f"跳过原因 {reason}: {count}")
 
     # 保存prepared列表
     prepared_path = OUTPUT_BASE / batch_id / "prepared.json"

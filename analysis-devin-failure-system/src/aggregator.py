@@ -17,10 +17,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.config import OUTPUT_BASE
+from monitoring.shared_logger import get_logger
+
+logger = get_logger("aggregator")
 
 
 def aggregate(batch_id):
     """汇总一个批次的分析结果"""
+    logger.info(f"汇总开始 batch={batch_id}")
     print(f"=== 汇总结果 batch={batch_id} ===")
 
     collected_path = OUTPUT_BASE / batch_id / "collected_results.json"
