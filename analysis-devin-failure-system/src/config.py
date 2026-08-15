@@ -1,0 +1,83 @@
+"""config.py — 配置常量
+
+路径、DB连接、并发配置等。
+所有组件共享这些常量。
+"""
+
+from pathlib import Path
+
+# === 路径常量 ===
+# 项目根目录
+PROJECT_ROOT = Path("/Users/user/glm5.2-math-worktree")
+
+# solver工作目录基址（devin cli的--work-dir）
+SOLVER_BASE = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-dir")
+
+# trajectory目录基址（AI解题过程数据）
+TRAJECTORY_BASE = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory")
+
+# 分析系统的工作目录基址（分析devin cli的工作目录）
+ANALYSIS_SOLVER_BASE = SOLVER_BASE / "analysis-devin-failure"
+
+# 分析系统的trajectory目录基址
+ANALYSIS_TRAJECTORY_BASE = TRAJECTORY_BASE / "analysis-devin-failure"
+
+# 题库数据位置
+DATASET_BASE = Path("/Volumes/data/math-manify/raw_downloads")
+KNOWLEDGE_BASE = PROJECT_ROOT / "knowledge" / "problem_banks"
+
+# 各题库的具体路径
+DATASET_PATHS = {
+    "polymath": DATASET_BASE / "PolyMath" / "data" / "train-00000-of-00001.parquet",
+    "polymath_normal": DATASET_BASE / "PolyMath" / "normal" / "train-00000-of-00001.parquet",
+    "polymath_revised": DATASET_BASE / "PolyMath" / "revised" / "train-00000-of-00001.parquet",
+    "deepmath_dir": DATASET_BASE / "DeepMath-103K" / "data",
+    "oda_math_dir": DATASET_BASE / "ODA-Math-460k" / "data",
+    "omni_math": DATASET_BASE / "Omni-MATH-2" / "Omni-Math-2.jsonl",
+    "olympiadbench": KNOWLEDGE_BASE / "aops_instruct" / "eval" / "data" / "olympiadbench" / "test.json",
+    "aime": KNOWLEDGE_BASE / "aops_instruct" / "eval" / "data" / "aime24" / "test.jsonl",
+    "amo_bench": DATASET_BASE / "AMO-Bench" / "data" / "test-00000-of-00001.parquet",
+    "compfiles": KNOWLEDGE_BASE / "compfiles" / "Compfiles",
+    "fate": KNOWLEDGE_BASE / "fate",
+}
+
+# 模板文件
+AGENTS_MD_TEMPLATE = PROJECT_ROOT / "analysis-devin-failure-system" / "templates" / "analysis_agents_md.md"
+
+# 输出目录
+OUTPUT_BASE = PROJECT_ROOT / "analysis-devin-failure-system" / "output"
+
+# === ArangoDB配置 ===
+ARANGO_HOST = "http://localhost:8529"
+ARANGO_DB = "xishujuzhen_math_glm52"
+ARANGO_USER = "root"
+ARANGO_PASSWORD = "moira123"
+
+# 分析系统的DB集合名
+ANALYSIS_RUNS_COLLECTION = "analysis_runs"       # 每道题的分析run记录
+ANALYSIS_EVENTS_COLLECTION = "analysis_events"    # 事件流
+ANALYSIS_RESULTS_COLLECTION = "analysis_results"  # 最终分析结果
+
+# === devin cli配置 ===
+DEVIN_MODEL = "glm-5.2-high"
+DEVIN_PERMISSION_MODE = "dangerous"
+DEVIN_PROMPT = "请按AGENTS.md中的分析任务执行分析。直接在TUI中输出XML分析结果，不要写任何文件，不要调用任何工具，结尾输出 ### ANALYSIS COMPLETE"
+
+# === 并发配置 ===
+DEFAULT_CONCURRENCY = 10
+DEFAULT_MAX_RUNTIME_SECONDS = 300    # 5分钟（分析任务比解题快）
+DEFAULT_STALL_SECONDS = 120          # 2分钟无活动判定为stall
+DEFAULT_POLL_SECONDS = 10            # 轮询间隔
+
+# === thinking文本获取的4级优先级 ===
+THINKING_PRIORITY = [
+    "mitm/thinking_readable.txt",
+    "sessions_db/trajectory.jsonl",
+    "exports/conversation.json",
+    "collector/pane_snapshot_clean.txt",
+]
+
+# === 分析结果中的XML标记 ===
+ANALYSIS_COMPLETE_MARKER = "### ANALYSIS COMPLETE"
+XML_BLOCK_START = "<analysis>"
+XML_BLOCK_END = "</analysis>"
