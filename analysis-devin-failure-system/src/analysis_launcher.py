@@ -88,12 +88,21 @@ def tmux_pane_is_empty(session_name):
 
 
 def launch_one(analysis_exp_id, work_dir):
-    """启动一个devin cli实例
-    
+    """启动一个devin cli实例（对齐solver_harness的tmux启动方式）
+
+    与solver_harness一致的关键设计：
+    1. tmux new-session -d 无头运行
+    2. tee tmux.log 捕获stdout（含ANSI转义码）
+    3. tmux pipe-pane >> tmux_pipe.log 捕获pane完整raw流（兜底）
+    4. --export conversation.json 保留完整对话导出
+    5. -p单轮模式：devin cli完成后自动退出
+    6. echo DEVIN_CLI_EXITED code=$? 打印退出码，方便检测异常退出
+    7. sleep 999999 保持tmux session存活（-p模式退出后session会销毁）
+
     Args:
         analysis_exp_id: 分析实验ID
         work_dir: 工作目录路径
-    
+
     Returns:
         tmux_session_name
     """
@@ -104,23 +113,34 @@ def launch_one(analysis_exp_id, work_dir):
     (traj_dir / "tmux").mkdir(exist_ok=True)
 
     export_path = traj_dir / "exports" / "conversation.json"
-    tmux_log_path = traj_dir / "tmux" / "tmux_pipe.log"
+    tmux_pipe_path = traj_dir / "tmux" / "tmux_pipe.log"
+    tmux_log_path = traj_dir / "tmux" / "tmux.log"
 
-    # devin cli命令
+    # devin cli命令——用-p单轮模式（完成后自动退出+写export）
+    # 对齐solver_harness：-p模式 + echo退出码 + sleep保持session
     devin_cmd = (
-        f"devin --permission-mode {DEVIN_PERMISSION_MODE} "
-        f"--respect-workspace-trust false "
+        f"devin -p '{DEVIN_PROMPT}' "
         f"--model {DEVIN_MODEL} "
-        f"--export {export_path} "
-        f"-- '{DEVIN_PROMPT}'"
+        f"--respect-workspace-trust false "
+        f"--permission-mode {DEVIN_PERMISSION_MODE} "
+        f"--export {export_path}; "
+        f"echo DEVIN_CLI_EXITED code=$?; "
+        f"sleep 999999"
     )
 
     full_cmd = f"cd {work_dir} && {devin_cmd} 2>&1 | tee {tmux_log_path}"
 
-    # 启动tmux session
+    # 启动tmux session（无头模式）
     subprocess.run(
         ["tmux", "new-session", "-d", "-s", session_name, full_cmd],
         capture_output=True, timeout=10,
+    )
+
+    # 启动pipe-pane（raw流兜底，捕获tmux pane完整内容）
+    time.sleep(0.5)  # 等tmux session创建
+    subprocess.run(
+        ["tmux", "pipe-pane", "-t", session_name, f"cat >> {tmux_pipe_path}"],
+        capture_output=True, timeout=5,
     )
 
     return session_name
@@ -312,6 +332,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             # 检测完成标记
             # 注意：prompt中包含"### ANALYSIS COMPLETE"，不能用来检测完成
             # 只依赖</analysis>标记和"分析完成"中文标记
+            # 对齐solver_harness：-p模式下devin cli完成后自动退出，pane中有DEVIN_CLI_EXITED
             pane_lines = pane_text.split("\n")
             last_prompt_idx = -1
             for j, line in enumerate(pane_lines):
@@ -321,6 +342,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             is_complete = (
                 XML_BLOCK_END in agent_output
                 or "分析完成" in agent_output
+                or "DEVIN_CLI_EXITED code=0" in agent_output  # -p模式正常退出
             )
             if is_complete:
                 elapsed = int(time.time() - info["started_at"])
@@ -419,9 +441,11 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if not is_running:
                 # tmux session已退出——区分dead_session和正常完成
                 # dead_session: session退出但没有</analysis>标记（devin cli异常退出）
+                # 对齐solver_harness：检查DEVIN_CLI_EXITED的退出码
                 elapsed_sec = int(elapsed)
-                if XML_BLOCK_END in agent_output or "分析完成" in agent_output:
-                    # 有完成标记但之前没检测到——算完成
+                if (XML_BLOCK_END in agent_output or "分析完成" in agent_output
+                        or "DEVIN_CLI_EXITED code=0" in agent_output):
+                    # 有完成标记或devin cli正常退出——算完成
                     print(f"  [done] {info['problem_id']} — session ended ({elapsed_sec}s)")
                     completed.append({
                         "problem_id": info["problem_id"],
