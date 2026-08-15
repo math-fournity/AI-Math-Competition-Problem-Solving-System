@@ -182,9 +182,29 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     failed = []
     pending = list(prepared)
 
+    # 动态并发：跟踪当前生效的并发数，每轮从DB读取batch.concurrency
+    # 支持运行中通过 set-concurrency 命令调整并发数
+    last_concurrency = concurrency
+
     print(f"  开始并发启动（concurrency={concurrency}）...")
 
     while pending or running:
+        # 动态并发：每轮从DB读取batch.concurrency，支持运行中调整
+        try:
+            batch_doc = db.collection(ANALYSIS_BATCHES_COLLECTION).get(batch_id)
+            if batch_doc:
+                concurrency = int(batch_doc.get("concurrency", last_concurrency))
+                if concurrency != last_concurrency:
+                    insert_event(db, batch_id, "concurrency_changed", {
+                        "old": last_concurrency, "new": concurrency,
+                        "source": "dynamic_read_from_db",
+                    })
+                    print(f"  [dynamic] concurrency {last_concurrency} → {concurrency}")
+                    logger.info(f"动态并发调整: {last_concurrency} → {concurrency}")
+                    last_concurrency = concurrency
+        except Exception:
+            pass  # DB读取失败时保持当前并发数
+
         # 启动新的（填满并发槽）
         while pending and len(running) < concurrency:
             item = pending.pop(0)

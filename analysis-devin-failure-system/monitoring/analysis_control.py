@@ -315,6 +315,41 @@ def cmd_logs(lines=50, module=None):
         print(line, end="")
 
 
+def cmd_set_concurrency(batch_id, concurrency):
+    """动态修改运行中批次的并发数。
+
+    launcher的轮询循环每轮从DB读取batch.concurrency，
+    修改DB中的值后，launcher下一轮poll时自动生效。
+
+    模仿solver_harness的cmd_set_concurrency。
+    """
+    from src.db_schema import connect_db, insert_event, ANALYSIS_BATCHES_COLLECTION
+
+    db = connect_db()
+    batch_doc = db.collection(ANALYSIS_BATCHES_COLLECTION).get(batch_id)
+    if not batch_doc:
+        print(f"批次不存在: {batch_id}")
+        return
+
+    old = int(batch_doc.get("concurrency", 0))
+    db.collection(ANALYSIS_BATCHES_COLLECTION).update({
+        "_key": batch_id,
+        "concurrency": concurrency,
+        "updated_at": _utc_now(),
+    })
+    insert_event(db, batch_id, "concurrency_changed", {
+        "old": old, "new": concurrency, "source": "set_concurrency_command",
+    })
+    print(f"批次 {batch_id}: 并发数 {old} → {concurrency}")
+    print(f"  (launcher将在下一轮poll时自动生效)")
+    logger.info(f"动态并发调整: batch={batch_id}, {old} → {concurrency}")
+
+
+def _utc_now():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def main():
     parser = argparse.ArgumentParser(description="错题分析系统控制工具")
     sub = parser.add_subparsers(dest="command")
@@ -334,6 +369,10 @@ def main():
     logs_parser.add_argument("--lines", type=int, default=50, help="显示行数")
     logs_parser.add_argument("--module", help="模块名（launcher/collector/aggregator等）")
 
+    p_setc = sub.add_parser("set-concurrency", help="动态修改运行中批次的并发数")
+    p_setc.add_argument("--batch-id", required=True, help="批次ID")
+    p_setc.add_argument("--concurrency", type=int, required=True, help="新的并发数")
+
     args = parser.parse_args()
 
     if args.command == "status":
@@ -346,6 +385,8 @@ def main():
         cmd_stop_all()
     elif args.command == "logs":
         cmd_logs(args.lines, args.module)
+    elif args.command == "set-concurrency":
+        cmd_set_concurrency(args.batch_id, args.concurrency)
     else:
         parser.print_help()
 
