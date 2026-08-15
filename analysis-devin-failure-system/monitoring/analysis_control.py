@@ -200,6 +200,16 @@ def cmd_health(batch_id=None):
     except Exception as e:
         checks.append({"name": "ArangoDB", "status": "FAIL", "detail": str(e)[:80]})
 
+    # 检查3b: Redis连接
+    try:
+        from monitoring.redis_queue import ping as redis_ping
+        if redis_ping():
+            checks.append({"name": "Redis", "status": "OK", "detail": "连接成功"})
+        else:
+            checks.append({"name": "Redis", "status": "WARN", "detail": "ping返回False（launcher会降级为纯内存模式）"})
+    except Exception as e:
+        checks.append({"name": "Redis", "status": "WARN", "detail": f"连接失败: {str(e)[:60]}"})
+
     # 检查4: 日志目录可写
     from monitoring.shared_logger import LOG_BASE
     log_writable = LOG_BASE.exists() and os.access(str(LOG_BASE), os.W_OK)

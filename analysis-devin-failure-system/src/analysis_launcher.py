@@ -29,8 +29,16 @@ from src.config import (
     DEFAULT_CONCURRENCY, DEFAULT_MAX_RUNTIME_SECONDS, DEFAULT_STALL_SECONDS,
     DEFAULT_POLL_SECONDS, ANALYSIS_COMPLETE_MARKER, XML_BLOCK_END,
 )
-from src.db_schema import connect_db, ensure_schema, insert_event, update_run
+from src.db_schema import (
+    connect_db, ensure_schema, insert_event, update_run, update_batch,
+    make_verdict, ANALYSIS_BATCHES_COLLECTION,
+)
 from monitoring.shared_logger import get_logger
+from monitoring.redis_queue import (
+    get_redis, enqueue_pending, dequeue_pending,
+    add_running, get_running, get_all_running, remove_running,
+    add_completed, add_failed, update_stats, get_stats, clear_all,
+)
 
 logger = get_logger("launcher")
 
@@ -139,8 +147,37 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     db = connect_db()
     ensure_schema(db)
 
+    # 连接Redis
+    try:
+        r = get_redis()
+        r.ping()
+        use_redis = True
+        print("  Redis: 连接成功")
+        logger.info("Redis连接成功")
+    except Exception as e:
+        use_redis = False
+        print(f"  Redis: 连接失败({e})，降级为纯内存模式")
+        logger.warning(f"Redis连接失败，降级为纯内存模式: {e}")
+
+    # 更新batch状态
+    update_batch(db, batch_id, {
+        "status": "launching",
+        "updated_at": utc_now(),
+        "concurrency": concurrency,
+        "timeouts": {"max_runtime_seconds": max_runtime, "stall_seconds": stall_seconds},
+    })
+
+    # 将所有prepared任务加入Redis pending队列
+    if use_redis:
+        clear_all(r)  # 清空旧队列
+        for item in prepared:
+            run_key = item.get("run_key", _run_key(item["problem_id"], batch_id))
+            enqueue_pending(r, run_key, priority=0)
+        print(f"  Redis: {len(prepared)}个任务入队")
+        update_stats(r)
+
     # 状态跟踪
-    running = {}  # {analysis_exp_id: {session_name, work_dir, started_at, last_activity}}
+    running = {}  # {analysis_exp_id: {session_name, work_dir, started_at, last_activity, run_key}}
     completed = []
     failed = []
     pending = list(prepared)
@@ -153,34 +190,52 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             item = pending.pop(0)
             analysis_exp_id = item["analysis_exp_id"]
             work_dir = item["work_dir"]
+            run_key = item.get("run_key", _run_key(item["problem_id"], batch_id))
 
             print(f"  [launch] {item['problem_id']}")
             session_name = launch_one(analysis_exp_id, work_dir)
 
+            now_ts = time.time()
+            now_iso = utc_now()
             running[analysis_exp_id] = {
                 "session_name": session_name,
                 "work_dir": work_dir,
                 "problem_id": item["problem_id"],
-                "started_at": time.time(),
-                "last_activity": time.time(),
+                "run_key": run_key,
+                "started_at": now_ts,
+                "started_at_iso": now_iso,
+                "last_activity": now_ts,
                 "last_pane_hash": "",
             }
 
-            # 更新DB
+            # 更新DB（完整字段）
             try:
-                update_run(db, _run_key(item["problem_id"], batch_id), {
+                update_run(db, run_key, {
                     "status": "running",
                     "tmux_session": session_name,
-                    "started_at": utc_now(),
+                    "started_at": now_iso,
+                    "updated_at": now_iso,
+                    "launch_started_at": now_iso,
+                    "verdict": make_verdict("running", "launched"),
                 })
             except Exception:
                 pass
+
+            # 更新Redis running队列
+            if use_redis:
+                add_running(r, run_key, {
+                    "analysis_exp_id": analysis_exp_id,
+                    "problem_id": item["problem_id"],
+                    "tmux_session": session_name,
+                    "started_at": now_ts,
+                })
+                update_stats(r)
 
             insert_event(db, batch_id, "analysis_launched", {
                 "problem_id": item["problem_id"],
                 "analysis_exp_id": analysis_exp_id,
                 "tmux_session": session_name,
-            })
+            }, run_key=run_key)
 
             time.sleep(2)  # 避免同时启动太多
 
@@ -188,48 +243,54 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         to_remove = []
         for analysis_exp_id, info in running.items():
             session_name = info["session_name"]
+            run_key = info["run_key"]
             pane_text = tmux_pane_text(session_name)
 
             # 检测完成标记
-            # 注意：prompt中包含"### ANALYSIS COMPLETE"，不能直接检测整个pane
-            # 策略：找最后一个用户输入的prompt行（包含"请按AGENTS.md"），
-            # 然后检测该行之后的内容中是否有完成标记
             pane_lines = pane_text.split("\n")
             last_prompt_idx = -1
             for j, line in enumerate(pane_lines):
                 if "请按AGENTS.md" in line:
                     last_prompt_idx = j
             agent_output = "\n".join(pane_lines[last_prompt_idx+1:]) if last_prompt_idx >= 0 else pane_text
-            # 完成标记：XML结束标签 或 ANALYSIS COMPLETE（在agent输出中）或 "分析完成"
             is_complete = (
                 XML_BLOCK_END in agent_output
                 or ANALYSIS_COMPLETE_MARKER in agent_output
                 or "分析完成" in agent_output
             )
             if is_complete:
-                print(f"  [done] {info['problem_id']} — analysis complete")
+                elapsed = int(time.time() - info["started_at"])
+                print(f"  [done] {info['problem_id']} — analysis complete ({elapsed}s)")
                 completed.append({
                     "problem_id": info["problem_id"],
                     "analysis_exp_id": analysis_exp_id,
                     "session_name": session_name,
+                    "run_key": run_key,
                 })
                 to_remove.append(analysis_exp_id)
-                # kill tmux session
                 subprocess.run(["tmux", "kill-session", "-t", session_name],
                                capture_output=True, timeout=5)
-                # 更新DB
+                now_iso = utc_now()
                 try:
-                    update_run(db, _run_key(info["problem_id"], batch_id), {
+                    update_run(db, run_key, {
                         "status": "completed",
-                        "ended_at": utc_now(),
+                        "ended_at": now_iso,
+                        "updated_at": now_iso,
+                        "runtime_seconds": elapsed,
+                        "end_reason": "analysis_complete",
+                        "verdict": make_verdict("completed", "analysis_complete"),
                     })
                 except Exception:
                     pass
+                if use_redis:
+                    remove_running(r, run_key)
+                    add_completed(r, {"run_key": run_key, "analysis_exp_id": analysis_exp_id})
+                    update_stats(r)
                 continue
 
             # 检测stall/timeout
             elapsed = time.time() - info["started_at"]
-            pane_hash = hash(pane_text[-500:])  # 只看最后500字符
+            pane_hash = hash(pane_text[-500:])
             if pane_hash != info["last_pane_hash"]:
                 info["last_pane_hash"] = pane_hash
                 info["last_activity"] = time.time()
@@ -238,61 +299,91 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             is_running = tmux_running(session_name)
 
             if not is_running:
-                # tmux session已结束（devin cli退出）
-                print(f"  [done] {info['problem_id']} — session ended")
+                elapsed_sec = int(elapsed)
+                print(f"  [done] {info['problem_id']} — session ended ({elapsed_sec}s)")
                 completed.append({
                     "problem_id": info["problem_id"],
                     "analysis_exp_id": analysis_exp_id,
                     "session_name": session_name,
+                    "run_key": run_key,
                 })
                 to_remove.append(analysis_exp_id)
+                now_iso = utc_now()
                 try:
-                    update_run(db, _run_key(info["problem_id"], batch_id), {
+                    update_run(db, run_key, {
                         "status": "completed",
-                        "ended_at": utc_now(),
+                        "ended_at": now_iso,
+                        "updated_at": now_iso,
+                        "runtime_seconds": elapsed_sec,
+                        "end_reason": "tmux_session_ended",
+                        "verdict": make_verdict("completed", "session_ended"),
                     })
                 except Exception:
                     pass
+                if use_redis:
+                    remove_running(r, run_key)
+                    add_completed(r, {"run_key": run_key, "analysis_exp_id": analysis_exp_id})
+                    update_stats(r)
                 continue
 
             if elapsed > max_runtime:
-                print(f"  [timeout] {info['problem_id']} — {int(elapsed)}s")
+                elapsed_sec = int(elapsed)
+                print(f"  [timeout] {info['problem_id']} — {elapsed_sec}s")
                 failed.append({
                     "problem_id": info["problem_id"],
                     "analysis_exp_id": analysis_exp_id,
                     "reason": "timeout",
+                    "run_key": run_key,
                 })
                 to_remove.append(analysis_exp_id)
                 subprocess.run(["tmux", "kill-session", "-t", session_name],
                                capture_output=True, timeout=5)
+                now_iso = utc_now()
                 try:
-                    update_run(db, _run_key(info["problem_id"], batch_id), {
+                    update_run(db, run_key, {
                         "status": "failed_timeout",
-                        "ended_at": utc_now(),
+                        "ended_at": now_iso,
+                        "updated_at": now_iso,
+                        "runtime_seconds": elapsed_sec,
                         "end_reason": "max_runtime_exceeded",
+                        "verdict": make_verdict("failed_timeout", "max_runtime_exceeded"),
                     })
                 except Exception:
                     pass
+                if use_redis:
+                    remove_running(r, run_key)
+                    add_failed(r, {"run_key": run_key, "reason": "timeout"})
+                    update_stats(r)
                 continue
 
             if idle > stall_seconds:
-                print(f"  [stall] {info['problem_id']} — idle {int(idle)}s")
+                idle_sec = int(idle)
+                print(f"  [stall] {info['problem_id']} — idle {idle_sec}s")
                 failed.append({
                     "problem_id": info["problem_id"],
                     "analysis_exp_id": analysis_exp_id,
                     "reason": "stall",
+                    "run_key": run_key,
                 })
                 to_remove.append(analysis_exp_id)
                 subprocess.run(["tmux", "kill-session", "-t", session_name],
                                capture_output=True, timeout=5)
+                now_iso = utc_now()
                 try:
-                    update_run(db, _run_key(info["problem_id"], batch_id), {
+                    update_run(db, run_key, {
                         "status": "failed_stall",
-                        "ended_at": utc_now(),
+                        "ended_at": now_iso,
+                        "updated_at": now_iso,
+                        "runtime_seconds": int(elapsed),
                         "end_reason": "stall_detected",
+                        "verdict": make_verdict("failed_stall", "stall_detected"),
                     })
                 except Exception:
                     pass
+                if use_redis:
+                    remove_running(r, run_key)
+                    add_failed(r, {"run_key": run_key, "reason": "stall"})
+                    update_stats(r)
                 continue
 
         for key in to_remove:
@@ -302,12 +393,32 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         if pending or running:
             print(f"  [status] running={len(running)} pending={len(pending)} "
                   f"completed={len(completed)} failed={len(failed)}")
+            if use_redis:
+                stats = get_stats(r)
+                print(f"  [redis] pending={stats.get('pending',0)} running={stats.get('running',0)} "
+                      f"completed={stats.get('completed',0)} failed={stats.get('failed',0)}")
             time.sleep(poll_seconds)
 
     print(f"\n=== 批次完成 ===")
     print(f"  completed: {len(completed)}")
     print(f"  failed: {len(failed)}")
     logger.info(f"批次完成 batch={batch_id}: completed={len(completed)}, failed={len(failed)}")
+
+    # 更新batch记录
+    from collections import Counter
+    status_counts = Counter()
+    for c in completed:
+        status_counts["completed"] += 1
+    for f in failed:
+        status_counts[f["reason"]] += 1
+    update_batch(db, batch_id, {
+        "status": "launched",
+        "updated_at": utc_now(),
+        "completed_count": len(completed),
+        "failed_count": len(failed),
+        "status_counts": dict(status_counts),
+        "launched_at": utc_now(),
+    })
 
     # 保存结果
     results_path = OUTPUT_BASE / batch_id / "launch_results.json"

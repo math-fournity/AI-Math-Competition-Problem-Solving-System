@@ -25,7 +25,11 @@ from src.config import (
     ARANGO_HOST, ARANGO_DB, ARANGO_USER, ARANGO_PASSWORD,
     THINKING_PRIORITY,
 )
-from src.db_schema import connect_db, ensure_schema, insert_run, insert_event
+from src.db_schema import (
+    connect_db, ensure_schema, insert_run, insert_event,
+    insert_batch, next_run_id, make_analysis_exp_id, make_run_key, make_paths,
+    make_verdict, ANALYSIS_BATCHES_COLLECTION,
+)
 from monitoring.shared_logger import get_logger
 
 logger = get_logger("data_collector")
@@ -444,6 +448,24 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
     db = connect_db()
     ensure_schema(db)
 
+    # 写入batch记录
+    now = _utc_now()
+    batch_doc = {
+        "_key": batch_id,
+        "status": "collecting",
+        "created_at": now,
+        "updated_at": now,
+        "selected_count": len(failed),
+        "selection": {"limit": limit, "problem_ids": problem_ids},
+    }
+    try:
+        insert_batch(db, batch_doc)
+    except Exception:
+        # batch已存在，更新
+        update_data = {k: v for k, v in batch_doc.items() if k != "_key"}
+        update_data["_key"] = batch_id
+        db.collection(ANALYSIS_BATCHES_COLLECTION).update(update_data)
+
     prepared = []
     skipped = []
 
@@ -480,16 +502,23 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
         # 构造AGENTS.md
         agents_md = build_agents_md(pid, problem_text, standard_solution, thinking)
 
+        # 生成唯一analysis_exp_id（用原子递增run_id保证唯一）
+        run_id = next_run_id(db)
+        analysis_exp_id = make_analysis_exp_id(batch_id, run_id, pid)
+        run_key = make_run_key(analysis_exp_id)
+        paths = make_paths(analysis_exp_id)
+
         # 写入工作目录
-        analysis_exp_id = f"{batch_id}-{pid}"
         work_dir = ANALYSIS_SOLVER_BASE / analysis_exp_id
         work_dir.mkdir(parents=True, exist_ok=True)
         (work_dir / "AGENTS.md").write_text(agents_md, encoding="utf-8")
 
-        # 写入DB记录
+        # 写入DB记录（完整字段，模仿devin_problem_runs）
         run_doc = {
+            "_key": run_key,
             "problem_id": pid,
             "batch_id": batch_id,
+            "run_id": run_id,
             "source_exp_id": exp_id,
             "analysis_exp_id": analysis_exp_id,
             "work_dir": str(work_dir),
@@ -498,22 +527,42 @@ def collect_and_prepare(batch_id, limit=None, problem_ids=None):
             "problem_text_length": len(problem_text or ""),
             "solution_length": len(standard_solution),
             "thinking_length": len(thinking),
-            "created_at": _utc_now(),
+            "paths": paths,
+            "created_at": now,
+            "updated_at": now,
+            "observability": {
+                "activity_signature": "",
+                "last_observed_activity_at": None,
+                "last_observed_at": None,
+                "markers": {},
+                "file_sizes": {},
+            },
+            "verdict": make_verdict("prepared", "not launched"),
         }
         try:
             insert_run(db, run_doc)
-        except Exception as e:
-            # 可能已存在（重复运行）
-            db.collection("analysis_runs").update({
-                "_key": pid.replace("_", "-") + "-" + batch_id,
-                **run_doc,
-            })
+        except Exception:
+            # 可能已存在（重复运行），更新
+            update_data = {k: v for k, v in run_doc.items() if k != "_key"}
+            update_data["_key"] = run_key
+            db.collection("analysis_runs").update(update_data)
 
         prepared.append({
             "problem_id": pid,
             "analysis_exp_id": analysis_exp_id,
+            "run_key": run_key,
             "work_dir": str(work_dir),
         })
+
+    # 更新batch记录
+    db.collection(ANALYSIS_BATCHES_COLLECTION).update({
+        "_key": batch_id,
+        "status": "prepared",
+        "updated_at": _utc_now(),
+        "prepared_count": len(prepared),
+        "skipped_count": len(skipped),
+        "run_keys": [p["run_key"] for p in prepared],
+    })
 
     print(f"\n  已准备: {len(prepared)}")
     print(f"  跳过: {len(skipped)}")

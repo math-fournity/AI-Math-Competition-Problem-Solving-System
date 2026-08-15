@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,10 +29,14 @@ from src.config import (
     ANALYSIS_TRAJECTORY_BASE, OUTPUT_BASE,
     ANALYSIS_COMPLETE_MARKER, XML_BLOCK_START, XML_BLOCK_END,
 )
-from src.db_schema import connect_db, ensure_schema, insert_result
+from src.db_schema import connect_db, ensure_schema, insert_result, update_run, update_batch
 from monitoring.shared_logger import get_logger
 
 logger = get_logger("result_collector")
+
+
+def _utc_now():
+    return datetime.now(timezone.utc).isoformat()
 
 
 def extract_xml_block(text):
@@ -259,11 +264,15 @@ def collect_batch(batch_id):
     for i, item in enumerate(completed):
         pid = item["problem_id"]
         analysis_exp_id = item["analysis_exp_id"]
+        run_key = item.get("run_key", "")
 
         if (i + 1) % 50 == 0:
             print(f"  进度: {i+1}/{len(completed)}")
 
         result = collect_one(analysis_exp_id, pid, batch_id)
+        # 补充run_key到result中
+        if run_key:
+            result["run_key"] = run_key
         all_results.append(result)
 
         status = result.get("status", "unknown")
@@ -272,14 +281,47 @@ def collect_batch(batch_id):
             # 写入DB
             try:
                 insert_result(db, result)
+                # 同时更新run状态为results_collected
+                if run_key:
+                    update_run(db, run_key, {
+                        "status": "results_collected",
+                        "updated_at": _utc_now(),
+                    })
             except Exception:
                 pass
         elif status == "no_xml":
             no_xml_count += 1
+            if run_key:
+                try:
+                    update_run(db, run_key, {
+                        "status": "no_xml",
+                        "updated_at": _utc_now(),
+                        "end_reason": "no_xml_in_output",
+                    })
+                except Exception:
+                    pass
         elif status == "no_output":
             no_output_count += 1
+            if run_key:
+                try:
+                    update_run(db, run_key, {
+                        "status": "no_output",
+                        "updated_at": _utc_now(),
+                        "end_reason": "no_tmux_pipe_log",
+                    })
+                except Exception:
+                    pass
         elif status == "incomplete":
             incomplete_count += 1
+            if run_key:
+                try:
+                    update_run(db, run_key, {
+                        "status": "incomplete",
+                        "updated_at": _utc_now(),
+                        "end_reason": "analysis_incomplete",
+                    })
+                except Exception:
+                    pass
 
     print(f"\n  收集完成:")
     print(f"    parsed: {parsed_count}")
@@ -287,6 +329,16 @@ def collect_batch(batch_id):
     print(f"    no_output: {no_output_count}")
     print(f"    incomplete: {incomplete_count}")
     logger.info(f"结果收集完成 batch={batch_id}: parsed={parsed_count}, no_xml={no_xml_count}, no_output={no_output_count}, incomplete={incomplete_count}")
+
+    # 更新batch记录
+    update_batch(db, batch_id, {
+        "status": "results_collected",
+        "updated_at": _utc_now(),
+        "parsed_count": parsed_count,
+        "no_xml_count": no_xml_count,
+        "no_output_count": no_output_count,
+        "incomplete_count": incomplete_count,
+    })
 
     # 保存结果
     output_path = OUTPUT_BASE / batch_id / "collected_results.json"
