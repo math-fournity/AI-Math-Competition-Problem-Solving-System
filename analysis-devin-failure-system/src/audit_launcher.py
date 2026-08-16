@@ -177,12 +177,25 @@ def launch_batch(batch_id, concurrency=AUDIT_CONCURRENCY,
     running = {}
     completed = []
     failed = []
+    rate_limit_paused_until = 0  # rate limit暂停截止时间（timestamp）
 
     print(f"  开始并发启动（concurrency={concurrency}）...")
 
     while True:
         if not running and pending_count(r) == 0:
             break
+
+        # rate limit自动暂停检查
+        now_ts = time.time()
+        if rate_limit_paused_until > now_ts:
+            remaining = int(rate_limit_paused_until - now_ts)
+            if remaining > 0:
+                print(f"  [rate_limit_pause] 等待rate limit恢复，剩余{remaining}s...")
+                time.sleep(min(remaining, 60))  # 每60秒检查一次
+                continue
+            else:
+                print(f"  [rate_limit_pause] 恢复运行")
+                rate_limit_paused_until = 0
 
         # 动态并发：从DB读取batch.concurrency
         try:
@@ -318,6 +331,13 @@ def launch_batch(batch_id, concurrency=AUDIT_CONCURRENCY,
             if detected_error:
                 elapsed_sec = int(time.time() - info["started_at"])
                 print(f"  [{detected_error}] {info['problem_id']} — {elapsed_sec}s")
+                # rate limit自动暂停：检测到rate_limited时，暂停20分钟
+                if detected_error == "rate_limited":
+                    pause_until = time.time() + 1200  # 20分钟
+                    if pause_until > rate_limit_paused_until:
+                        rate_limit_paused_until = pause_until
+                        print(f"  [rate_limit_pause] 暂停20分钟（到{time.strftime('%H:%M:%S', time.localtime(pause_until))}），等待rate limit恢复...")
+                        logger.warning(f"rate limit触发，暂停20分钟")
                 failed.append({"problem_id": info["problem_id"], "run_key": run_key, "reason": detected_error})
                 to_remove.append(audit_exp_id)
                 subprocess.run(["tmux", "kill-session", "-t", session_name],
