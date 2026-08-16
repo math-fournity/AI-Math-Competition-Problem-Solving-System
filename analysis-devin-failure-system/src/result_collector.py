@@ -29,7 +29,7 @@ from src.config import (
     ANALYSIS_TRAJECTORY_BASE, OUTPUT_BASE,
     ANALYSIS_COMPLETE_MARKER, XML_BLOCK_START, XML_BLOCK_END,
 )
-from src.db_schema import connect_db, ensure_schema, insert_result, update_run, update_batch
+from src.db_schema import connect_db, ensure_schema, insert_result, update_run, update_batch, ANALYSIS_RUNS_COLLECTION
 from monitoring.shared_logger import get_logger
 
 logger = get_logger("result_collector")
@@ -235,25 +235,40 @@ def collect_one(analysis_exp_id, problem_id, batch_id):
 
 
 def collect_batch(batch_id):
-    """收集一个批次的所有分析结果"""
+    """收集一个批次的所有分析结果
+
+    数据源优先级：
+    1. 从DB取status=completed的run（新架构，推荐）
+    2. 从launch_results.json取completed列表（旧架构，兼容）
+    """
     logger.info(f"结果收集开始 batch={batch_id}")
     print(f"=== 收集结果 batch={batch_id} ===")
 
-    # 加载launch_results
-    results_path = OUTPUT_BASE / batch_id / "launch_results.json"
-    if not results_path.exists():
-        print(f"ERROR: launch_results.json not found at {results_path}")
-        print("请先运行 analysis_launcher")
-        return
-
-    with open(str(results_path)) as f:
-        launch_results = json.load(f)
-
-    completed = launch_results["completed"]
-    print(f"  待收集: {len(completed)}")
-
     db = connect_db()
     ensure_schema(db)
+
+    # 优先从DB取completed的run
+    aql = (
+        f"FOR run IN {ANALYSIS_RUNS_COLLECTION} "
+        f"FILTER run.batch_id == @bid "
+        f"FILTER run.status IN ['completed', 'results_collected'] "
+        f"RETURN {{_key: run._key, problem_id: run.problem_id, analysis_exp_id: run.analysis_exp_id}}"
+    )
+    cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=120)
+    completed = list(cursor)
+
+    if not completed:
+        # 兼容旧架构：从launch_results.json取
+        results_path = OUTPUT_BASE / batch_id / "launch_results.json"
+        if not results_path.exists():
+            print(f"ERROR: DB中无completed的run，且launch_results.json不存在")
+            print(f"请先运行 analysis_control start --batch-id {batch_id}")
+            return
+        with open(str(results_path)) as f:
+            launch_results = json.load(f)
+        completed = launch_results["completed"]
+
+    print(f"  待收集: {len(completed)}")
 
     all_results = []
     parsed_count = 0
@@ -264,7 +279,7 @@ def collect_batch(batch_id):
     for i, item in enumerate(completed):
         pid = item["problem_id"]
         analysis_exp_id = item["analysis_exp_id"]
-        run_key = item.get("run_key", "")
+        run_key = item.get("_key", item.get("run_key", ""))
 
         if (i + 1) % 50 == 0:
             print(f"  进度: {i+1}/{len(completed)}")
