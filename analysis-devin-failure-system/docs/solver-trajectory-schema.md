@@ -54,7 +54,9 @@
 | dpb-20260812-080658 | 0/5 (0%) |
 | dpb-20260812-manual | 0/5 (0%) |
 
-**结论**：早期批次（021956-041914）有MITM，后期批次（063817起）没有MITM。session_info.json中`mitm_enabled`字段为True/False各50%。
+**结论**：早期批次（021956-041914）有MITM，后期批次（063817起）没有MITM。
+
+**根因**：`batch_problem_runner.py`第931行硬编码传`--no-mitm`——批量解题时MITM被关闭。solver_harness.py本身支持MITM（`--no-mitm`参数，默认启用），但batch_problem_runner.py在批量运行时强制关闭。当前和未来的解题数据不会有MITM，thinking数据只能从sessions_db/trajectory.jsonl和exports/conversation.json获取。
 
 ---
 
@@ -470,9 +472,9 @@ tmux日志，90%存在。内容与tmux_pipe.log几乎相同。
 
 ### 推荐数据源优先级（用于错题分析）
 
-1. **exports/conversation.json** — 最完整，有reasoning_content + tool_calls + observation(tool_results)。但只有58%存在。
-2. **sessions_db/trajectory.jsonl** — 82%存在，有thinking + tool_calls + tool行content(tool_results)。是conversation.json的最佳替代。
-3. **mitm/thinking_readable.txt** — 38%存在，有轮次标记但无tool_results。仅在1和2都不存在时使用。
+1. **sessions_db/trajectory.jsonl** — 82%存在，有thinking + tool_calls + tool行content(tool_results)。**当前和未来数据的主要来源**（批量解题不启用MITM）。
+2. **exports/conversation.json** — 最完整，有reasoning_content + tool_calls + observation(tool_results)。但只有58%存在。
+3. **mitm/thinking_readable.txt** — 仅早期批次存在，有轮次标记但无tool_results。历史数据兜底。
 4. **tmux/tmux_pipe.log** — 90%存在，但只有TUI输出，无thinking。最后兜底。
 
 ### 关键发现
