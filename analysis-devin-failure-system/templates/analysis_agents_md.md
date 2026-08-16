@@ -30,6 +30,8 @@ Compare the standard solution's key approach with the AI's thinking:
 
 - **PARTIAL_PROGRESS**: The AI's thinking was partially in the right direction — it identified some key ideas from the standard solution — but missed the crucial turning point. The AI was on the right track but took a wrong turn at a critical juncture.
 
+**Tiebreaker: TOKEN_LIMIT vs PARTIAL_PROGRESS** — If the AI identified the right framework but used a DIFFERENT specific technique than the standard solution, ask: "Would more tokens likely help?" If the AI's technique is a clearly valid alternative that would lead to the solution with more tokens → TOKEN_LIMIT. If the AI's technique is a detour/rabbit-hole that might NOT converge even with more tokens → PARTIAL_PROGRESS. Example: AI uses recursive case-by-case analysis instead of the standard solution's symmetry reduction — even with more tokens, the recursion might never reveal the clean pattern → PARTIAL_PROGRESS, not TOKEN_LIMIT.
+
 ### Dimension 2: Key Turning Point Type
 
 If the verdict is DIRECTION_ERROR or PARTIAL_PROGRESS, identify what type of key turning point the standard solution uses:
