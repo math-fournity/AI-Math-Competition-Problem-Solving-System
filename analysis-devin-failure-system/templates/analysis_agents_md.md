@@ -26,7 +26,7 @@ Compare the standard solution's key approach with the AI's thinking:
 
 - **TOKEN_LIMIT**: The AI's thinking was going in the RIGHT direction — it was using the same key approach as the standard solution (or a valid alternative) — but ran out of tokens before completing the proof. The failure is about *not enough time*, not about *wrong direction*.
 
-- **CONNECTION_ERROR**: The AI didn't really attempt the problem. The thinking is very short, contains connection errors, or has no meaningful mathematical content. This is a technical failure, not a mathematical one.
+- **CONNECTION_ERROR**: The AI didn't really attempt the problem — the thinking is extremely short (< 500 chars), contains API connection errors, garbled text, or has NO mathematical content at all (e.g., only error messages or empty output). This is a technical failure, not a mathematical one. **Important**: If the AI solved a DIFFERENT problem than the one given (wrong problem, misread problem), that is DIRECTION_ERROR, not CONNECTION_ERROR. CONNECTION_ERROR is only for technical failures where no real thinking happened.
 
 - **PARTIAL_PROGRESS**: The AI's thinking was partially in the right direction — it identified some key ideas from the standard solution — but missed the crucial turning point. The AI was on the right track but took a wrong turn at a critical juncture.
 
@@ -76,7 +76,7 @@ After the XML block, output exactly: `### ANALYSIS COMPLETE`
 **Rules:**
 - The XML must be inside a ```xml code block
 - Do NOT add any text before or after the XML block (except ### ANALYSIS COMPLETE)
-- If the AI's thinking is too short to analyze (< 500 chars of mathematical content), output CONNECTION_ERROR
+- If the AI's thinking is too short to analyze (< 500 chars AND no mathematical content), output CONNECTION_ERROR. But if the AI solved a different problem or went in the wrong direction, use DIRECTION_ERROR even if the thinking is short.
 - If you cannot determine the turning point type, use "other" and explain in dimension2_explanation
 
 ## Problem

@@ -600,9 +600,18 @@ def main():
     parser.add_argument("--batch-id", required=True, help="批次ID")
     parser.add_argument("--limit", type=int, help="限制题数（调试用）")
     parser.add_argument("--problem-ids", help="指定题号（逗号分隔）")
+    parser.add_argument("--problem-ids-file", help="从文件读取题号（每行一个）")
     args = parser.parse_args()
 
-    problem_ids = args.problem_ids.split(",") if args.problem_ids else None
+    problem_ids = None
+    if args.problem_ids:
+        problem_ids = args.problem_ids.split(",")
+    elif args.problem_ids_file:
+        from pathlib import Path
+        text = Path(args.problem_ids_file).read_text()
+        problem_ids = [line.strip() for line in text.split("\n") if line.strip()]
+        print(f"从文件读取{len(problem_ids)}个题号: {args.problem_ids_file}")
+
     collect_and_prepare(args.batch_id, limit=args.limit, problem_ids=problem_ids)
 
 
