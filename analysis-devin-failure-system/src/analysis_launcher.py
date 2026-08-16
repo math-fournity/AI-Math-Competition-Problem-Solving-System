@@ -320,8 +320,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 "tmux_session": session_name,
             }, run_key=run_key)
 
-            # 不sleep——快速启动所有并发槽
-            # rate limit由retry_infrastructure自动兜底（rate_limited→自动重试）
+            # 3秒间隔——避免rate limit（对齐solver_harness runner.py）
+            # 60并发并行启动导致58/60个session遇到rate limit
+            time.sleep(3)
 
         # 检查运行中的
         to_remove = []
