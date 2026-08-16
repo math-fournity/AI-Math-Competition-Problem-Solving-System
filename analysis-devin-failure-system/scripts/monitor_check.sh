@@ -4,8 +4,9 @@
 # 输出4项检查结果: Monitor Pipe pane输出 / alerts / 进程状态 / 进度
 #
 # 这个脚本是为了避免每次监控时inline编写检查命令——标准化后索引到AGENTS.md。
+# 每个检查项后附带"需要检查"提示，提醒AI逐项检查而非只看数字。
 
-set -euo pipefail
+set -uo pipefail
 
 BATCH_ID="${1:?用法: $0 <batch_id> [monitor_tmux_session]}"
 MONITOR_SESSION="${2:-monitor-pipe}"
@@ -27,12 +28,26 @@ if tmux has-session -t "$MONITOR_SESSION" 2>/dev/null; then
 else
     echo "  [ERROR] tmux session '$MONITOR_SESSION' 不存在！Monitor Pipe可能已退出。"
 fi
+echo ""
+echo "  >> 需要检查："
+echo "     - 每轮是否有新ALERT？alert类型是什么（critical/warning/info）？"
+echo "     - AI_REVIEW抽样的2条结果——audit_status是否合理？FAIL项是否是已知问题（D1动词/XML泄漏）？"
+echo "     - progress是否在推进？如果停滞，检查launcher日志"
+echo "     - 轮次间隔是否正常（应约5分钟一轮）？如果间隔过长，Monitor Pipe可能卡住"
 
 # --- 检查2: alerts集合（新alert）---
 echo ""
 echo "=== 2. alerts集合（新alert）==="
 cd "$ANALYSIS_DIR"
 $PY -m src.monitor_pipe --batch-id "$BATCH_ID" --check-alerts 2>&1
+echo ""
+echo "  >> 需要检查："
+echo "     - 新alert如果有：逐个recheck，确认是真实问题还是已知问题"
+echo "     - ai_review_sample：用get_audit_output+parse_audit_xml验证抽样判定"
+echo "     - failure_rate：检查failure_breakdown中rate_limited/failed_stall的比例"
+echo "     - status_inconsistency：检查是否是D1动词列表或PARTIAL_PROGRESS定义问题"
+echo "     - session_health/launcher_dead：检查进程是否真的挂了"
+echo "     - 处理完alert后用 --resolve-alert <key> 标记为fixed"
 
 # --- 检查3: 进程状态（launcher + monitor_pipe）---
 echo ""
@@ -53,6 +68,13 @@ fi
 # tmux au-sessions数量
 AU_COUNT=$(tmux list-sessions 2>/dev/null | grep "^au-" | wc -l | tr -d ' ')
 echo "  tmux au-sessions: $AU_COUNT"
+echo ""
+echo "  >> 需要检查："
+echo "     - launcher和monitor进程是否都在运行？NOT RUNNING = 需要重启"
+echo "     - STAT=S+/Ss+ = 正常睡眠；STAT=R = 正在执行；STAT=Z = 僵尸进程（需kill）"
+echo "     - CPU 0% + ELAPSED很长 = 可能在sleep中（正常）或卡住（不正常）"
+echo "     - tmux au-sessions应≈并发数；为0可能是session刚完成正在启动下一个"
+echo "     - 如果au-sessions持续为0，检查launcher日志是否有rate_limit_pause"
 
 # --- 检查4: 进度（DB状态分布）---
 echo ""
@@ -78,12 +100,25 @@ if total_fail > 0:
     fail_rate = 100 * total_fail // max(total_done, 1)
     print(f'  失败: {total_fail} (失败率{fail_rate}%)')
     if fail_rate > 10:
-        print(f'  [WARNING] 失败率>{10}%阈值！')
+        print(f'  [WARNING] 失败率>10%阈值！')
 else:
     print(f'  失败: 0')
 " 2>&1
+echo ""
+echo "  >> 需要检查："
+echo "     - 进度是否在推进？对比上次检查的completed数"
+echo "     - rate_limited/dead_session/failed_stall是否有新增？有则需重新入队"
+echo "     - 失败率>10% = 需要降并发或检查rate limit"
+echo "     - prepared数在减少但completed没增加 = 可能任务在失败而非完成"
 
 echo ""
 echo "============================================"
 echo "检查完成 @ $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+echo ""
+echo ">> 行动清单（按顺序执行）："
+echo "   1. 仔细阅读第1项Monitor Pipe pane输出中的每轮ALERT和AI_REVIEW"
+echo "   2. 有新alert时逐个recheck（第2项），处理完用--resolve-alert标记"
+echo "   3. 进程NOT RUNNING时重启launcher/monitor（第3项）"
+echo "   4. 有新增失败时重新入队（第4项）"
+echo "   5. 进度停滞时检查launcher日志和rate_limit_pause状态"
 echo "============================================"
