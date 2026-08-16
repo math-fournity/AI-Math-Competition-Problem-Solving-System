@@ -116,10 +116,16 @@ def launch_one(analysis_exp_id, work_dir):
     tmux_pipe_path = traj_dir / "tmux" / "tmux_pipe.log"
     tmux_log_path = traj_dir / "tmux" / "tmux.log"
 
-    # devin cli命令——用-p单轮模式（完成后自动退出+写export）
-    # 对齐solver_harness：-p模式 + echo退出码 + sleep保持session
+    # devin cli命令——用-p单轮模式 + --prompt-file从AGENTS.md加载prompt
+    # 关键：用--prompt-file而非-p 'prompt'，避免devin cli用read工具读AGENTS.md
+    # 原因：AGENTS.md > 15KB时超出rules注入token限制，devin cli会显示
+    #   "could not be injected due to token limits. Read them using the read_file tool"
+    # 然后AI调用read工具读AGENTS.md → AGENTS.md内容累积到prompt → 后续请求体积翻倍 → rate limit
+    # --prompt-file直接把AGENTS.md内容作为初始prompt注入，不经过rules机制，不需要read
+    agents_md_path = Path(work_dir) / "AGENTS.md"
     devin_cmd = (
-        f"devin -p '{DEVIN_PROMPT}' "
+        f"devin -p "
+        f"--prompt-file {agents_md_path} "
         f"--model {DEVIN_MODEL} "
         f"--respect-workspace-trust false "
         f"--permission-mode {DEVIN_PERMISSION_MODE} "

@@ -61,7 +61,13 @@ ANALYSIS_RESULTS_COLLECTION = "analysis_results"  # 最终分析结果
 # === devin cli配置 ===
 DEVIN_MODEL = "glm-5.2-high"
 DEVIN_PERMISSION_MODE = "dangerous"
-DEVIN_PROMPT = "请按AGENTS.md中的分析任务执行分析。直接在TUI中输出XML分析结果，不要写任何文件，不要调用任何工具，结尾输出 ### ANALYSIS COMPLETE"
+DEVIN_PROMPT = (
+    "请执行以下分析任务：对比标准解答和AI的解题过程，判定AI为什么失败。"
+    "分析任务说明、题目、标准解答、AI解题过程已在你收到的prompt文件中。"
+    "你不需要read任何文件，不需要调用任何工具。"
+    "直接在TUI中输出XML分析结果，不要写任何文件，不要执行任何命令，不要搜索。"
+    "结尾输出 ### ANALYSIS COMPLETE"
+)
 
 # === 并发配置 ===
 DEFAULT_CONCURRENCY = 10
