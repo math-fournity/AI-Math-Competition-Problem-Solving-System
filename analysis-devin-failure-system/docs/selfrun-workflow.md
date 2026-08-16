@@ -72,7 +72,30 @@ subagent ×N 并发（分析AI）
 
 **TOKEN_LIMIT占比偏高的解释假设**（36% vs devin 15%）：剩余池本身偏向长thinking题（AGENTS.md 77KB+），且错位污染占据了DIRECTION_ERROR桶；subagent判定均有具体证据（句中截断、已到正确答案）。Step 3全量后可做终局对比。
 
-## 跑全量（剩余1611题）的操作模式
+## 稳定性打磨（2026-08-16, Step 2.5 · 流程固化+双盲验证）
+
+针对Step 1/2暴露的三个摩擦点（手写prompt抄错题号、并发撞限丢任务、产出校验靠人工），固化为**任务文件化调度**：
+
+| 组件 | 作用 |
+|---|---|
+| `templates/selfrun_subagent_task.md`（v3） | subagent完整任务规范：读EOF要求、质量要求、写前自检清单、判定校准先例（含v3精化的TL/PP判据和d2标签口径） |
+| `src/selfrun_driver.py` | `plan`（生成波次任务文件+孤儿回收）/ `status`（产出状态+待入库分布）/ `sweep --ingest`（批量校验入库）/ `recheck`（双盲重分析抽样） |
+
+派发单元=任务文件：主会话prompt只引用文件路径，题号/路径由脚本从DB生成，消灭抄写错误。
+
+**wave001实测（12题polymath，6 agent×2题）**：
+- 格式通过率 **12/12 = 100%**（自检指令生效；Step 2为49/49但需人工盯）
+- 并发失败 0（每波恰好3个agent，上限内）
+- 每agent耗时 4.7-7.8分钟/2题，token 0.8-2.0M/agent
+
+**双盲重分析（5题，seed=42）**：
+- 格式合规 5/5；**dimension1一致率 4/5 (80%)**；完全一致率 3/5 (60%)
+- 分歧1（polymath_04483, TL vs PP）：TL/PP边界情形。提炼v3精化判据（截断时答案已得出且在验证→TL；答案未得出仍在搜索→PP），第三次盲读以high置信落PP，2:1裁决，**DB记录已按仲裁修正**（原TL产物保留，全链留痕：selfrun_output/selfrun_check/selfrun_adjudicate.xml + adjudication事件）
+- 分歧2（polymath_04516, d2 mod_p_grouping vs other）：d2标签口径分歧。v3固化口径：只按标准解答文本实际使用的关键步骤归类，枚举/构造类判other
+
+**生产QA节奏**：每~100题抽5题双盲重测；d1一致率<80%时停下修规则；分歧题按上述三方盲读仲裁流程处置。
+
+## 跑全量（剩余1589题）的操作模式
 
 1. 从 DB 拉 30c 批次剩余 run（status ∈ queued/pending_retry/失败态，problem_id ∉ 已收集集），按 ~4题/分片 切片（中位 134KB/题 ≈ 33K token，单 subagent 一次 session 安全上限）。
 2. 并发派 subagent（建议 8 路），每个：读 AGENTS.md（必须读到 EOF）→ 按 AGENTS.md 内嵌模板判定 → 写 selfrun_output.xml。
