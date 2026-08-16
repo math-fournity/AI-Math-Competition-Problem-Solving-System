@@ -95,6 +95,52 @@ subagent ×N 并发（分析AI）
 
 **生产QA节奏**：每~100题抽5题双盲重测；d1一致率<80%时停下修规则；分歧题按上述三方盲读仲裁流程处置。
 
+## 交接与恢复（接手者从这里开始）
+
+> 进度游标以 `任务追踪/08-错题分析系统selfrun载体接替.md` §0 为准（本文档只记机制）。接手者第一小时：
+
+```bash
+cd analysis-devin-failure-system   # 所有命令在此目录
+PY=/Users/user/glm5.2-math-worktree/.venv/bin/python
+
+# 0. 如果audit僵尸服务还在跑（devin时代audit-launcher tmux），先停：
+#    python -m monitoring.analysis_control stop --kill-sessions
+#    （仅停audit-full1的：tmux kill-session -t audit-launcher; tmux kill-session -t audit-monitor）
+
+# 1. 看状态：产出缺失/待入库分布/剩余数
+$PY -m src.selfrun_driver status
+
+# 2. 生成下一波任务文件（polymath干净可跑；deepmath/oda先修数据见下）
+$PY -m src.selfrun_driver plan --count 24 --source polymath
+
+# 3. 对每份 output/selfrun/waveNNN_agentK.md 派一个subagent，prompt只需一句：
+#    『用Read读取<任务文件绝对路径>并严格执行其中的全部指令，完成后按其文末汇报格式汇报。』
+#    每波最多3个并发（上限实测=3，第4个被拒）
+
+# 4. 收口：批量校验+入库+增量收集
+$PY -m src.selfrun_driver sweep --ingest
+
+# 5. 每~100题双盲复测（阈值：d1一致率≥80%，低于则停下修规则）
+$PY -m src.selfrun_driver recheck --count 5
+#    重读产出在各题工作目录selfrun_check.xml，与DB主判定对比（对比脚本用法见任务追踪08§5）
+
+# 6. 汇总报告
+$PY -m src.aggregator --batch-id full-analysis-30c
+```
+
+**deepmath/oda 数据修复前置**（跑这两库前必须做，否则分析的是错配数据）：根因=data_collector的`load_deepmath`/oda加载器按运行计数器idx建索引取题文，与problem_id编号错位（实锤案例见任务追踪08§3.1）。修法：改为按problem_id精确查找题库行，重建受影响题的AGENTS.md后重新plan。polymath不受影响（按row id精确匹配，抽样27题零错位）。
+
+**判定规则版本史**：
+- v2（Step2时期）：校准先例为定性描述（"有效路线/离开路线"），双盲测出TL/PP边界歧义（一致率80%）
+- v3（现行，`templates/selfrun_subagent_task.md`）：精化判据"截断那一刻答案得出来了吗？已得出（在验证它）→TL；未得出（还在找它）→PP"+d2口径"只按标准解答文本实际使用的关键步骤归类"；分歧处置=三方盲读仲裁（原始/重读/仲裁三份产物留痕+DB事件）
+
+**已知坑清单**（违反会产生实际损害的）：
+1. 禁止全量重跑`result_collector.collect_batch`——insert_result纯insert会把analysis_results翻倍；增量收集只能走`selfrun_driver sweep --ingest`或`selfrun_intake collect-delta`
+2. subagent并发≤3；任务必须经任务文件派发（手抄题号/路径会出错，Step2实测）
+3. sweep前先status确认没有上一波缺产出（孤儿由下次plan自动回收）
+4. 写库只用intake路径（carrier标记+事件），不要绕过直接update集合
+5. devin时代tmux服务（audit-launcher/audit-monitor/monitor-pipe）确认停用后再动审计批次
+
 ## 跑全量（剩余1589题）的操作模式
 
 1. 从 DB 拉 30c 批次剩余 run（status ∈ queued/pending_retry/失败态，problem_id ∉ 已收集集），按 ~4题/分片 切片（中位 134KB/题 ≈ 33K token，单 subagent 一次 session 安全上限）。
