@@ -137,7 +137,7 @@ def launch_one(analysis_exp_id, work_dir):
     )
 
     # 启动pipe-pane（raw流兜底，捕获tmux pane完整内容）
-    time.sleep(0.5)  # 等tmux session创建
+    # 不sleep——tmux new-session -d是同步的，session创建完才返回
     subprocess.run(
         ["tmux", "pipe-pane", "-t", session_name, f"cat >> {tmux_pipe_path}"],
         capture_output=True, timeout=5,
@@ -320,7 +320,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 "tmux_session": session_name,
             }, run_key=run_key)
 
-            time.sleep(2)  # 避免同时启动太多
+            # 不sleep——快速启动所有并发槽
+            # rate limit由retry_infrastructure自动兜底（rate_limited→自动重试）
 
         # 检查运行中的
         to_remove = []
