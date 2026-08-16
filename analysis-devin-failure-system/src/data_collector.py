@@ -404,14 +404,18 @@ def get_problem_text(exp_id):
 # ============================================================
 
 def build_agents_md(problem_id, problem_text, standard_solution, ai_thinking):
-    """构造分析用的AGENTS.md"""
+    """构造分析用的AGENTS.md
+
+    用手动替换而非str.format——problem_text/standard_solution/ai_thinking中
+    可能包含花括号（LaTeX的${7 \choose 2}$），会导致.format()报错。
+    """
     template = AGENTS_MD_TEMPLATE.read_text(encoding="utf-8")
-    return template.format(
-        problem_id=problem_id,
-        problem_text=problem_text or "[题目文本不可用]",
-        standard_solution=standard_solution or "[标准解答不可用]",
-        ai_thinking=ai_thinking or "[AI thinking不可用]",
-    )
+    # 手动替换占位符——不解析花括号
+    result = template.replace("{problem_id}", problem_id)
+    result = result.replace("{problem_text}", problem_text or "[题目文本不可用]")
+    result = result.replace("{standard_solution}", standard_solution or "[标准解答不可用]")
+    result = result.replace("{ai_thinking}", ai_thinking or "[AI thinking不可用]")
+    return result
 
 
 # ============================================================

@@ -1,11 +1,3 @@
-# analysis_agents_md.md — devin cli分析任务的AGENTS.md模板
-# 
-# 占位符（用Python str.format或string.Template填充）：
-#   {problem_text}       — 题目文本
-#   {standard_solution}  — 标准解答
-#   {ai_thinking}        — AI历史解题过程（thinking）
-#   {problem_id}         — 题目ID
-
 # Solver Task
 
 You are a mathematical problem analysis assistant. You will NOT solve any problems.
