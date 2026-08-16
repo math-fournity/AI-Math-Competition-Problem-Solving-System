@@ -150,18 +150,24 @@ steps列表中有3种source类型的step：
   "message": "string — 系统消息内容",
   "extra": {
     "telemetry": {
-      "source": "string — 如'sysprompt'",
-      "operation": "string — 如'normal'"
+      "source": "string — 如'sysprompt'/'system'/'rules'",
+      "operation": "string — 如'normal'/'unknown'/'subagent_profiles'/'content'"
     }
   }
 }
 ```
 
-system step的message内容分类（50题采样）：
-- **system_prompt** (29个): 含"You are Devin"的系统提示词，约18653 chars
-- **tool_related** (58个): 工具相关说明
-- **short** (29个): 短消息（<100 chars）
-- **other** (57个): 其他系统消息
+system step的keys固定为：`['extra', 'message', 'source', 'step_id', 'timestamp']`
+
+system step的message内容分5类（50题采样，173个system step）：
+
+| 类型 | 数量 | 平均长度 | telemetry.source | telemetry.operation | 内容 |
+|---|---|---|---|---|---|
+| system_prompt | 29 | 18653 | sysprompt | normal | "You are Devin, an interactive command line agent..." |
+| tool_def | 58 | 9274 | system/sysprompt | unknown/subagent_profiles | 工具定义+subagent profiles |
+| short | 29 | 32 | system | unknown | "You are powered by GLM-5.2 High." |
+| system_info | 28 | 361 | system | unknown | `<system_info>`工作目录/平台/OS版本 |
+| other (rules) | 29 | 9165 | system/rules | unknown/content | `<rules type="always-on">`全局+项目AGENTS.md |
 
 #### 2.2 user step
 
@@ -246,6 +252,39 @@ user step的message通常是解题指令，如"请按AGENTS.md中的题目直接
   }
 }
 ```
+
+#### conversation.json中tool_calls的arguments按工具名详细结构
+
+| 工具名 | arguments字段 | 类型 | 说明 |
+|---|---|---|---|
+| exec | command | str | 命令内容 |
+| read | file_path | str | 文件路径 |
+| write | file_path | str | 文件路径 |
+| write | content | str | 文件内容 |
+| edit | file_path | str | 文件路径 |
+| edit | old_string | str | 被替换的文本 |
+| edit | new_string | str | 替换后的文本 |
+| get_output | shell_id | str | shell ID |
+| get_output | timeout | int | 超时（毫秒） |
+
+#### sessions_db/trajectory.jsonl中tool_calls的keys
+
+`['arguments', 'id', 'index', 'kind', 'name']`——比conversation.json多了`id`/`index`/`kind`字段，`name`对应conversation.json的`function_name`。
+
+#### tool_definitions结构（agent.tool_definitions，29个工具）
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "string — 工具名",
+    "description": "string — 工具描述",
+    "parameters": "dict — 参数Schema"
+  }
+}
+```
+
+29个工具名：ask_user_question, todo_write, mcp_read_resource, mcp_call_tool, edit, write_to_process, browser_preview, request_scope, read_subagent, apply_patch, grep, read, notebook_edit, run_subagent, find_file_by_name, close_browser_preview, kill_shell, exit_plan_mode, webfetch, notebook_read, write, get_output, mcp_list_servers, skill, shell_command, exec, update_plan, web_search, mcp_list_tools
 
 ### tool_call的function_name分布（60个tool_call）
 
@@ -353,19 +392,54 @@ SQLite导出的trajectory，82%存在。每行一个JSON对象。
 
 ## 4. mitm/thinking_live.jsonl
 
-MITM实时截获的thinking chunks，38%存在（仅早期批次）。
+MITM实时截获的thinking chunks，38%存在（仅早期批次）。每行一个JSON对象，有**3种type**：
 
-### Schema
+### type=thinking_chunk（流式thinking片段，占绝大多数）
 
 ```json
 {
-  "timestamp": "string — ISO格式时间戳",
-  "counter": "int — 计数器",
-  "chunk_index": "int — chunk索引",
-  "type": "string — 'thinking_chunk'",
-  "content": "string — thinking文本片段"
+  "timestamp": "string — ISO格式",
+  "counter": "int — API调用计数器",
+  "chunk_index": "int — chunk序号",
+  "type": "thinking_chunk",
+  "content": "string — thinking文本片段（如3chars的'The'）"
 }
 ```
+
+### type=tool_call_chunk（工具调用片段）
+
+```json
+{
+  "timestamp": "string — ISO格式",
+  "counter": "int",
+  "type": "tool_call_chunk",
+  "tool_call_id": "string — 如'chatcmpl-tool-xxx'",
+  "name": "string — 工具名（如'read'）",
+  "args_chunk": "string — 参数片段（流式拼接）",
+  "is_start": "bool — 是否是第一个chunk"
+}
+```
+
+### type=stream_complete（一轮thinking完成时的汇总）
+
+```json
+{
+  "timestamp": "string — ISO格式",
+  "counter": "int — API调用计数器",
+  "type": "stream_complete",
+  "exp_id": "string — 实验ID",
+  "thinking_full": "string — 完整thinking内容",
+  "thinking_total_length": "int — thinking总长度",
+  "thinking_chunks": "int — chunk总数",
+  "envelopes": "int — 消息信封数",
+  "elapsed_seconds": "float — 耗时",
+  "tool_calls": "list — 工具调用列表（常为空）"
+}
+```
+
+### 行数与type分布
+
+type分布（50题采样）：thinking_chunk=209859, tool_call_chunk=2841, stream_complete=36。
 
 ### 行数分布
 
@@ -418,22 +492,26 @@ Let me read the problem file.
 
 ## 7. mitm/trajectory.jsonl
 
-MITM解码的完整trajectory，36%存在。
+MITM解码的完整trajectory，36%存在。每行对应一个完整API响应。
 
 ### Schema
 
 ```json
 {
-  "source_file": "string — 原始bin文件名",
+  "source_file": "string — 原始bin文件名（如'chatmsg_1639_044250_933929.bin'）",
   "session_id": "string — session UUID",
   "matched_exp": "string — 匹配的exp_id",
-  "decoded_at": "float — 解码时间戳",
+  "decoded_at": "float — 解码时间戳（Unix epoch）",
   "total_messages": "int — 总消息数",
-  "content_thinking": "string — thinking内容",
+  "content_thinking": "string — 完整thinking内容",
   "content_chunks_count": "int — chunk数",
-  "tool_calls": "dict — 工具调用"
+  "tool_calls": "dict — 工具调用，key是tool_call_id（如'chatcmpl-tool-xxx'），value是工具调用详情"
 }
 ```
+
+### tool_calls字段详细
+
+`tool_calls`是dict而非list——key是tool_call_id（如`chatcmpl-tool-858cdbdfb3eb1fa9`），value是该工具调用的详情。50题采样中186个非空tool_calls。
 
 ### 行数分布
 
