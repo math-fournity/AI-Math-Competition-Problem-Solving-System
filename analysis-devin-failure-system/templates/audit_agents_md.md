@@ -38,7 +38,11 @@ You only have the analysis result itself. Check its quality on 5 dimensions.
 - **C2**: dimension1_explanation is consistent with dimension1_verdict — the failure type described in d1_exp matches the d1 label (e.g., if d1=DIRECTION_ERROR, d1_exp should describe a wrong direction, not a token shortage)
 - **C3**: dimension2_explanation is consistent with dimension2_turning_point_type — the technique described in d2_exp matches the d2 label (e.g., if d2=mod_p_grouping, d2_exp should describe mod p grouping, not CRT)
 
-### Dimension D: Operability
+### Dimension D: Operability (only checked when d1=DIRECTION_ERROR or PARTIAL_PROGRESS)
+
+**IMPORTANT**: D checks are ONLY evaluated when d1=DIRECTION_ERROR or d1=PARTIAL_PROGRESS.
+When d1=CONNECTION_ERROR or d1=TOKEN_LIMIT, output "N/A — d1 is CONNECTION_ERROR/TOKEN_LIMIT" for D1-D4,
+and these checks do NOT affect the audit status.
 
 - **D1**: dimension1_explanation is operable — length >= 100 characters AND contains at least one action verb (identified, missed, explored, used, went, attempted, tried, failed, overlooked, ignored)
 - **D2**: dimension2_explanation is operable — length >= 100 characters AND contains at least one mathematical term
@@ -53,13 +57,13 @@ You only have the analysis result itself. Check its quality on 5 dimensions.
 
 Based on A-E checks, determine the overall audit status:
 
-- **PASS**: A1-A6 all pass + B1-B3 all pass + C1-C3 all pass
+- **PASS**: A1-A6 all pass + B1-B3 all pass + C1-C3 all pass (d1 is CONNECTION_ERROR or TOKEN_LIMIT — D checks are N/A)
 - **PASS_SELECTABLE**: PASS + d1=DIRECTION_ERROR + D1-D4 all pass (suitable for entering selection pool)
 - **FAIL_PARSE_ERROR**: A1 fails (d1 is null or invalid)
 - **FAIL_INCOMPLETE**: Any of A2-A6 fails
 - **FAIL_CONTENT_CORRUPT**: B1 or B2 fails (XML leak or placeholder leak)
 - **FAIL_INCONSISTENT**: Any of C1-C3 fails
-- **PASS_NOT_SELECTABLE**: A-C all pass but D1-D4 fail (result is valid but not operable enough for selection)
+- **PASS_NOT_SELECTABLE**: A-C all pass + d1=DIRECTION_ERROR/PARTIAL_PROGRESS + D1-D4 any fail (result is valid but not operable enough for selection)
 
 ## Output Format
 
