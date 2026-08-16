@@ -56,18 +56,20 @@ If the verdict is DIRECTION_ERROR or PARTIAL_PROGRESS, identify what type of key
 
 ### Output Format
 
-Output your analysis in this EXACT XML format. The XML must be well-formed and parseable.
+Output your analysis as a single XML block. Replace each placeholder with your actual analysis.
+
+**IMPORTANT**: Each XML tag must be closed with the EXACT matching closing tag. For example, `<dimension2_explanation>` must be closed with `</dimension2_explanation>`, NOT with `</dimension2_turning_point_type>`.
 
 ```xml
 <analysis>
   <problem_id>{problem_id}</problem_id>
-  <dimension1_verdict>DIRECTION_ERROR|TOKEN_LIMIT|CONNECTION_ERROR|PARTIAL_PROGRESS</dimension1_verdict>
-  <dimension1_explanation>1-3 sentences explaining the verdict</dimension1_explanation>
-  <dimension2_turning_point_type>mod_p_grouping|mod_p_non_obvious|quadratic_residue_euler|lte_lemma|p_adic_valuation|multi_step_mod_p|crt|permutation_polynomial|finite_field_structure|other</dimension2_turning_point_type>
-  <dimension2_explanation>1-3 sentences describing the key turning point in the standard solution</dimension2_explanation>
-  <ai_direction_summary>1 sentence describing what direction the AI's thinking went</ai_direction_summary>
-  <standard_solution_key_technique>1 sentence describing the key technique in the standard solution</standard_solution_key_technique>
-  <confidence>high|medium|low</confidence>
+  <dimension1_verdict>ONE_OF: DIRECTION_ERROR, TOKEN_LIMIT, CONNECTION_ERROR, PARTIAL_PROGRESS</dimension1_verdict>
+  <dimension1_explanation>Your 1-3 sentence explanation here</dimension1_explanation>
+  <dimension2_turning_point_type>ONE_OF: mod_p_grouping, mod_p_non_obvious, quadratic_residue_euler, lte_lemma, p_adic_valuation, multi_step_mod_p, crt, permutation_polynomial, finite_field_structure, other</dimension2_turning_point_type>
+  <dimension2_explanation>Your 1-3 sentence description of the key turning point here</dimension2_explanation>
+  <ai_direction_summary>Your 1 sentence summary of the AI's direction here</ai_direction_summary>
+  <standard_solution_key_technique>Your 1 sentence summary of the standard technique here</standard_solution_key_technique>
+  <confidence>ONE_OF: high, medium, low</confidence>
 </analysis>
 ```
 
@@ -76,6 +78,8 @@ After the XML block, output exactly: `### ANALYSIS COMPLETE`
 **Rules:**
 - The XML must be inside a ```xml code block
 - Do NOT add any text before or after the XML block (except ### ANALYSIS COMPLETE)
+- Each opening tag must have a matching closing tag (e.g., `<dimension2_explanation>...</dimension2_explanation>`)
+- Output exactly ONE value for each field (not a list separated by |)
 - If the AI's thinking is too short to analyze (< 500 chars AND no mathematical content), output CONNECTION_ERROR. But if the AI solved a different problem or went in the wrong direction, use DIRECTION_ERROR even if the thinking is short.
 - If you cannot determine the turning point type, use "other" and explain in dimension2_explanation
 

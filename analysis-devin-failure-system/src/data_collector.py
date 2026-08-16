@@ -299,11 +299,17 @@ def match_problem_to_solution(pid, datasets):
 # ============================================================
 
 def get_thinking_text(exp_id):
-    """从trajectory目录获取thinking文本（4级优先级）
-    
+    """从trajectory目录获取thinking文本（含tool_calls和tool_results）
+
+    数据源优先级（2026-08-15修正：trajectory.jsonl优先，因为含tool_results）：
+    1. sessions_db/trajectory.jsonl — 含thinking+tool_calls+tool_results+content，最完整
+    2. exports/conversation.json — 含reasoning_content+message+tool_calls，但无tool_results
+    3. mitm/thinking_readable.txt — 含thinking+轮次标记+tool_call记录，但无tool_results
+    4. collector/pane_snapshot_clean.txt — 兜底
+
     Args:
         exp_id: 实验ID
-    
+
     Returns:
         thinking文本字符串，或None
     """
@@ -311,17 +317,12 @@ def get_thinking_text(exp_id):
     if not traj_dir.exists():
         return None
 
-    # 优先级1：mitm/thinking_readable.txt
-    path = traj_dir / "mitm" / "thinking_readable.txt"
-    if path.exists() and path.stat().st_size > 100:
-        content = path.read_text(encoding="utf-8", errors="replace")
-        if content.strip():
-            return content
-
-    # 优先级2：sessions_db/trajectory.jsonl
+    # 优先级1：sessions_db/trajectory.jsonl（含tool_results，最完整）
     path = traj_dir / "sessions_db" / "trajectory.jsonl"
     if path.exists():
         parts = []
+        round_num = 0
+        seen_thinking = set()  # 去重（同一thinking可能出现在多个step中）
         with open(str(path)) as f:
             for line in f:
                 line = line.strip()
@@ -329,22 +330,47 @@ def get_thinking_text(exp_id):
                     continue
                 try:
                     obj = json.loads(line)
-                    thinking = obj.get("thinking", "")
-                    if isinstance(thinking, str) and thinking.strip():
-                        parts.append(thinking)
                 except json.JSONDecodeError:
                     continue
-        if parts:
-            # 去重（同一thinking可能出现在多个step中）
-            seen = set()
-            unique = []
-            for p in parts:
-                if p not in seen:
-                    seen.add(p)
-                    unique.append(p)
-            return "\n".join(unique)
 
-    # 优先级3：exports/conversation.json
+                node_type = obj.get("type", "")
+                role = obj.get("role", "")
+                thinking = obj.get("thinking", "")
+                content = obj.get("content", "")
+                tool_calls = obj.get("tool_calls", [])
+
+                if role == "assistant":
+                    # 新一轮thinking spin
+                    if isinstance(thinking, str) and thinking.strip():
+                        if thinking not in seen_thinking:
+                            seen_thinking.add(thinking)
+                            round_num += 1
+                            parts.append(f"\n{'='*60}\n[Thinking Round {round_num}]\n{'='*60}")
+                            parts.append(thinking)
+                    # agent的message（TUI输出）
+                    if isinstance(content, str) and content.strip():
+                        parts.append(f"\n[Agent Output]: {content}")
+                    # tool_calls
+                    if isinstance(tool_calls, list):
+                        for tc in tool_calls:
+                            if isinstance(tc, dict):
+                                tc_name = tc.get("name", "?")
+                                tc_args = tc.get("arguments", {})
+                                args_str = str(tc_args)[:500] if tc_args else ""
+                                parts.append(f"\n--- [Tool Call: {tc_name}] ---")
+                                if args_str:
+                                    parts.append(f"  args: {args_str}")
+
+                elif node_type == "tool" or role == "tool":
+                    # tool返回结果——这是之前缺失的关键数据
+                    if isinstance(content, str) and content.strip():
+                        parts.append(f"\n--- [Tool Result] ---")
+                        parts.append(content[:2000])  # 限制长度避免AGENTS.md过大
+
+        if parts:
+            return "\n".join(parts)
+
+    # 优先级2：exports/conversation.json（无tool_results，但有reasoning_content+message+tool_calls）
     path = traj_dir / "exports" / "conversation.json"
     if path.exists():
         with open(str(path)) as f:
@@ -352,20 +378,40 @@ def get_thinking_text(exp_id):
         parts = []
         if isinstance(conv, dict):
             steps = conv.get("steps", [])
+            round_num = 0
             for step in steps:
                 if not isinstance(step, dict):
                     continue
-                rc = step.get("reasoning_content", "")
-                if isinstance(rc, str) and rc.strip():
-                    parts.append(rc)
                 if step.get("source") == "agent":
+                    rc = step.get("reasoning_content", "")
                     msg = step.get("message", "")
+                    tc = step.get("tool_calls", [])
+                    if isinstance(rc, str) and rc.strip():
+                        round_num += 1
+                        parts.append(f"\n{'='*60}\n[Thinking Round {round_num}]\n{'='*60}")
+                        parts.append(rc)
                     if isinstance(msg, str) and msg.strip():
-                        parts.append(msg)
+                        parts.append(f"\n[Agent Output]: {msg}")
+                    if isinstance(tc, list):
+                        for call in tc:
+                            if isinstance(call, dict):
+                                name = call.get("name", call.get("function", {}).get("name", "?"))
+                                args = call.get("arguments", call.get("function", {}).get("arguments", ""))
+                                args_str = str(args)[:500] if args else ""
+                                parts.append(f"\n--- [Tool Call: {name}] ---")
+                                if args_str:
+                                    parts.append(f"  args: {args_str}")
         if parts:
             return "\n".join(parts)
 
-    # 优先级4：collector/pane_snapshot_clean.txt
+    # 优先级3：mitm/thinking_readable.txt（有轮次标记但无tool_results）
+    path = traj_dir / "mitm" / "thinking_readable.txt"
+    if path.exists() and path.stat().st_size > 100:
+        content = path.read_text(encoding="utf-8", errors="replace")
+        if content.strip():
+            return content
+
+    # 优先级4：collector/pane_snapshot_clean.txt（兜底）
     path = traj_dir / "collector" / "pane_snapshot_clean.txt"
     if path.exists() and path.stat().st_size > 100:
         return path.read_text(encoding="utf-8", errors="replace")

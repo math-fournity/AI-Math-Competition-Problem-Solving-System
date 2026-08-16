@@ -41,10 +41,10 @@ def _utc_now():
 
 def extract_xml_block(text):
     """从文本中提取<analysis>...</analysis> XML块
-    
+
     Args:
         text: 包含XML的文本
-    
+
     Returns:
         XML字符串，或None
     """
@@ -53,47 +53,37 @@ def extract_xml_block(text):
     text = re.sub(r'\x1b\][^\x07]*\x07', '', text)
 
     # 方法1：搜索```xml ... ```代码块中的<analysis>
+    # 取最后一个匹配——agent可能先输出模板格式再输出实际内容
     pattern1 = r"```xml\s*(<analysis>.*?</analysis>)\s*```"
-    m = re.search(pattern1, text, re.DOTALL)
-    if m:
-        return m.group(1)
+    matches1 = re.findall(pattern1, text, re.DOTALL)
+    if matches1:
+        # 取最后一个非模板的匹配
+        for m in reversed(matches1):
+            # 跳过模板原文（含"1-3 sentences"等占位符）
+            if "1-3 sentences" not in m and "ONE_OF:" not in m:
+                return m
+        # 如果都是模板，取最后一个
+        return matches1[-1]
 
-    # 方法2：直接搜索<analysis>...</analysis>（贪婪匹配最外层）
-    # 用嵌套深度计数来匹配最外层的</analysis>
-    start_idx = text.find("<analysis>")
-    if start_idx < 0:
-        return None
-    # 找匹配的</analysis>——从start_idx开始，计数嵌套深度
-    depth = 0
-    pos = start_idx
-    while pos < len(text):
-        open_idx = text.find("<analysis>", pos)
-        close_idx = text.find("</analysis>", pos)
-        if close_idx < 0:
-            break
-        if open_idx >= 0 and open_idx < close_idx:
-            depth += 1
-            pos = open_idx + len("<analysis>")
-        else:
-            depth -= 1
-            pos = close_idx + len("</analysis>")
-            if depth == 0:
-                return text[start_idx:pos]
-    # 兜底：用非贪婪正则
+    # 方法2：直接搜索<analysis>...</analysis>
+    # 取最后一个匹配（正确的分析通常在最后）
     pattern2 = r"(<analysis>.*?</analysis>)"
-    m = re.search(pattern2, text, re.DOTALL)
-    if m:
-        return m.group(1)
+    matches2 = re.findall(pattern2, text, re.DOTALL)
+    if matches2:
+        for m in reversed(matches2):
+            if "1-3 sentences" not in m and "ONE_OF:" not in m:
+                return m
+        return matches2[-1]
 
     return None
 
 
 def parse_xml(xml_string):
     """解析XML，返回dict
-    
+
     Args:
         xml_string: XML字符串
-    
+
     Returns:
         dict with keys: problem_id, dimension1_verdict, dimension1_explanation,
                         dimension2_turning_point_type, dimension2_explanation,
@@ -116,16 +106,44 @@ def parse_xml(xml_string):
         "dimension2_turning_point_type", "dimension2_explanation",
         "ai_direction_summary", "standard_solution_key_technique", "confidence",
     ]
+    # 模板占位符——这些是模板中的描述文字，不是实际分析内容
+    template_placeholders = {
+        "1-3 sentences explaining the verdict",
+        "1-3 sentences describing the key turning point in the standard solution",
+        "1 sentence describing what direction the AI's thinking went",
+        "1 sentence describing the key technique in the standard solution",
+    }
+
     for tag in target_tags:
-        # 匹配 <tag>...</tag>（非贪婪）
+        # 方法1：匹配 <tag>...</tag>（非贪婪，正确闭合）
         pattern = rf"<{tag}>(.*?)</{tag}>"
-        m = re.search(pattern, xml_string, re.DOTALL)
-        if m:
-            result[tag] = m.group(1).strip()
-    
+        matches = re.findall(pattern, xml_string, re.DOTALL)
+        for m in matches:
+            val = m.strip()
+            # 跳过模板占位符
+            if val.lower() in {p.lower() for p in template_placeholders}:
+                continue
+            # 跳过ONE_OF格式的模板值
+            if val.startswith("ONE_OF:") or val.startswith("DIRECTION_ERROR|"):
+                continue
+            result[tag] = val
+            break
+
+        # 方法2：如果方法1没匹配到，尝试处理标签闭合错误
+        # 如 <dimension2_explanation>内容</dimension2_turning_point_type>
+        if tag not in result:
+            # 匹配 <tag>内容</任意tag>——取下一个标签闭合
+            pattern2 = rf"<{tag}>(.*?)</\w+>"
+            m2 = re.search(pattern2, xml_string, re.DOTALL)
+            if m2:
+                val = m2.group(1).strip()
+                if val and val.lower() not in {p.lower() for p in template_placeholders}:
+                    if not val.startswith("ONE_OF:") and not val.startswith("DIRECTION_ERROR|"):
+                        result[tag] = val
+
     if result:
         return result
-    
+
     # 都失败了——返回原始XML
     return {"_parse_error": "regex_extraction_failed", "_raw_xml": xml_string[:500]}
 
