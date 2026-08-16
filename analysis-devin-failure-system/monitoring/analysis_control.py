@@ -3,18 +3,21 @@
 
 启动/停止/状态查询/健康检查。
 
-模仿solver_harness的pipe_control.py，但简化：
-  - 无Redis队列（分析系统用prepared.json作为队列）
-  - 无4服务分离（分析系统是单进程launcher）
-  - 有tmux session管理
-  - 有健康检查
+对齐solver_harness的pipe_control.py：
+  - start: 一键启动feeder+launcher+retry服务（tmux session + auto-restart）
+  - stop: 一键优雅停止所有服务（SIGINT等退出，超时才kill）
+  - stop --force: 强制停止
+  - stop --kill-sessions: 同时kill正在运行的an-分析session
+  - status/health/logs/set-concurrency/retry
 
 用法:
+  python -m monitoring.analysis_control start --batch-id <id> --concurrency 30
+  python -m monitoring.analysis_control stop [--force] [--kill-sessions]
   python -m monitoring.analysis_control status [--batch-id <id>]
   python -m monitoring.analysis_control health [--batch-id <id>]
-  python -m monitoring.analysis_control stop [--batch-id <id>]
-  python -m monitoring.analysis_control stop-all
   python -m monitoring.analysis_control logs [--lines 50]
+  python -m monitoring.analysis_control set-concurrency --batch-id <id> --concurrency 20
+  python -m monitoring.analysis_control retry --once
 """
 import argparse
 import json
@@ -26,8 +29,11 @@ from pathlib import Path
 from collections import Counter
 
 # 添加项目根目录到path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# 注意：本项目根目录是analysis-devin-failure-system，不是worktree根目录
+PROJECT_ROOT = Path(__file__).parent.parent.parent  # worktree根目录（用于sys.path）
+ANALYSIS_ROOT = Path(__file__).parent.parent          # analysis-devin-failure-system目录
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(ANALYSIS_ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.config import (
@@ -60,6 +66,74 @@ def list_analysis_sessions():
             name = line.split(":")[0]
             sessions.append(name)
     return sessions
+
+
+# ============================================================
+# 服务启停（对齐solver_harness的pipe_control.py）
+# ============================================================
+
+VENV_PYTHON = str(Path(__file__).parent.parent.parent / ".venv" / "bin" / "python3")
+# 如果项目根目录没有.venv，用sys.executable
+if not Path(VENV_PYTHON).exists():
+    VENV_PYTHON = sys.executable
+
+
+def start_service(name: str, script_cmd: str, auto_restart: bool = False):
+    """启动一个服务到tmux session（对齐solver_harness的start_service）
+
+    auto_restart=True: 用bash while循环包裹，服务退出后自动重启（等5秒）。
+    """
+    session_name = f"analysis-{name}"
+    if tmux_running(session_name):
+        print(f"  [{name}] 已在运行, 跳过")
+        return
+
+    if auto_restart:
+        full_cmd = (
+            f'while true; do {script_cmd} 2>&1; '
+            f'echo "[auto-restart] {name}退出, 5秒后重启..."; '
+            f'sleep 5; done'
+        )
+    else:
+        full_cmd = script_cmd + " 2>&1"
+
+    subprocess.run(
+        ["tmux", "new-session", "-d", "-s", session_name, full_cmd],
+        check=False, timeout=10
+    )
+    print(f"  [{name}] 启动 → tmux:{session_name}" + (" (auto-restart)" if auto_restart else ""))
+
+
+def stop_service(name: str, graceful: bool = True, timeout: int = 10):
+    """停止一个服务（对齐solver_harness的stop_service）
+
+    graceful=True: 发送SIGINT让服务优雅退出
+    graceful=False: 直接kill-session（强制停止）
+    """
+    session_name = f"analysis-{name}"
+    if not tmux_running(session_name):
+        print(f"  [{name}] 未运行")
+        return
+
+    if graceful:
+        subprocess.run(["tmux", "send-keys", "-t", session_name, "C-c", ""],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        print(f"  [{name}] 发送SIGINT, 等待优雅退出...")
+
+        for i in range(timeout):
+            time.sleep(1)
+            if not tmux_running(session_name):
+                print(f"  [{name}] 已优雅退出 (等待{i+1}s)")
+                return
+
+        print(f"  [{name}] 优雅退出超时({timeout}s), 强制停止")
+        subprocess.run(["tmux", "kill-session", "-t", session_name],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        print(f"  [{name}] 已强制停止")
+    else:
+        subprocess.run(["tmux", "kill-session", "-t", session_name],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        print(f"  [{name}] 已强制停止")
 
 
 def get_pane_tail(session_name, lines=10):
@@ -267,29 +341,106 @@ def cmd_health(batch_id=None):
 # stop
 # ============================================================
 
-def cmd_stop(batch_id=None):
-    """停止指定批次或所有分析session"""
-    sessions = list_analysis_sessions()
-    if batch_id:
-        # 只停止匹配batch_id的session
-        target = [s for s in sessions if batch_id in s]
+def cmd_start(batch_id, concurrency=30, max_runtime=300, stall_seconds=120,
+              poll_seconds=10, clear=False, no_feed=False):
+    """一键启动分析系统（对齐solver_harness的cmd_start）
+
+    启动3个服务到tmux session：
+    1. feeder: 从DB取prepared的run入Redis pending队列（auto-restart）
+    2. launcher: 从Redis pending队列取题启动devin cli（auto-restart）
+    3. retry: 自动重试基础设施失败（auto-restart）
+    """
+    from monitoring.redis_queue import ping, get_redis, clear_all, update_stats, pending_count
+
+    print("启动错题分析系统:")
+    if not ping():
+        print("  ❌ Redis连接失败，请先启动Redis")
+        sys.exit(1)
+    print("  ✅ Redis连接正常")
+
+    r = get_redis()
+    if clear:
+        clear_all(r)
+        print("  已清空Redis队列")
+
+    # 1. 启动feeder（一次性入队所有prepared的题）
+    if not no_feed:
+        from src.feeder import feed_batch
+        from src.db_schema import connect_db
+        db = connect_db()
+        total = 0
+        while True:
+            count = feed_batch(db, r, batch_id, batch_size=500)
+            if count == 0:
+                break
+            total += count
+            update_stats(r)
+        print(f"  [feeder] 入队{total}题到Redis pending (pending={pending_count(r)})")
+
+    # 2. 启动launcher（不auto-restart——批处理任务，处理完就退出）
+    launcher_cmd = (
+        f"cd {ANALYSIS_ROOT} && {VENV_PYTHON} -m src.analysis_launcher "
+        f"--batch-id {batch_id} --concurrency {concurrency} "
+        f"--max-runtime {max_runtime} --stall-seconds {stall_seconds} "
+        f"--poll-seconds {poll_seconds}"
+    )
+    start_service("launcher", launcher_cmd, auto_restart=False)
+    time.sleep(2)
+
+    # 3. 启动retry服务（auto-restart）
+    retry_cmd = (
+        f"cd {ANALYSIS_ROOT} && {VENV_PYTHON} -m monitoring.retry_infrastructure "
+        f"--interval 120"
+    )
+    start_service("retry", retry_cmd, auto_restart=True)
+
+    print(f"\n所有服务已启动。用 'python -m monitoring.analysis_control status' 查看状态。")
+    print(f"  批次: {batch_id}")
+    print(f"  并发: {concurrency}")
+    print(f"  pending: {pending_count(r)}")
+
+
+def cmd_stop(batch_id=None, force=False, kill_sessions=False, timeout=10):
+    """优雅停止分析系统（对齐solver_harness的cmd_stop）
+
+    force=False: 发送SIGINT让launcher/retry优雅退出，等正在运行的an-分析session自然完成
+    force=True: 直接kill所有服务
+    kill_sessions=True: 同时kill正在运行的an-分析session（强制停止所有分析）
+    """
+    print("停止错题分析系统:")
+
+    # 1. 停止服务（launcher + retry）
+    for name in ["launcher", "retry"]:
+        stop_service(name, graceful=not force, timeout=timeout)
+
+    # 2. 可选：kill正在运行的an-分析session
+    if kill_sessions:
+        sessions = list_analysis_sessions()
+        if batch_id:
+            target = [s for s in sessions if batch_id in s]
+        else:
+            target = sessions
+
+        if target:
+            print(f"\n停止 {len(target)} 个an-分析session:")
+            for s in target:
+                subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True, timeout=5)
+                print(f"  killed: {s}")
+                logger.info(f"停止session: {s}")
+        else:
+            print("\n无an-分析session运行中")
     else:
-        target = sessions
-
-    if not target:
-        print("无匹配的tmux session")
-        return
-
-    print(f"停止 {len(target)} 个session:")
-    for s in target:
-        subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True, timeout=5)
-        print(f"  killed: {s}")
-        logger.info(f"停止session: {s}")
+        sessions = list_analysis_sessions()
+        if sessions:
+            print(f"\n  ⚠️ {len(sessions)}个an-分析session仍在运行（不kill，等自然完成）")
+            print(f"  如需强制停止: python -m monitoring.analysis_control stop --kill-sessions")
+        else:
+            print("\n  无an-分析session运行中")
 
 
 def cmd_stop_all():
-    """停止所有an-开头的session"""
-    cmd_stop(batch_id=None)
+    """停止所有an-开头的session（兼容旧命令）"""
+    cmd_stop(force=True, kill_sessions=True)
 
 
 # ============================================================
@@ -354,16 +505,30 @@ def main():
     parser = argparse.ArgumentParser(description="错题分析系统控制工具")
     sub = parser.add_subparsers(dest="command")
 
+    # start: 一键启动
+    p_start = sub.add_parser("start", help="一键启动分析系统（feeder+launcher+retry）")
+    p_start.add_argument("--batch-id", required=True, help="批次ID")
+    p_start.add_argument("--concurrency", type=int, default=30, help="并发数（默认30）")
+    p_start.add_argument("--max-runtime", type=int, default=300, help="单题最大运行时间秒（默认300）")
+    p_start.add_argument("--stall-seconds", type=int, default=120, help="stall检测秒数（默认120）")
+    p_start.add_argument("--poll-seconds", type=int, default=10, help="轮询间隔秒（默认10）")
+    p_start.add_argument("--clear", action="store_true", help="启动前清空Redis队列")
+    p_start.add_argument("--no-feed", action="store_true", help="不自动feeder入队（手动feeder后用）")
+
     p_status = sub.add_parser("status", help="查看状态")
     p_status.add_argument("--batch-id", help="批次ID")
 
     p_health = sub.add_parser("health", help="健康检查")
     p_health.add_argument("--batch-id", help="批次ID")
 
-    p_stop = sub.add_parser("stop", help="停止session")
-    p_stop.add_argument("--batch-id", help="批次ID")
+    # stop: 优雅停止
+    p_stop = sub.add_parser("stop", help="停止分析系统（默认优雅退出服务，保留an-分析session）")
+    p_stop.add_argument("--batch-id", help="批次ID（只停止匹配的an-分析session）")
+    p_stop.add_argument("--force", action="store_true", help="强制停止（不等优雅退出）")
+    p_stop.add_argument("--kill-sessions", action="store_true", help="同时kill正在运行的an-分析session")
+    p_stop.add_argument("--timeout", type=int, default=10, help="优雅退出等待秒数（默认10）")
 
-    sub.add_parser("stop-all", help="停止所有session")
+    sub.add_parser("stop-all", help="停止所有（强制kill服务+an-分析session）")
 
     logs_parser = sub.add_parser("logs", help="查看日志")
     logs_parser.add_argument("--lines", type=int, default=50, help="显示行数")
@@ -381,12 +546,17 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "status":
+    if args.command == "start":
+        cmd_start(args.batch_id, concurrency=args.concurrency,
+                  max_runtime=args.max_runtime, stall_seconds=args.stall_seconds,
+                  poll_seconds=args.poll_seconds, clear=args.clear, no_feed=args.no_feed)
+    elif args.command == "status":
         cmd_status(getattr(args, "batch_id", None))
     elif args.command == "health":
         cmd_health(getattr(args, "batch_id", None))
     elif args.command == "stop":
-        cmd_stop(getattr(args, "batch_id", None))
+        cmd_stop(batch_id=getattr(args, "batch_id", None), force=args.force,
+                 kill_sessions=args.kill_sessions, timeout=args.timeout)
     elif args.command == "stop-all":
         cmd_stop_all()
     elif args.command == "logs":
