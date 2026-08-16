@@ -58,7 +58,7 @@ and these checks do NOT affect the audit status.
 Based on A-E checks, determine the overall audit status:
 
 - **PASS**: A1-A6 all pass + B1-B3 all pass + C1-C3 all pass (d1 is CONNECTION_ERROR or TOKEN_LIMIT — D checks are N/A)
-- **PASS_SELECTABLE**: PASS + d1=DIRECTION_ERROR + D1-D4 all pass (suitable for entering selection pool)
+- **PASS_SELECTABLE**: PASS + d1 IN (DIRECTION_ERROR, PARTIAL_PROGRESS) + D1-D4 all pass (suitable for entering selection pool)
 - **FAIL_PARSE_ERROR**: A1 fails (d1 is null or invalid)
 - **FAIL_INCOMPLETE**: Any of A2-A6 fails
 - **FAIL_CONTENT_CORRUPT**: B1 or B2 fails (XML leak or placeholder leak)
