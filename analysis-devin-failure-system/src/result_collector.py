@@ -126,6 +126,10 @@ def parse_xml(xml_string):
             # 跳过ONE_OF格式的模板值
             if val.startswith("ONE_OF:") or val.startswith("DIRECTION_ERROR|"):
                 continue
+            # 清除混入的XML标签（标签闭合错误时，内容可能包含</dimension...>和后续标签）
+            if "</" in val:
+                # 截断到第一个错误闭合标签之前
+                val = re.split(r"</\w+>", val)[0].strip()
             result[tag] = val
             break
 
