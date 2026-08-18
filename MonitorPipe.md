@@ -319,7 +319,269 @@ doc = {
 
 ---
 
-## 6. 和其他规则的关系
+## 6. 如何参考错题分析系统实现新Pipe——具体操作指南
+
+未来的AI要为一个新的连续工作系统实现Pipe+Monitor Pipe时，按本节操作。错题分析系统（`analysis-devin-failure-system/`）有4个Pipe的完整实现，是本范式的参考样板。
+
+### 6.1 先读懂现有Pipe的架构——4个Pipe的演进
+
+4个Pipe代表了从"共享基础设施"到"独立自包含"的演进：
+
+| Pipe | 模式 | 共享什么 | 独立什么 |
+|---|---|---|---|
+| Pipe 1 分析 | 共享基础设施 | config.py, db_schema.py, redis_queue.py, monitor_pipe.py | data_collector, analysis_launcher, result_collector, aggregator |
+| Pipe 2 审计 | 共享+扩展 | config.py, db_schema.py（复用connect_db） | audit_collector, audit_launcher, audit_result_collector, audit_aggregator, audit_redis_queue.py |
+| Pipe 3 选题 | 共享+扩展 | config.py, db_schema.py（复用connect_db） | selection_collector, selection_launcher, selection_result_collector, monitor_selection.py |
+| Pipe 4 续传 | **独立自包含** | 仅shared_logger.py | continuation_config, continuation_db_schema, continuation_redis_queue, continuation_collector, continuation_feeder, continuation_launcher, continuation_result_collector, monitor_continuation.py |
+
+**推荐**：新Pipe采用Pipe 4的"独立自包含"模式——不修改现有Pipe的任何代码，所有组件独立。这样不会影响已有Pipe的运行。
+
+### 6.2 新Pipe需要的文件清单（11个文件）
+
+以Pipe 4为模板，一个新Pipe（假设叫`{name}`）需要：
+
+| 序号 | 文件 | 对标Pipe 4 | 用途 | 参考行数 |
+|---|---|---|---|---|
+| 1 | `src/{name}_config.py` | `continuation_config.py` | 配置常量（路径/DB/并发/阈值/Redis前缀/tmux命名） | ~90行 |
+| 2 | `src/{name}_db_schema.py` | `continuation_db_schema.py` | ArangoDB集合定义+索引+CRUD辅助函数 | ~120行 |
+| 3 | `src/{name}_redis_queue.py` | `continuation_redis_queue.py` | Redis队列操作封装（{name}:前缀） | ~170行 |
+| 4 | `src/{name}_collector.py` | `continuation_collector.py` | 数据收集——从数据源取题+构造run记录+创建工作目录 | ~170行 |
+| 5 | `src/{name}_feeder.py` | `continuation_feeder.py` | 入Redis队列 | ~60行 |
+| 6 | `src/{name}_launcher.py` | `continuation_launcher.py` | **核心**——并发启动devin cli+stall/rate_limit/zombie检测 | ~580行 |
+| 7 | `src/{name}_result_collector.py` | `continuation_result_collector.py` | 结果收集+通过率判定+Markdown汇总报告 | ~130行 |
+| 8 | `src/monitor_{name}.py` | `monitor_continuation.py` | Monitor Pipe守护进程——按检查规范执行检查 | ~750行 |
+| 9 | `specs/{name}_monitor_spec.md` | `specs/p27_monitor_spec.md` | **检查规范（系统资产，提前落盘）** | ~240行 |
+| 10 | `scripts/monitor_check_{name}.sh` | `scripts/monitor_check_continuation.sh` | 检查脚本——Master AI每次检查都调用 | ~240行 |
+| 11 | `run_{name}_pipeline.py` | `run_continuation_pipeline.py` | 端到端入口（collect→feed→launch→collect-results） | ~100行 |
+
+**可选**：如果新Pipe的devin cli需要AGENTS.md模板，还需要第12个文件`templates/{name}_agents_md.md`（参考`templates/analysis_agents_md.md`或`templates/selection_agents_md.md`）。
+
+### 6.3 具体操作步骤——以复制Pipe 4为例
+
+#### 步骤1：复制config并修改常量
+
+```bash
+cp src/continuation_config.py src/{name}_config.py
+```
+
+**必须修改的常量**：
+- `PENDING_KEY = "{name}:pending"`——Redis队列前缀（避免与现有Pipe冲突）
+- `CONTINUATION_RUNS_COLLECTION = "{name}_runs"`——ArangoDB集合名
+- `CONTINUATION_BATCHES_COLLECTION = "{name}_batches"`
+- `CONTINUATION_EVENTS_COLLECTION = "{name}_events"`
+- `CONTINUATION_RESULTS_COLLECTION = "{name}_results"`
+- `CONTINUATION_SOLVER_BASE` / `CONTINUATION_TRAJECTORY_BASE`——工作目录和trajectory目录
+- `DEFAULT_CONCURRENCY` / `DEFAULT_MAX_RUNTIME_SECONDS` / `DEFAULT_STALL_SECONDS`——根据任务调整
+- `DEVIN_MODEL` / `DEVIN_PERMISSION_MODE`——通常不变
+- `TMUX_PREFIX = "{name}"`——tmux session命名前缀
+- `RATE_LIMIT_PATTERNS` / `CONNECTION_PATTERNS`——通常不变（复用config.py的）
+
+**参考`continuation_config.py`的§1-§5**，理解每个常量的用途。
+
+#### 步骤2：复制db_schema并修改集合名
+
+```bash
+cp src/continuation_db_schema.py src/{name}_db_schema.py
+```
+
+**必须修改**：
+- import从`continuation_config`改为`{name}_config`
+- 集合名常量改为步骤1中定义的新名称
+- 索引名前缀改为`{name}_idx_`（避免与现有Pipe的索引名冲突）
+- `ensure_schema()`中创建的集合列表
+
+**参考`continuation_db_schema.py`的`ensure_schema()`函数**——它创建集合+索引，是DB初始化的入口。
+
+#### 步骤3：复制redis_queue并修改前缀
+
+```bash
+cp src/continuation_redis_queue.py src/{name}_redis_queue.py
+```
+
+**必须修改**：
+- 所有`PENDING_KEY`/`RUNNING_KEY`/`COMPLETED_KEY`/`FAILED_KEY`/`STATS_KEY`的前缀从`p27:`改为`{name}:`
+- 如果有v2双队列（handover/solve），修改对应的前缀
+
+**参考`continuation_redis_queue.py`**——它封装了enqueue/dequeue/add_running/remove_running/add_completed/add_failed/update_stats等操作。
+
+#### 步骤4：复制collector并修改数据源
+
+```bash
+cp src/continuation_collector.py src/{name}_collector.py
+```
+
+**必须修改**：
+- `load_problem_list()`——数据源从problem_list.json改为你的数据源（可能是ArangoDB查询、CSV文件、API等）
+- `extract_problem_text()`——题目文本提取逻辑（你的数据源格式可能不同）
+- `collect_and_prepare()`——创建DB run记录的逻辑，字段根据你的任务调整
+- import从`continuation_config`/`continuation_db_schema`改为`{name}_config`/`{name}_db_schema`
+
+**参考`continuation_collector.py`的`collect_and_prepare()`函数**——它加载数据源→为每道题创建工作目录→创建DB run记录（status=prepared）。
+
+#### 步骤5：复制feeder（基本不用改）
+
+```bash
+cp src/continuation_feeder.py src/{name}_feeder.py
+```
+
+**必须修改**：
+- import改为`{name}_config`/`{name}_db_schema`/`{name}_redis_queue`
+- 集合名常量改为新名称
+
+feeder的逻辑很简单——从DB取prepared的run，入Redis pending队列。通常不需要改逻辑。
+
+#### 步骤6：复制launcher并修改核心逻辑（最复杂）
+
+```bash
+cp src/continuation_launcher.py src/{name}_launcher.py
+```
+
+**必须修改**：
+- import改为`{name}_config`/`{name}_db_schema`/`{name}_redis_queue`
+- **prompt构造模板**——`INITIAL_PROMPT_TEMPLATE`/`CONTINUE_PROMPT_TEMPLATE`等，改为你的任务的prompt
+- **完成判定逻辑**——`is_completed()`函数，Pipe 4检查proof.md有boxed答案，你的任务可能检查XML标记、JSON输出等
+- **截断判定逻辑**——`is_truncated()`函数，通常不需要改（截断判定逻辑是通用的）
+- **多轮逻辑**——如果你的任务不需要多轮续传，删除`generate_handover()`和v2方案相关代码
+- **tmux session命名**——`tmux_session_name()`函数，前缀改为`{name}`
+
+**不需要修改的核心逻辑**（直接复用）：
+- `launch_batch()`的主循环结构——从Redis dequeue→启动tmux session→检查状态→处理完成/失败
+- stall检测——pane_hash变化+idle>stall_seconds
+- rate_limit检测——RATE_LIMIT_PATTERNS匹配+自动暂停20分钟
+- zombie session清理——完成后kill-session+dead_session检测
+- 动态并发——从DB读取batch.concurrency支持运行中调整
+
+**参考`continuation_launcher.py`的`launch_batch()`函数（第155-590行）**——这是整个Pipe的核心，复用analysis_launcher.py的成熟检测模式。
+
+#### 步骤7：复制result_collector并修改汇总逻辑
+
+```bash
+cp src/continuation_result_collector.py src/{name}_result_collector.py
+```
+
+**必须修改**：
+- import改为新的模块名
+- 通过率判定标准——Pipe 4对照415号§7.1（COMPLETED≥50%），你的任务有不同的通过标准
+- Markdown汇总报告的内容——根据你的任务的产出调整
+
+#### 步骤8：写检查规范（系统资产，提前落盘）
+
+```bash
+cp specs/p27_monitor_spec.md specs/{name}_monitor_spec.md
+```
+
+**必须修改**：
+- §1模块职责——改为你的系统的职责
+- §2.1 A类自动检查——选择适用于你的系统的检查项（通常A1-A9都适用）
+- §2.2 B类质量检查——**这是你的系统特有的**，参考Pipe 4的B1-B7，但根据你的产出调整
+- §2.3 C类AI review抽样——**这是你的系统特有的**，参考Pipe 4的C1-C5，但根据你的产出调整
+- §3检查标准——每项的阈值和通过/不通过判定
+- §6查询脚本输出规范——根据你的系统调整检查项数量
+
+**关键**：检查规范是系统资产，必须提前落盘。Monitor Pipe代码和检查脚本都参照本规范实现。
+
+#### 步骤9：复制monitor并修改检查函数
+
+```bash
+cp src/monitor_continuation.py src/monitor_{name}.py
+```
+
+**必须修改**：
+- import改为`{name}_config`/`{name}_db_schema`
+- `MONITOR_ALERTS_COLLECTION = "{name}_monitor_alerts"`——独立的alert集合
+- A类检查函数——通常不需要改逻辑，只改集合名和Redis前缀
+- **B类检查函数**——根据你的检查规范§2.2实现，Pipe 4的B1-B7是续传特有的，你的系统有不同的B类检查
+- **C类抽样函数**——`flag_for_ai_review()`中AI需要检查的项目，根据你的检查规范§2.3调整
+
+**参考`monitor_continuation.py`的`run_monitor_loop()`函数**——主循环结构（A类→B类→C类抽样→创建alerts→状态报告→退出检查）通常不需要改。
+
+#### 步骤10：复制检查脚本并修改
+
+```bash
+cp scripts/monitor_check_continuation.sh scripts/monitor_check_{name}.sh
+chmod +x scripts/monitor_check_{name}.sh
+```
+
+**必须修改**：
+- `MONITOR_SESSION`默认值改为`monitor-{name}`
+- `pgrep -f`的进程匹配模式改为`run_{name}_pipeline`和`src.monitor_{name}`
+- `tmux list-sessions | grep`的前缀改为`{name}-`
+- DB查询的集合名改为`{name}_runs`
+- 第5项质量汇总——根据你的产出调整统计内容
+- 第6项通过率判定——改为你的通过标准
+- 行动清单——根据你的系统的处理操作调整
+
+**关键**：行动清单的最后必须提醒Master AI去检查Monitor Pipe的alerts——这是本范式的核心设计。
+
+#### 步骤11：复制run_pipeline并修改
+
+```bash
+cp run_continuation_pipeline.py run_{name}_pipeline.py
+```
+
+**必须修改**：
+- import改为新的模块名
+- `--step`的choices通常不变（all/collect/feed/launch/collect-results/status/stop）
+- `--method`参数——如果你的任务没有v1/v2方案，删除
+
+### 6.4 验证步骤
+
+完成11个文件后，验证：
+
+```bash
+# 1. 验证import
+cd analysis-devin-failure-system
+.venv/bin/python3 -c "
+import sys; sys.path.insert(0, '.')
+from src.{name}_config import *
+from src.{name}_redis_queue import get_redis, enqueue_pending
+from src.{name}_db_schema import connect_db, ensure_schema
+from src.{name}_collector import collect_and_prepare
+from src.{name}_launcher import launch_batch, status_batch, stop_batch
+from src.{name}_result_collector import collect_batch_results
+from src.monitor_{name} import run_monitor_loop, check_alerts
+print('ALL IMPORTS OK')
+"
+
+# 2. 验证CLI
+.venv/bin/python3 run_{name}_pipeline.py --help
+.venv/bin/python3 -m src.monitor_{name} --help
+
+# 3. 小批量测试（10题）
+.venv/bin/python3 run_{name}_pipeline.py --batch-id {name}-test --limit 10
+
+# 4. 启动Monitor Pipe测试
+tmux new-session -d -s monitor-{name} ".venv/bin/python3 -m src.monitor_{name} --batch-id {name}-test --interval 60"
+
+# 5. 运行检查脚本
+bash scripts/monitor_check_{name}.sh {name}-test
+```
+
+### 6.5 关键参考文件——读懂这些就能实现新Pipe
+
+如果时间有限，只读以下5个文件就能理解整个模式：
+
+| 优先级 | 文件 | 行数 | 读什么 |
+|---|---|---|---|
+| 1 | `src/continuation_launcher.py` | 580行 | **核心**——launch_batch()的主循环、stall/rate_limit/zombie检测、多轮续传逻辑 |
+| 2 | `src/monitor_continuation.py` | 748行 | Monitor Pipe的16项检查实现、alert管理、AI review抽样 |
+| 3 | `specs/p27_monitor_spec.md` | 242行 | 检查规范的写法——A类/B类/C类分类、检查标准、alert结构 |
+| 4 | `scripts/monitor_check_continuation.sh` | 241行 | 检查脚本的6项输出+行动清单写法 |
+| 5 | `run_continuation_pipeline.py` | 100行 | 端到端入口的4步串联（collect→feed→launch→collect-results） |
+
+### 6.6 常见陷阱
+
+1. **Redis前缀冲突**——新Pipe必须用自己的前缀（如`{name}:`），不能复用`p27:`或`analysis:`，否则会与其他Pipe的队列冲突。
+2. **ArangoDB集合名冲突**——新Pipe必须用自己的集合名（如`{name}_runs`），不能复用`p27_continuation_runs`或`analysis_runs`。
+3. **tmux session命名冲突**——新Pipe必须用自己的前缀（如`{name}-`），不能复用`p27-`或`au-`，否则`tmux list-sessions | grep`会匹配到其他Pipe的session。
+4. **alert集合冲突**——Monitor Pipe必须用独立的alert集合（如`{name}_monitor_alerts`），不能复用`monitor_alerts`或`p27_monitor_alerts`。
+5. **忘记写检查规范**——不要把检查逻辑直接写在代码里不落盘。检查规范是系统资产，必须提前落盘到`specs/{name}_monitor_spec.md`。
+6. **忘记在检查脚本最后加行动清单**——行动清单是本范式的核心设计，提醒Master AI去检查Monitor Pipe的alerts。
+7. **修改了现有Pipe的代码**——新Pipe应该独立自包含，不修改现有Pipe的任何代码。如果需要共享功能，复制适配而不是修改原文件。
+
+---
+
+## 7. 和其他规则的关系（原§6）
 
 - **`six-dual-check-mechanism.md`**：本范式是双重检查机制在连续工作系统上的具体化。A类+B类是"代码能检查的"，C类是"AI需要检查的"。
 - **`six-asset-grading.md`**：检查规范是第2级资产（文件），提前落盘。Monitor Pipe代码和检查脚本都参照规范实现。
