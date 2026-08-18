@@ -12,8 +12,9 @@
 
 1. 读`analysis-devin-failure-system/docs/framework-checklist.md`——12项必查清单
 2. 读`MonitorPipe.md` §6——11步操作指南
-3. 以Pipe 4（`continuation_*.py`）为模板复制
-4. 验证——`framework-checklist.md`末尾的验证清单
+3. **如果涉及多轮续传**——读`续传规范文档.md`（项目repo根目录）——HANDOFF.md八章节结构、提取规则、截断/完成判定、prompt模板
+4. 以Pipe 4（`continuation_*.py`）为模板复制
+5. 验证——`framework-checklist.md`末尾的验证清单
 
 ### 我要运行现有Pipe
 
@@ -63,6 +64,7 @@ python pipe_control.py concurrency 50
 |---|---|---|
 | **framework-checklist.md** | `analysis-devin-failure-system/docs/` | **12项必查清单**——独立自包含/前缀隔离/动态并发/优雅停止/stall检测/rate_limit/zombie/Monitor Pipe/DB-文件追溯/多轮续传/watchdog停止 |
 | **MonitorPipe.md** | 项目repo根目录 | Monitor Pipe完整设计范式+新Pipe实现指南（§6 11步操作） |
+| **续传规范文档.md** | 项目repo根目录 | **续传机制的标准规范**——HANDOFF.md八章节结构、从export提取规则、截断/完成判定、续传prompt模板、v1 vs v2方案对比。**任何涉及多轮续传的Pipe必须遵守此文档** |
 
 ### 第二优先级——理解架构和设计决策
 
@@ -88,7 +90,10 @@ python pipe_control.py concurrency 50
 
 | 文档 | 位置 | 用途 |
 |---|---|---|
+| 续传规范文档.md | 项目repo根目录 | **续传机制标准规范**——HANDOFF.md八章节结构、提取规则、截断/完成判定、prompt模板。414号方案 |
 | MonitorPipe.md | 项目repo根目录 | Monitor Pipe完整设计范式+新Pipe实现指南 |
+| 399号方案 | `Tell分类学研究过程文档/399-v0-2026-08-18-POC-2.6-续传机制验证-*.md` | POC-2.6续传机制验证方案——v1机械拼接方案的原始定义 |
+| 415号方案 | `Tell分类学研究过程文档/415-v0-2026-08-18-POC-2.7-截断vs思维错误.md` | POC-2.7方案——948道DIRECTION_ERROR题全量续传，通过标准COMPLETED≥50% |
 | `~/.config/devin/rules/monitor-pipe-design-paradigm.md` | 全局rule | always-on，触发条件+三层架构定义 |
 | AGENTS.md "POC-2.7系统运行与检查"节 | 项目AGENTS.md | POC-2.7在项目中的位置和运行方法 |
 
