@@ -71,7 +71,8 @@ while true; do
         last_consistency_check=$now
 
         # p27- session数 vs Redis running数
-        P27_SESSIONS=$(tmux list-sessions 2>/dev/null | grep -c "^p27-" || echo 0)
+        # 排除服务session（p27-launcher/p27-watchdog）和monitor-p27
+        P27_SESSIONS=$(tmux list-sessions 2>/dev/null | grep "^p27-" | grep -v "p27-launcher" | grep -v "p27-watchdog" | grep -v "monitor-p27" | wc -l | tr -d ' ' || echo 0)
         REDIS_RUNNING=$($PY -c "
 import sys; sys.path.insert(0, '$ANALYSIS_DIR')
 from src.continuation_redis_queue import get_redis
