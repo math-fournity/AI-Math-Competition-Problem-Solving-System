@@ -198,7 +198,7 @@ while True:
 | Pipe 1 分析 | `src/monitor_pipe.py` (634行) | `scripts/monitor_check.sh` (124行) | —（内嵌在代码中） | `monitor_alerts` |
 | Pipe 2 审计 | `src/monitor_pipe.py`（复用Pipe 1） | `scripts/monitor_check.sh`（复用Pipe 1） | — | `monitor_alerts` |
 | Pipe 3 选题 | `src/monitor_selection.py` (683行) | `scripts/monitor_check_selection.sh` (174行) | —（内嵌在代码中） | `monitor_alerts` |
-| Pipe 4 续传 | `src/monitor_continuation.py` (748行) | `scripts/monitor_check_continuation.sh` (241行) | `specs/p27_monitor_spec.md` (242行) | `p27_monitor_alerts` |
+| Pipe 4 续传 | `src/monitor_continuation.py` (915行) | `scripts/monitor_check_continuation.sh` (241行) | `specs/p27_monitor_spec.md` (259行) | `p27_monitor_alerts` |
 
 **演进**：Pipe 1/2/3的检查规范内嵌在代码中（没有独立的spec文件）。Pipe 4是第一个把检查规范提前落盘为独立系统资产的实现——这是本范式的要求。
 
@@ -595,11 +595,11 @@ bash scripts/monitor_check_{name}.sh {name}-test
 
 | 优先级 | 文件 | 行数 | 读什么 |
 |---|---|---|---|
-| 1 | `src/continuation_launcher.py` | 580行 | **核心**——launch_batch()的主循环、stall/rate_limit/zombie检测、多轮续传逻辑 |
-| 2 | `src/monitor_continuation.py` | 748行 | Monitor Pipe的18项检查实现（A1-A9+B1-B9+C1-C5）、alert管理、AI review抽样 |
-| 3 | `specs/p27_monitor_spec.md` | 242行 | 检查规范的写法——A类/B类/C类分类、检查标准、alert结构 |
+| 1 | `src/continuation_launcher.py` | 1225行 | **核心**——launch_batch()的主循环、stall/rate_limit/zombie检测、多轮续传逻辑、make_round_log_entry() |
+| 2 | `src/monitor_continuation.py` | 915行 | Monitor Pipe的18项检查实现（A1-A9+B1-B9+C1-C5）、alert管理、AI review抽样 |
+| 3 | `specs/p27_monitor_spec.md` | 259行 | 检查规范的写法——A类/B类/C类分类、检查标准、alert结构 |
 | 4 | `scripts/monitor_check_continuation.sh` | 241行 | 检查脚本的6项输出+行动清单写法 |
-| 5 | `run_continuation_pipeline.py` | 100行 | 端到端入口的4步串联（collect→feed→launch→collect-results） |
+| 5 | `run_continuation_pipeline.py` | 123行 | 端到端入口的4步串联（collect→feed→launch→collect-results） |
 
 ### 6.6 常见陷阱
 

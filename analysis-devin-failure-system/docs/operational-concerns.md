@@ -167,8 +167,33 @@ def generate_handover(export_path, problem_id, round_num, problem_text, work_dir
     # 1. 读export的conversation.json
     # 2. 提取所有agent step的reasoning_content + tool_calls + observation
     # 3. 整理成HANDOVER.md（结构化的研究文档）
-    # 4. 写到work_dir/HANDOVER.md
+    # 4. 写到work_dir/round{N}_HANDOVER.md（用round编号区分，防止覆盖）
+    # 5. 面包屑地图写到work_dir/round{N}_conversation_map.md
     return handover_path
+```
+
+**中间产物不可覆盖原则**：所有中间产物用round编号区分路径（`round{N}_HANDOVER.md`/`round{N}_conversation_map.md`/`round{N}_proof.md`），不被后续round覆盖。详见`framework-checklist.md`第13项。
+
+### proof.md归档机制
+
+完成判定时（proof.md有boxed答案），归档proof.md为`round{N}_proof.md`，防止后续round覆盖：
+
+```python
+if is_completed(export, work_dir):
+    # 归档proof.md
+    archived = work_dir / f"round{round_num}_proof.md"
+    shutil.copy2(work_dir / "proof.md", archived)
+    # run级proof_path指向归档路径（不会被覆盖）
+    mark_run_completed(run_key, "COMPLETED", proof_path=str(archived))
+```
+
+启动新round前删除旧proof.md，防止is_completed误判：
+
+```python
+# Round 2+启动前
+old_proof = Path(work_dir) / "proof.md"
+if old_proof.exists():
+    old_proof.unlink()  # 删除上一轮的proof.md
 ```
 
 ### 多轮逻辑（`launch_batch()`）

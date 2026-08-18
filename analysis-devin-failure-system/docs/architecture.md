@@ -175,15 +175,16 @@ analysis-devin-failure-system/
 
 ### 中间产物路径约定
 
-所有中间产物在work_dir内，用round编号区分：
-- `round{N}_export.json` — Round N的原始export（仅Round 1）
+work_dir内（每道题独立，用round编号区分）：
+- `round1_export.json` — Round 1的原始export（从seed_export复制，仅Round 1）
 - `round{N}_prompt.txt` — Round N的续传prompt
 - `round{N}_handover_prompt.txt` — Round N的Pipe A prompt
 - `round{N}_conversation_map.md` — Round N的面包屑地图
 - `round{N}_HANDOVER.md` — Round N的交接文档
 - `round{N}_handover_run/` — Round N的Pipe A运行目录
 - `round{N}_proof.md` — Round N的归档proof
+- `proof.md` — 当前round的proof（启动新round前删除，防止is_completed误判）
 
-trajectory目录中按run_key/round{N}/分目录：
+trajectory目录中按run_key/round{N}/分目录（Round 2+的export和tmux日志）：
 - `{run_key}/round{N}/exports/conversation.json` — Round N的export
 - `{run_key}/round{N}/tmux/tmux.log` — Round N的tmux日志

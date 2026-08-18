@@ -18,7 +18,7 @@ Monitor Pipe是连续工作系统的AI智能检查架构。完整设计哲学见
 |---|---|---|---|---|
 | Pipe 1/2 | 内嵌在代码中 | `src/monitor_pipe.py` (634行) | `scripts/monitor_check.sh` (124行) | `monitor_alerts` |
 | Pipe 3 | 内嵌在代码中 | `src/monitor_selection.py` (683行) | `scripts/monitor_check_selection.sh` (174行) | `monitor_alerts` |
-| Pipe 4 | `specs/p27_monitor_spec.md` (242行) | `src/monitor_continuation.py` (748行) | `scripts/monitor_check_continuation.sh` (241行) | `p27_monitor_alerts` |
+| Pipe 4 | `specs/p27_monitor_spec.md` (259行) | `src/monitor_continuation.py` (915行) | `scripts/monitor_check_continuation.sh` (241行) | `p27_monitor_alerts` |
 
 **演进**：Pipe 1/2/3的检查规范内嵌在代码中。Pipe 4是第一个把检查规范提前落盘为独立系统资产的实现。
 

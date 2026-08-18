@@ -53,6 +53,14 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | B5. handover_completeness | handover_too_small | warning | <500B | HANDOVER.md太小，可能不完整 |
 | B6. truncation_pattern | all_rounds_truncated | warning | 5轮全截断 | 5轮全部TRUNCATED，可能是思维错误 |
 | B7. final_status_distribution | status_anomaly | info | — | final_status分布异常（全TRUNCATED或全ERROR） |
+| B8. rounds_log_integrity | rounds_log_missing_field | warning | — | rounds_log缺必需字段（round/export/truncated/completed/reason） |
+| B8. rounds_log_integrity | rounds_log_export_missing | critical | — | rounds_log的export指向的文件不存在 |
+| B8. rounds_log_integrity | rounds_log_handover_missing | critical | — | rounds_log的handover_path指向的文件不存在（handover_success=True时） |
+| B8. rounds_log_integrity | rounds_log_proof_missing | critical | — | rounds_log的proof_path指向的文件不存在（completed=True时） |
+| B8. rounds_log_integrity | rounds_log_no_proof_path | warning | — | completed=True但rounds_log无proof_path字段 |
+| B8. rounds_log_integrity | rounds_log_duplicate_round | critical | — | rounds_log有重复round编号 |
+| B9. intermediate_product_uniqueness | intermediate_product_collision | critical | — | 同一run不同round的export/handover/proof路径重复 |
+| B9. intermediate_product_uniqueness | work_dir_collision | critical | — | 两个run共用同一个work_dir |
 
 ### 2.3 C类：AI review抽样（需Master AI判断）
 
@@ -134,6 +142,15 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 - **检查方法**：final_status分布统计
 - **info条件**：全TRUNCATED_AT_MAX或全ERROR → 数据/机制问题
 
+#### B8. rounds_log_integrity
+- **检查方法**：抽样10条有rounds_log的run，检查每条记录的字段完整性和路径有效性
+- **warning条件**：rounds_log缺必需字段（round/export/truncated/completed/reason）；completed=True但无proof_path字段
+- **critical条件**：export指向的文件不存在；handover_path指向的文件不存在（handover_success=True时）；proof_path指向的文件不存在（completed=True时）；round编号有重复
+
+#### B9. intermediate_product_uniqueness
+- **检查方法**：抽样10条有rounds_log的run，检查路径唯一性；全量检查work_dir不重复
+- **critical条件**：同一run不同round的export/handover/proof路径重复；两个run共用同一个work_dir
+
 ### 3.3 C类AI review抽样标准
 
 #### 抽样频率
@@ -202,7 +219,7 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 
 ### 5.2 检查顺序（每轮）
 1. A1-A9自动检查（顺序执行）
-2. B1-B7续传质量检查（从第2轮开始，需要有completed的run）
+2. B1-B9续传质量检查（从第2轮开始，需要有completed的run）
 3. C1-C5 AI review抽样（每3轮一次）
 4. 创建alerts
 5. 状态报告

@@ -83,7 +83,7 @@ python pipe_control.py concurrency 50
 |---|---|---|
 | selfrun-workflow.md | `analysis-devin-failure-system/docs/` | 使用selfrun模式时 |
 | solver-trajectory-schema.md | `analysis-devin-failure-system/docs/` | 处理trajectory数据时 |
-| p27_monitor_spec.md | `analysis-devin-failure-system/specs/` | Pipe 4的检查规范（A类9项/B类7项/C类5项） |
+| p27_monitor_spec.md | `analysis-devin-failure-system/specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
 | POC-2.7/README.md | `POC-2.7/` | POC-2.7完整运行和检查指南 |
 
 ### 外部文档
@@ -191,12 +191,12 @@ python pipe_control.py concurrency 50
 | `continuation_redis_queue.py` | `src/` | Redis队列操作（`p27:`前缀） |
 | `continuation_collector.py` | `src/` | 数据收集（从problem_list.json加载919道题） |
 | `continuation_feeder.py` | `src/` | 入Redis队列 |
-| `continuation_launcher.py` | `src/` | **核心**——并发启动+stall/rate_limit/zombie检测+多轮续传+优雅停止+classify_failure |
+| `continuation_launcher.py` | `src/` | **核心**——并发启动+stall/rate_limit/zombie检测+多轮续传+优雅停止+classify_failure+`make_round_log_entry()`+中间产物归档 |
 | `continuation_result_collector.py` | `src/` | 结果收集+通过率判定 |
-| `monitor_continuation.py` | `src/` | Pipe 4的Monitor Pipe守护进程 |
+| `monitor_continuation.py` | `src/` | Pipe 4的Monitor Pipe守护进程（A1-A9+B1-B9+C1-C5） |
 | `continuation_control.py` | `monitoring/` | Pipe 4统一控制工具（start/stop/status/health/set-concurrency+stop_watchdog） |
 | `continuation_watchdog.sh` | `scripts/` | watchdog脚本（每30秒检查服务存活） |
-| `p27_monitor_spec.md` | `specs/` | Pipe 4的检查规范（A类9项/B类7项/C类5项） |
+| `p27_monitor_spec.md` | `specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
 | `monitor_check_continuation.sh` | `scripts/` | Pipe 4的检查脚本 |
 | `run_continuation_pipeline.py` | 根目录 | Pipe 4端到端入口 |
 

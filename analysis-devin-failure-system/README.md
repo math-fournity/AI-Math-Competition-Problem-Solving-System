@@ -60,7 +60,7 @@ print('concurrency updated to 20')
 
 | 文件 | 用途 |
 |---|---|
-| `p27_monitor_spec.md` | Pipe 4续传的检查规范（A类9项/B类7项/C类5项） |
+| `p27_monitor_spec.md` | Pipe 4续传的检查规范（A类9项/B类9项/C类5项） |
 
 ### 外部文档
 
