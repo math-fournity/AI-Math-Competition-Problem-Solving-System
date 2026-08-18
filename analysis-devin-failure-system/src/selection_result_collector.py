@@ -123,7 +123,13 @@ def parse_selection_xml(xml_block):
         return {}
 
     result = {}
-    target_tags = ["problem_id", "suitable", "batch", "d2_reclassified", "selection_reason"]
+    target_tags = [
+        "problem_id", "suitable", "batch", "d2_reclassified", "selection_reason",
+        # POC准备数据6项（412号§5.2扩展）
+        "false_friend_candidate", "boundary_case_candidate",
+        "process_signal_observability", "leakage_risk",
+        "difficulty_estimate", "branch_position_hint",
+    ]
 
     for tag in target_tags:
         pattern = rf"<{tag}>(.*?)</{tag}>"
@@ -233,6 +239,13 @@ def collect_batch_results(batch_id):
             "batch": parsed.get("batch", "N/A"),
             "d2_reclassified": parsed.get("d2_reclassified", "unchanged"),
             "selection_reason": parsed.get("selection_reason", ""),
+            # POC准备数据6项（412号§5.3扩展）
+            "false_friend_candidate": parsed.get("false_friend_candidate", "unclear"),
+            "boundary_case_candidate": parsed.get("boundary_case_candidate", "unclear"),
+            "process_signal_observability": parsed.get("process_signal_observability", "unclear"),
+            "leakage_risk": parsed.get("leakage_risk", "unclear"),
+            "difficulty_estimate": parsed.get("difficulty_estimate", "unclear"),
+            "branch_position_hint": parsed.get("branch_position_hint", "unclear"),
             "collected_at": _utc_now(),
         }
         try:
