@@ -432,11 +432,19 @@ def check_handover_completeness(db, batch_id, sample_size=10):
             round_num = round_info.get("round", 0)
             if round_num < 2:
                 continue  # Round 1不需要HANDOVER.md
-            export_path = round_info.get("export", "")
-            if not export_path:
-                continue
-            round_dir = Path(export_path).parent.parent
-            handover_path = round_dir / "HANDOVER.md"
+
+            # 优先从rounds_log中读取handover_path（修复后的launcher会存）
+            handover_path_str = round_info.get("handover_path", "")
+            if handover_path_str:
+                handover_path = Path(handover_path_str)
+            else:
+                # 回退：用work_dir约定路径推断
+                work_dir = run.get("work_dir", "")
+                if not work_dir:
+                    continue
+                # 修复后的路径约定：work_dir/round{N}_HANDOVER.md
+                # N是前一轮的编号（round_num的前一轮生成handover供round_num用）
+                handover_path = Path(work_dir) / f"round{round_num - 1}_HANDOVER.md"
 
             if not handover_path.exists():
                 alerts.append(("handover_missing", "critical", {
@@ -512,6 +520,157 @@ def check_status_anomaly(db, batch_id):
                 "summary": f"TRUNCATED_AT_MAX占比{truncated_rate:.0%}——大部分是思维错误",
                 "distribution": dist,
             }))
+    return alerts
+
+
+def check_rounds_log_integrity(db, batch_id, sample_size=10):
+    """B8: rounds_log完整性检查——验证每轮的中间产物路径都存在且文件未丢失
+
+    检查项：
+    1. 每条rounds_log记录是否有完整的字段（round/export/truncated/completed/reason）
+    2. export指向的文件是否实际存在
+    3. handover_path指向的文件是否存在（如果记录了handover_success=True）
+    4. proof_path指向的文件是否存在（如果completed=True）
+    5. 同一run的rounds_log中round编号是否连续无重复
+    """
+    aql = (
+        f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+        f"FILTER run.batch_id == @bid "
+        f"FILTER run.rounds_log != [] "
+        f"SORT RAND() LIMIT @n RETURN run"
+    )
+    cursor = db.aql.execute(aql, bind_vars={"bid": batch_id, "n": sample_size}, ttl=60)
+    runs = list(cursor)
+
+    alerts = []
+    for run in runs:
+        pid = run.get("problem_id", "?")
+        rounds_log = run.get("rounds_log", [])
+
+        # 检查round编号连续性
+        round_nums = [r.get("round", 0) for r in rounds_log]
+        if round_nums and len(round_nums) != len(set(round_nums)):
+            alerts.append(("rounds_log_duplicate_round", "critical", {
+                "summary": f"rounds_log有重复round编号: {pid} rounds={round_nums}",
+                "problem_id": pid,
+                "rounds": round_nums,
+            }))
+
+        for entry in rounds_log:
+            round_num = entry.get("round", 0)
+
+            # 检查必需字段
+            missing_fields = [f for f in ["round", "export", "truncated", "completed", "reason"]
+                              if f not in entry]
+            if missing_fields:
+                alerts.append(("rounds_log_missing_field", "warning", {
+                    "summary": f"rounds_log缺字段{missing_fields}: {pid} R{round_num}",
+                    "problem_id": pid,
+                    "round": round_num,
+                    "missing": missing_fields,
+                }))
+
+            # 检查export文件存在
+            export_path = entry.get("export", "")
+            if export_path and not os.path.exists(export_path):
+                alerts.append(("rounds_log_export_missing", "critical", {
+                    "summary": f"rounds_log的export文件不存在: {pid} R{round_num} path={export_path}",
+                    "problem_id": pid,
+                    "round": round_num,
+                    "path": export_path,
+                }))
+
+            # 检查handover_path文件存在（如果记录了）
+            handover_path = entry.get("handover_path", "")
+            handover_success = entry.get("handover_success", False)
+            if handover_success and handover_path and not os.path.exists(handover_path):
+                alerts.append(("rounds_log_handover_missing", "critical", {
+                    "summary": f"rounds_log的handover_path文件不存在: {pid} R{round_num}",
+                    "problem_id": pid,
+                    "round": round_num,
+                    "path": handover_path,
+                }))
+
+            # 检查proof_path文件存在（如果completed=True）
+            if entry.get("completed"):
+                proof_path = entry.get("proof_path", "")
+                if proof_path and not os.path.exists(proof_path):
+                    alerts.append(("rounds_log_proof_missing", "critical", {
+                        "summary": f"rounds_log的proof_path文件不存在: {pid} R{round_num}",
+                        "problem_id": pid,
+                        "round": round_num,
+                        "path": proof_path,
+                    }))
+                elif not proof_path:
+                    alerts.append(("rounds_log_no_proof_path", "warning", {
+                        "summary": f"completed=True但rounds_log无proof_path: {pid} R{round_num}",
+                        "problem_id": pid,
+                        "round": round_num,
+                    }))
+
+    return alerts
+
+
+def check_intermediate_product_uniqueness(db, batch_id, sample_size=10):
+    """B9: 中间产物唯一性检查——验证不同run/round的中间产物路径不冲突
+
+    检查项：
+    1. 不同run的work_dir不重复
+    2. 同一run不同round的export路径不重复
+    3. 同一run不同round的handover_path不重复
+    4. 同一run不同round的proof_path不重复
+    """
+    aql = (
+        f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+        f"FILTER run.batch_id == @bid "
+        f"FILTER run.rounds_log != [] "
+        f"SORT RAND() LIMIT @n RETURN run"
+    )
+    cursor = db.aql.execute(aql, bind_vars={"bid": batch_id, "n": sample_size}, ttl=60)
+    runs = list(cursor)
+
+    alerts = []
+    for run in runs:
+        pid = run.get("problem_id", "?")
+        rounds_log = run.get("rounds_log", [])
+
+        # 检查同一run内路径重复
+        exports = [r.get("export", "") for r in rounds_log if r.get("export")]
+        handovers = [r.get("handover_path", "") for r in rounds_log if r.get("handover_path")]
+        proofs = [r.get("proof_path", "") for r in rounds_log if r.get("proof_path")]
+
+        for paths, name in [(exports, "export"), (handovers, "handover_path"), (proofs, "proof_path")]:
+            if len(paths) != len(set(paths)):
+                dup = [p for p in paths if paths.count(p) > 1]
+                alerts.append(("intermediate_product_collision", "critical", {
+                    "summary": f"同一run的{name}路径重复: {pid} dups={set(dup)}",
+                    "problem_id": pid,
+                    "field": name,
+                    "duplicates": list(set(dup)),
+                }))
+
+    # 检查不同run的work_dir不重复
+    all_runs = list(db.aql.execute(
+        f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+        f"FILTER run.batch_id == @bid "
+        f"FILTER run.work_dir != null "
+        f"RETURN {{_key: run._key, pid: run.problem_id, work_dir: run.work_dir}}",
+        bind_vars={"bid": batch_id}, ttl=120,
+    ))
+    work_dirs = {}
+    for r in all_runs:
+        wd = r.get("work_dir", "")
+        if wd:
+            if wd in work_dirs:
+                alerts.append(("work_dir_collision", "critical", {
+                    "summary": f"两个run共用work_dir: {r['pid']}和{work_dirs[wd]} dir={wd}",
+                    "problem_id": r["pid"],
+                    "conflict": work_dirs[wd],
+                    "work_dir": wd,
+                }))
+            else:
+                work_dirs[wd] = r["pid"]
+
     return alerts
 
 
@@ -643,6 +802,14 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
             all_alerts.extend(alerts)
 
             alerts = check_status_anomaly(db, batch_id)
+            all_alerts.extend(alerts)
+
+            # B8: rounds_log完整性检查（新增）
+            alerts = check_rounds_log_integrity(db, batch_id)
+            all_alerts.extend(alerts)
+
+            # B9: 中间产物唯一性检查（新增）
+            alerts = check_intermediate_product_uniqueness(db, batch_id)
             all_alerts.extend(alerts)
 
         # 创建alerts

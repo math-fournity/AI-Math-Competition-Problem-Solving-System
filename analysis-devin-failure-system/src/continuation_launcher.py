@@ -109,6 +109,34 @@ def tmux_kill(session_name):
 # 截断检测与reasoning提取（复用batch_continue_948.py的逻辑）
 # =============================================================================
 
+def make_round_log_entry(round_num, export_path, truncated, completed, reason,
+                         info, archived_proof_path=None):
+    """构造rounds_log的一条完整记录——包含所有中间产物路径
+
+    确保每轮的所有中间产物路径都存入DB，不会被后续round覆盖。
+    """
+    entry = {
+        "round": round_num,
+        "export": export_path,
+        "truncated": truncated,
+        "completed": completed,
+        "reason": reason,
+    }
+    # 从running dict的round_metadata中补充中间产物路径
+    metadata = info.get("round_metadata", {}) if info else {}
+    if metadata:
+        entry["method"] = metadata.get("method", "")
+        entry["handover_success"] = metadata.get("handover_success", False)
+        entry["handover_path"] = metadata.get("handover_path", "")
+        entry["map_path"] = metadata.get("map_path", "")
+        entry["prompt_path"] = metadata.get("prompt_path", "")
+        entry["prev_export"] = metadata.get("prev_export", "")
+    # 归档的proof路径（每轮独立，不会被覆盖）
+    if archived_proof_path:
+        entry["proof_path"] = archived_proof_path
+    return entry
+
+
 def is_truncated(export_path):
     """检测export是否被截断"""
     if not os.path.exists(export_path):
@@ -592,11 +620,15 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     continue
 
                 # 构造Round 2的prompt
+                round_handover_path = None
+                round_handover_success = False
                 if method == "v2":
                     handover_path = generate_handover(
                         str(round1_export), pid, 1, problem_text, Path(work_dir)
                     )
                     if handover_path:
+                        round_handover_path = handover_path
+                        round_handover_success = True
                         prompt_text = build_v2_continue_prompt(problem_text, handover_path, 1)
                     else:
                         # v2失败回退v1
@@ -614,11 +646,15 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 prev_export = prev_round_info.get("export", "")
                 round_num = current_round
 
+                round_handover_path = None
+                round_handover_success = False
                 if method == "v2":
                     handover_path = generate_handover(
                         prev_export, pid, round_num - 1, problem_text, Path(work_dir)
                     )
                     if handover_path:
+                        round_handover_path = handover_path
+                        round_handover_success = True
                         prompt_text = build_v2_continue_prompt(problem_text, handover_path, round_num - 1)
                     else:
                         all_rc = "\n\n".join(
@@ -651,6 +687,16 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             (round_traj_dir / "tmux").mkdir(exist_ok=True)
             export_path = round_traj_dir / "exports" / "conversation.json"
 
+            # 收集本轮元数据——存入running dict，完成时写入rounds_log
+            round_metadata = {
+                "method": method,
+                "handover_success": round_handover_success,
+                "handover_path": round_handover_path or "",
+                "map_path": str(Path(work_dir) / f"round{round_num - 1}_conversation_map.md") if round_handover_success else "",
+                "prompt_path": str(prompt_file),
+                "prev_export": prev_export,
+            }
+
             # 启动devin cli
             print(f"  [launch] {pid} R{round_num} ({method})")
             session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
@@ -667,6 +713,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 "started_at_iso": now_iso,
                 "last_activity": now_ts,
                 "last_pane_hash": "",
+                "round_metadata": round_metadata,
             }
 
             update_run(db, run_key, {
@@ -688,6 +735,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 "pid": pid,
                 "round_num": round_num,
                 "method": method,
+                "handover_success": round_handover_success,
+                "session_name": session_name,
             }, run_key=run_key)
 
             # 3秒间隔——避免rate limit
@@ -739,8 +788,15 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         failed.append({"pid": pid, "round": round_num, "reason": "dead_session"})
                         to_remove.append(run_key)
                         tmux_kill(session_name)
+                        # 记录到rounds_log
+                        run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                        rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                        rounds_log.append(make_round_log_entry(
+                            round_num, export_path, False, False, f"dead_session({elapsed_sec}s)", info,
+                        ))
                         update_run(db, run_key, {
                             "status": "dead_session",
+                            "rounds_log": rounds_log,
                             "updated_at": utc_now(),
                             "verdict": make_verdict("dead_session", "dead_session"),
                             "failure_category": classify_failure("dead_session"),
@@ -749,6 +805,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         remove_running(r, run_key)
                         add_failed(r, {"run_key": run_key, "reason": "dead_session"})
                         update_stats(r)
+                        insert_event(db, batch_id, "continuation_failed", {
+                            "pid": pid, "round": round_num, "reason": "dead_session",
+                            "elapsed": elapsed_sec,
+                        }, run_key=run_key)
                         continue
 
             if is_done:
@@ -758,26 +818,24 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 # 检查这一轮是否真的完成（有proof.md）还是需要继续续传
                 if proof_found:
                     # 真正完成
-                    completed.append({"pid": pid, "round": round_num, "proof": str(proof_path)})
+                    archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
+                    completed.append({"pid": pid, "round": round_num, "proof": str(archived_proof)})
                     to_remove.append(run_key)
                     tmux_kill(session_name)
 
-                    # 更新rounds_log
+                    # 更新rounds_log——包含完整中间产物路径
                     run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                     rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                    rounds_log.append({
-                        "round": round_num,
-                        "export": export_path,
-                        "truncated": False,
-                        "completed": True,
-                        "reason": done_reason,
-                    })
+                    rounds_log.append(make_round_log_entry(
+                        round_num, export_path, False, True, done_reason,
+                        info, archived_proof_path=str(archived_proof),
+                    ))
 
                     update_run(db, run_key, {
                         "status": "completed",
                         "final_status": "COMPLETED",
                         "rounds_log": rounds_log,
-                        "proof_path": str(proof_path),
+                        "proof_path": str(archived_proof),  # 指向归档路径，不会被覆盖
                         "ended_at": utc_now(),
                         "updated_at": utc_now(),
                         "verdict": make_verdict("completed", f"round{round_num}_proof_complete"),
@@ -796,13 +854,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         print(f"  [truncated] {pid} R{round_num} — {trunc_reason}, 将继续R{round_num+1}")
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                        rounds_log.append({
-                            "round": round_num,
-                            "export": export_path,
-                            "truncated": True,
-                            "completed": False,
-                            "reason": trunc_reason,
-                        })
+                        rounds_log.append(make_round_log_entry(
+                            round_num, export_path, True, False, trunc_reason, info,
+                        ))
                         update_run(db, run_key, {
                             "status": "prepared",  # 重新标记为prepared，等下一轮
                             "rounds_log": rounds_log,
@@ -814,18 +868,17 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         # 重新入队（低优先级，避免阻塞新题）
                         enqueue_pending(r, run_key, priority=round_num)
                         update_stats(r)
+                        insert_event(db, batch_id, "continuation_truncated", {
+                            "pid": pid, "round": round_num, "reason": trunc_reason,
+                        }, run_key=run_key)
                     elif trunc and round_num >= max_rounds:
                         # 截断且已达最大轮次——TRUNCATED_AT_MAX
                         print(f"  [truncated_max] {pid} R{round_num} — 达到max_rounds={max_rounds}")
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                        rounds_log.append({
-                            "round": round_num,
-                            "export": export_path,
-                            "truncated": True,
-                            "completed": False,
-                            "reason": trunc_reason,
-                        })
+                        rounds_log.append(make_round_log_entry(
+                            round_num, export_path, True, False, trunc_reason, info,
+                        ))
                         update_run(db, run_key, {
                             "status": "completed",
                             "final_status": "TRUNCATED_AT_MAX",
@@ -839,15 +892,32 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         remove_running(r, run_key)
                         add_completed(r, {"run_key": run_key, "final_status": "TRUNCATED_AT_MAX"})
                         update_stats(r)
+                        insert_event(db, batch_id, "continuation_truncated_at_max", {
+                            "pid": pid, "round": round_num, "reason": trunc_reason,
+                        }, run_key=run_key)
                     else:
                         # 既没截断也没完成——异常状态
                         print(f"  [unknown] {pid} R{round_num} — 既没截断也没完成")
                         failed.append({"pid": pid, "round": round_num, "reason": "unknown_state"})
                         to_remove.append(run_key)
                         tmux_kill(session_name)
+                        run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                        rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                        rounds_log.append(make_round_log_entry(
+                            round_num, export_path, False, False, "unknown_state", info,
+                        ))
+                        update_run(db, run_key, {
+                            "status": "unknown_state",
+                            "rounds_log": rounds_log,
+                            "updated_at": utc_now(),
+                            "verdict": make_verdict("unknown_state", "unknown_state"),
+                        })
                         remove_running(r, run_key)
                         add_failed(r, {"run_key": run_key, "reason": "unknown_state"})
                         update_stats(r)
+                        insert_event(db, batch_id, "continuation_failed", {
+                            "pid": pid, "round": round_num, "reason": "unknown_state",
+                        }, run_key=run_key)
                 continue
 
             # === rate_limit检测（复用analysis_launcher的逻辑）===
@@ -877,8 +947,15 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         rate_limit_paused_until = pause_until
                         print(f"  [rate_limit_pause] 暂停20分钟...")
 
+                # 记录到rounds_log
+                run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                rounds_log.append(make_round_log_entry(
+                    round_num, export_path, False, False, f"{detected_error}({elapsed_sec}s)", info,
+                ))
                 update_run(db, run_key, {
                     "status": detected_error,
+                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict(detected_error, detected_error),
                     "failure_category": classify_failure(detected_error),
@@ -908,8 +985,14 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 failed.append({"pid": pid, "round": round_num, "reason": "timeout"})
                 to_remove.append(run_key)
                 tmux_kill(session_name)
+                run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                rounds_log.append(make_round_log_entry(
+                    round_num, export_path, False, False, f"timeout({elapsed_sec}s)", info,
+                ))
                 update_run(db, run_key, {
                     "status": "failed_timeout",
+                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_timeout", "max_runtime_exceeded"),
                     "failure_category": classify_failure("failed_timeout"),
@@ -918,6 +1001,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "timeout"})
                 update_stats(r)
+                insert_event(db, batch_id, "continuation_failed", {
+                    "pid": pid, "round": round_num, "reason": "timeout",
+                    "elapsed": elapsed_sec,
+                }, run_key=run_key)
                 continue
 
             if idle > stall_seconds:
@@ -926,8 +1013,14 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 failed.append({"pid": pid, "round": round_num, "reason": "stall"})
                 to_remove.append(run_key)
                 tmux_kill(session_name)
+                run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                rounds_log.append(make_round_log_entry(
+                    round_num, export_path, False, False, f"stall(idle {idle_sec}s)", info,
+                ))
                 update_run(db, run_key, {
                     "status": "failed_stall",
+                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_stall", "stall_detected"),
                     "failure_category": classify_failure("failed_stall"),
@@ -936,6 +1029,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "stall"})
                 update_stats(r)
+                insert_event(db, batch_id, "continuation_failed", {
+                    "pid": pid, "round": round_num, "reason": "stall",
+                    "idle": idle_sec,
+                }, run_key=run_key)
                 continue
 
         for key in to_remove:
