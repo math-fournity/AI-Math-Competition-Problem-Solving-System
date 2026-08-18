@@ -68,7 +68,7 @@ echo "       在DB中找到对应的run，将status改回prepared，重新入队
 # --- 检查3: 进程状态（launcher + monitor_continuation）---
 echo ""
 echo "=== 3. 进程状态 ==="
-LAUNCHER_PID=$(pgrep -f "run_continuation_pipeline.*$BATCH_ID" | head -1 || true)
+LAUNCHER_PID=$(pgrep -f "continuation_launcher.*$BATCH_ID" | head -1 || true)
 MONITOR_PID=$(pgrep -f "src.monitor_continuation.*$BATCH_ID" | head -1 || true)
 if [ -n "$LAUNCHER_PID" ]; then
     ps -p "$LAUNCHER_PID" -o pid,pcpu,etime,stat,command 2>/dev/null | tail -1 | awk '{print "  launcher: PID="$1" CPU="$2"% ELAPSED="$3" STAT="$4}'
@@ -225,6 +225,60 @@ echo "     - 通过率是否≥50%？这是POC-2.7的通过标准（415号§7.1�
 echo "     - 如果通过率<50%，检查续传机制是否需要改进（v2交接文档自动化）"
 echo "     - 对TRUNCATED_AT_MAX的题，检查是否有proof.md但答案错误→真正的思维错误"
 
+# --- 检查7: 系统健康（并发数+handover状态+devin cli活跃度）---
+echo ""
+echo "=== 7. 系统健康 ==="
+cd "$PROJ_ROOT"
+$PY -c "
+import sys, os, time, redis, subprocess
+sys.path.insert(0, 'analysis-devin-failure-system')
+r = redis.Redis(host='localhost', port=6379, db=0)
+
+# 并发数
+running = r.hlen('p27:running')
+pending = r.zcard('p27:pending')
+completed = r.llen('p27:completed')
+
+# tmux session分类
+sessions = subprocess.run(['tmux', 'list-sessions'], capture_output=True, text=True).stdout
+p27_solve = [s for s in sessions.split('\n') if 'p27-p27-full-' in s]  # 解题session
+p27_handover = [s for s in sessions.split('\n') if s.startswith('p27-') and '-r1-h' in s]  # handover session
+p27_service = [s for s in sessions.split('\n') if s.startswith('p27-launcher') or s.startswith('monitor-p27') or s.startswith('p27-watchdog')]
+
+print(f'  Redis: pending={pending} running={running} completed={completed}')
+print(f'  tmux: 解题session={len(p27_solve)} handover session={len(p27_handover)} 服务session={len(p27_service)}')
+
+# devin cli进程数
+ps = subprocess.run(['ps', 'aux'], capture_output=True, text=True).stdout
+devin_p = [l for l in ps.split('\n') if 'devin -p' in l and 'grep' not in l and 'zsh' not in l]
+print(f'  devin cli进程: {len(devin_p)}')
+
+# 并发槽利用率
+try:
+    from src.continuation_db_schema import connect_db
+    from src.continuation_config import CONTINUATION_BATCHES_COLLECTION
+    db = connect_db()
+    batch = db.collection(CONTINUATION_BATCHES_COLLECTION).get('$BATCH_ID')
+    conc = batch.get('concurrency', 5) if batch else 5
+except:
+    conc = 5
+print(f'  配置并发数: {conc}')
+if running < conc:
+    print(f'  [WARNING] running({running}) < concurrency({conc})——handover可能阻塞或devin cli启动慢')
+if len(p27_handover) > 0 and running == 0:
+    print(f'  [INFO] {len(p27_handover)}个handover生成中，解题session待启动——这是正常的')
+
+# 进度推进检查
+print(f'  完成率: {completed}/{completed+pending+running} = {100*completed//max(completed+pending+running,1)}%')
+" 2>&1
+echo ""
+echo "  >> 需要检查："
+echo "     - 解题session数是否≈并发数？如果持续为0且handover session很多，handover生成可能太慢"
+echo "     - devin cli进程数是否>0？为0说明所有devin cli已退出，可能需要重启"
+echo "     - running < concurrency持续很长时间？检查launcher日志是否有handover阻塞"
+echo "     - 完成率是否在增长？对比上次检查的completed数"
+
+echo ""
 echo ""
 echo "============================================"
 echo "检查完成 @ $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -238,4 +292,18 @@ echo "   5. 进度停滞时检查launcher日志和rate_limit_pause状态"
 echo "   6. 从alert的problem_ids字段获取需重跑的题，改status为prepared后重新launch"
 echo "   7. AI_REVIEW抽样的结果——读proof.md和HANDOVER.md，按specs/p27_monitor_spec.md §3.3的C1-C5标准逐项检查"
 echo "   8. 对照第6项通过率判定——如果COMPLETED≥50%，POC-2.7通过"
+echo ""
+echo ">> 循环监控指令（这是你的核心职责——反复执行直到所有题完成）："
+echo "   1. 执行完上述行动清单后，等待60-120秒（让devin cli继续工作）"
+echo "   2. 再次运行本脚本: ./scripts/monitor_check_continuation.sh $BATCH_ID"
+echo "   3. 根据新的输出重复执行行动清单"
+echo "   4. 如此循环，直到第4项进度显示所有题completed或failed（无prepared/running剩余）"
+echo "   5. 如果发现系统问题（代码bug/架构问题），修复代码后重启系统，然后继续循环监控"
+echo "   6. 如果session被中断，下一个session的AI只需运行本脚本即可恢复全部上下文"
+echo "     ——本脚本的输出会告诉你系统当前状态和需要做什么"
+echo ""
+echo ">> 系统健康判断标准："
+echo "   ✅ 健康 = launcher+monitor运行中 + devin cli活跃（pane有内容） + 进度在推进"
+echo "   ⚠️ 需关注 = 有新alert + 失败率>15% + handover生成慢"
+echo "   ❌修复 = launcher/monitor挂了 + devin cli全卡住 + 进度停滞"
 echo "============================================"

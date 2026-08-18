@@ -312,15 +312,36 @@ def build_v2_continue_prompt(original_problem, handover_path, prev_round):
 # =============================================================================
 
 def generate_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL):
-    """v2方案Pipe A：生成面包屑地图 + 用devin -p编写HANDOVER.md
+    """v2方案Pipe A：生成面包屑地图 + 用devin -p编写HANDOVER.md（同步版本，保留兼容）
 
     返回HANDOVER.md的路径，或None（失败时）。
+    """
+    hinfo = start_handover(export_path, pid, round_num, problem_text, work_dir, model)
+    if hinfo is None:
+        return None
+    # 同步等待完成
+    handover_timeout = 600
+    start_time = time.time()
+    while time.time() - start_time < handover_timeout:
+        result = check_handover(hinfo, pid)
+        if result is not None:
+            return result
+        time.sleep(10)
+    # 超时
+    tmux_kill(hinfo["session_name"])
+    print(f"  [{pid}] Pipe A超时({handover_timeout}s)，强制kill")
+    return None
+
+
+def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL):
+    """v2方案Pipe A的异步启动——生成面包屑地图 + 启动devin cli，立即返回
+
+    返回handover信息dict（含session_name和路径），或None（启动失败时）。
+    主循环通过check_handover()检查是否完成。
     """
     export_path = str(export_path)
     work_dir = Path(work_dir)
 
-    # 所有中间文件放在work_dir内——每道题独立，不互相覆盖
-    # devin cli的workspace是work_dir，所以文件必须在work_dir内才能访问
     map_path = work_dir / f"round{round_num}_conversation_map.md"
     handover_path = work_dir / f"round{round_num}_HANDOVER.md"
     handover_run_dir = work_dir / f"round{round_num}_handover_run"
@@ -356,7 +377,7 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
     prompt_file = work_dir / f"round{round_num}_handover_prompt.txt"
     prompt_file.write_text(prompt_text)
 
-    # Step 3: 启动devin -p编写HANDOVER.md
+    # Step 3: 启动devin -p编写HANDOVER.md（不等完成，立即返回）
     tmux_sess = tmux_session_name(pid, round_num, is_handover=True)
     tmux_kill(tmux_sess)
 
@@ -375,30 +396,37 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
         capture_output=True, timeout=10,
     )
 
-    # 等待Pipe A完成（带超时——Pipe A不应超过10分钟）
-    handover_timeout = 600  # 10分钟
-    start_time = time.time()
-    while time.time() - start_time < handover_timeout:
-        if not tmux_running(tmux_sess):
-            break
-        time.sleep(10)
+    return {
+        "session_name": tmux_sess,
+        "handover_path": handover_path,
+        "map_path": map_path,
+        "prompt_file": prompt_file,
+        "started_at": time.time(),
+    }
 
-    # 超时强制kill
-    if tmux_running(tmux_sess):
-        print(f"  [{pid}] Pipe A超时({handover_timeout}s)，强制kill")
-        tmux_kill(tmux_sess)
 
+def check_handover(hinfo, pid):
+    """检查handover devin cli是否完成
+
+    返回handover_path字符串（成功）、""字符串（失败，需回退v1）或None（还在运行中）。
+    """
+    sess = hinfo["session_name"]
+    handover_path = hinfo["handover_path"]
+
+    if tmux_running(sess):
+        return None  # 还在运行
+
+    # devin cli已退出——检查结果
     if not handover_path.exists():
         print(f"  [{pid}] Pipe A完成但HANDOVER.md未生成")
-        return None
+        return ""  # 失败，需回退v1
 
-    # 检查HANDOVER.md内容完整性（至少500字符）
     handover_size = handover_path.stat().st_size
     if handover_size < 500:
         print(f"  [{pid}] Pipe A生成的HANDOVER.md太小({handover_size}c)，可能不完整")
-        return None
+        return ""  # 失败，需回退v1
 
-    return str(handover_path)
+    return str(handover_path)  # 成功
 
 
 # =============================================================================
@@ -509,7 +537,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     print(f"  Redis pending: {pending_in_redis}个任务待启动")
 
     # 状态跟踪
-    running = {}  # {run_key: {session_name, work_dir, pid, round_num, ...}}
+    running = {}  # {run_key: {session_name, work_dir, pid, round_num, ...}}——解题devin cli
+    handover_pending = {}  # {run_key: {hinfo, pid, work_dir, ...}}——handover生成中，不占并发槽
     completed = []
     failed = []
     rate_limit_paused_until = 0
@@ -544,19 +573,123 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             print(f"  [rate_limit_pause] 恢复运行")
             rate_limit_paused_until = 0
 
-        # 动态并发（从DB读取）
-        try:
-            batch_doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
-            if batch_doc:
-                new_conc = int(batch_doc.get("concurrency", concurrency))
-                if new_conc != concurrency:
-                    print(f"  [dynamic] concurrency {concurrency} → {new_conc}")
-                    concurrency = new_conc
-        except Exception:
-            pass
+        # 并发数写死为5——不从DB动态读取，避免外部修改导致并发失控
+        # concurrency参数已在函数入口固定，此处不再动态调整
+
+        # === 检查handover_pending中的run——handover生成完成后启动解题 ===
+        handover_done = []
+        for h_run_key, hinfo in list(handover_pending.items()):
+            result = check_handover(hinfo["hinfo"], hinfo["pid"])
+            if result is None:
+                # 还在运行——检查超时
+                if time.time() - hinfo["hinfo"]["started_at"] > 600:
+                    print(f"  [handover_timeout] {hinfo['pid']} R{hinfo['round_num']}")
+                    tmux_kill(hinfo["hinfo"]["session_name"])
+                    result = ""  # 视为失败，回退v1
+                else:
+                    continue
+
+            # handover完成（成功或失败）——构造prompt并启动解题
+            pid = hinfo["pid"]
+            work_dir = hinfo["work_dir"]
+            problem_text = hinfo["problem_text"]
+            round_num = hinfo["round_num"]
+            prev_export = hinfo["prev_export"]
+            existing_rounds = hinfo["existing_rounds"]
+            run_doc = hinfo["run_doc"]
+
+            round_handover_path = ""
+            round_handover_success = False
+            if result:  # 成功——v2方案
+                round_handover_path = result
+                round_handover_success = True
+                prompt_text = build_v2_continue_prompt(problem_text, result, round_num - 1)
+            else:  # 失败——回退v1
+                if round_num == 2:
+                    prev_rc = extract_reasoning(prev_export)
+                else:
+                    prev_rc = "\n\n".join(
+                        extract_reasoning(r.get("export", ""))
+                        for r in existing_rounds if r.get("export")
+                    )
+                prompt_text = build_continue_prompt(problem_text, prev_rc, round_num - 1)
+
+            # 写prompt文件
+            prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
+            prompt_file.write_text(prompt_text)
+
+            # 清理旧round的proof.md
+            old_proof = Path(work_dir) / PROOF_FILE_NAME
+            if old_proof.exists():
+                old_proof.unlink()
+                logger.info(f"[{pid}] 清理旧proof.md（启动R{round_num}前）")
+
+            # 准备export路径
+            round_traj_dir = CONTINUATION_TRAJECTORY_BASE / h_run_key / f"round{round_num}"
+            round_traj_dir.mkdir(parents=True, exist_ok=True)
+            (round_traj_dir / "exports").mkdir(exist_ok=True)
+            (round_traj_dir / "tmux").mkdir(exist_ok=True)
+            export_path = round_traj_dir / "exports" / "conversation.json"
+
+            round_metadata = {
+                "method": method,
+                "handover_success": round_handover_success,
+                "handover_path": round_handover_path,
+                "map_path": str(Path(work_dir) / f"round{round_num - 1}_conversation_map.md") if round_handover_success else "",
+                "prompt_path": str(prompt_file),
+                "prev_export": prev_export,
+            }
+
+            # 启动解题devin cli
+            print(f"  [launch] {pid} R{round_num} ({method}, handover={'ok' if round_handover_success else 'v1_fallback'})")
+            session_name = launch_solve(h_run_key, work_dir, prompt_file, export_path, round_num, pid)
+
+            now_ts = time.time()
+            now_iso = utc_now()
+            running[h_run_key] = {
+                "session_name": session_name,
+                "work_dir": work_dir,
+                "pid": pid,
+                "round_num": round_num,
+                "export_path": str(export_path),
+                "started_at": now_ts,
+                "started_at_iso": now_iso,
+                "last_activity": now_ts,
+                "last_pane_hash": "",
+                "round_metadata": round_metadata,
+            }
+
+            update_run(db, h_run_key, {
+                "status": "running",
+                "tmux_session": session_name,
+                "current_round": round_num,
+                "updated_at": now_iso,
+                "verdict": make_verdict("running", f"round{round_num}_launched"),
+            })
+            add_running(r, h_run_key, {
+                "pid": pid,
+                "round_num": round_num,
+                "tmux_session": session_name,
+                "started_at": now_ts,
+            })
+            update_stats(r)
+
+            insert_event(db, batch_id, "continuation_launched", {
+                "pid": pid,
+                "round_num": round_num,
+                "method": method,
+                "handover_success": round_handover_success,
+                "session_name": session_name,
+            }, run_key=h_run_key)
+
+            handover_done.append(h_run_key)
+
+        for h_run_key in handover_done:
+            del handover_pending[h_run_key]
 
         # 启动新的（填满并发槽）——优雅退出模式下跳过
-        while not should_stop() and len(running) < concurrency and pending_count(r) > 0:
+        # handover_pending占并发槽——handover生成中的题+解题中的题总数不超过concurrency
+        while not should_stop() and len(running) + len(handover_pending) < concurrency and pending_count(r) > 0:
             items = dequeue_pending(r, count=1)
             if not items:
                 break
@@ -575,7 +708,6 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             current_round = len(existing_rounds) + 1
 
             if current_round > max_rounds:
-                # 已达最大轮次——标记为TRUNCATED_AT_MAX
                 update_run(db, run_key, {
                     "status": "completed",
                     "final_status": "TRUNCATED_AT_MAX",
@@ -597,15 +729,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 update_stats(r)
                 continue
 
-            # 确定本轮的seed export和prompt
+            # 确定本轮的seed export和prev_export
             if current_round == 1:
-                # Round 1: 用原始export
                 round1_export = Path(work_dir) / "round1_export.json"
                 if not round1_export.exists():
                     import shutil
                     shutil.copy(seed_export, round1_export)
 
-                # 检查Round 1是否已经完成（原始export可能已完成）
                 trunc, trunc_reason = is_truncated(str(round1_export))
                 comp, comp_reason = is_completed(str(round1_export), work_dir)
                 if comp and not trunc:
@@ -619,128 +749,141 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     update_stats(r)
                     continue
 
-                # 构造Round 2的prompt
-                round_handover_path = None
-                round_handover_success = False
-                if method == "v2":
-                    handover_path = generate_handover(
-                        str(round1_export), pid, 1, problem_text, Path(work_dir)
-                    )
-                    if handover_path:
-                        round_handover_path = handover_path
-                        round_handover_success = True
-                        prompt_text = build_v2_continue_prompt(problem_text, handover_path, 1)
-                    else:
-                        # v2失败回退v1
-                        prev_rc = extract_reasoning(str(round1_export))
-                        prompt_text = build_continue_prompt(problem_text, prev_rc, 1)
-                else:
-                    prev_rc = extract_reasoning(str(round1_export))
-                    prompt_text = build_continue_prompt(problem_text, prev_rc, 1)
-
-                round_num = 2  # 实际启动的是Round 2
+                round_num = 2
                 prev_export = str(round1_export)
             else:
-                # Round N: 用上一轮的export
                 prev_round_info = existing_rounds[-1]
                 prev_export = prev_round_info.get("export", "")
                 round_num = current_round
 
-                round_handover_path = None
-                round_handover_success = False
-                if method == "v2":
-                    handover_path = generate_handover(
-                        prev_export, pid, round_num - 1, problem_text, Path(work_dir)
-                    )
-                    if handover_path:
-                        round_handover_path = handover_path
-                        round_handover_success = True
-                        prompt_text = build_v2_continue_prompt(problem_text, handover_path, round_num - 1)
+            # v2方案：异步启动handover生成（不阻塞主循环）
+            if method == "v2":
+                print(f"  [handover_start] {pid} R{round_num} (生成round{round_num-1}的HANDOVER.md)")
+                hinfo = start_handover(
+                    prev_export, pid, round_num - 1, problem_text, Path(work_dir)
+                )
+                if hinfo is None:
+                    # start_handover失败（地图生成失败等）——直接用v1
+                    print(f"  [handover_fail] {pid} R{round_num} (start_handover失败，回退v1)")
+                    if round_num == 2:
+                        prev_rc = extract_reasoning(prev_export)
                     else:
-                        all_rc = "\n\n".join(
+                        prev_rc = "\n\n".join(
                             extract_reasoning(r.get("export", ""))
                             for r in existing_rounds if r.get("export")
                         )
-                        prompt_text = build_continue_prompt(problem_text, all_rc, round_num - 1)
+                    prompt_text = build_continue_prompt(problem_text, prev_rc, round_num - 1)
+                    prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
+                    prompt_file.write_text(prompt_text)
+
+                    old_proof = Path(work_dir) / PROOF_FILE_NAME
+                    if old_proof.exists():
+                        old_proof.unlink()
+
+                    round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
+                    round_traj_dir.mkdir(parents=True, exist_ok=True)
+                    (round_traj_dir / "exports").mkdir(exist_ok=True)
+                    (round_traj_dir / "tmux").mkdir(exist_ok=True)
+                    export_path = round_traj_dir / "exports" / "conversation.json"
+
+                    round_metadata = {
+                        "method": method, "handover_success": False, "handover_path": "",
+                        "map_path": "", "prompt_path": str(prompt_file), "prev_export": prev_export,
+                    }
+                    print(f"  [launch] {pid} R{round_num} (v1_fallback)")
+                    session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
+                    now_ts = time.time()
+                    now_iso = utc_now()
+                    running[run_key] = {
+                        "session_name": session_name, "work_dir": work_dir, "pid": pid,
+                        "round_num": round_num, "export_path": str(export_path),
+                        "started_at": now_ts, "started_at_iso": now_iso,
+                        "last_activity": now_ts, "last_pane_hash": "",
+                        "round_metadata": round_metadata,
+                    }
+                    update_run(db, run_key, {
+                        "status": "running", "tmux_session": session_name,
+                        "current_round": round_num, "updated_at": now_iso,
+                        "verdict": make_verdict("running", f"round{round_num}_launched"),
+                    })
+                    add_running(r, run_key, {
+                        "pid": pid, "round_num": round_num,
+                        "tmux_session": session_name, "started_at": now_ts,
+                    })
+                    update_stats(r)
+                    insert_event(db, batch_id, "continuation_launched", {
+                        "pid": pid, "round_num": round_num, "method": method,
+                        "handover_success": False, "session_name": session_name,
+                    }, run_key=run_key)
+                    time.sleep(3)
+                    continue
+
+                # handover生成已启动——放入handover_pending，不占并发槽
+                handover_pending[run_key] = {
+                    "hinfo": hinfo,
+                    "pid": pid,
+                    "work_dir": work_dir,
+                    "problem_text": problem_text,
+                    "round_num": round_num,
+                    "prev_export": prev_export,
+                    "existing_rounds": existing_rounds,
+                    "run_doc": run_doc,
+                }
+                # 3秒间隔——避免rate limit
+                time.sleep(3)
+            else:
+                # v1方案——直接构造prompt并启动解题
+                if round_num == 2:
+                    prev_rc = extract_reasoning(prev_export)
                 else:
-                    all_rc = "\n\n".join(
+                    prev_rc = "\n\n".join(
                         extract_reasoning(r.get("export", ""))
                         for r in existing_rounds if r.get("export")
                     )
-                    prompt_text = build_continue_prompt(problem_text, all_rc, round_num - 1)
+                prompt_text = build_continue_prompt(problem_text, prev_rc, round_num - 1)
+                prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
+                prompt_file.write_text(prompt_text)
 
-            # 写prompt文件
-            prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
-            prompt_file.write_text(prompt_text)
+                old_proof = Path(work_dir) / PROOF_FILE_NAME
+                if old_proof.exists():
+                    old_proof.unlink()
 
-            # 清理旧round的proof.md——防止新round的is_completed误判
-            # 旧proof已经在完成判定时归档为round{N}_proof.md，这里只需删除
-            old_proof = Path(work_dir) / PROOF_FILE_NAME
-            if old_proof.exists():
-                old_proof.unlink()
-                logger.info(f"[{pid}] 清理旧proof.md（启动R{round_num}前）")
+                round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
+                round_traj_dir.mkdir(parents=True, exist_ok=True)
+                (round_traj_dir / "exports").mkdir(exist_ok=True)
+                (round_traj_dir / "tmux").mkdir(exist_ok=True)
+                export_path = round_traj_dir / "exports" / "conversation.json"
 
-            # 准备export路径
-            round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
-            round_traj_dir.mkdir(parents=True, exist_ok=True)
-            (round_traj_dir / "exports").mkdir(exist_ok=True)
-            (round_traj_dir / "tmux").mkdir(exist_ok=True)
-            export_path = round_traj_dir / "exports" / "conversation.json"
-
-            # 收集本轮元数据——存入running dict，完成时写入rounds_log
-            round_metadata = {
-                "method": method,
-                "handover_success": round_handover_success,
-                "handover_path": round_handover_path or "",
-                "map_path": str(Path(work_dir) / f"round{round_num - 1}_conversation_map.md") if round_handover_success else "",
-                "prompt_path": str(prompt_file),
-                "prev_export": prev_export,
-            }
-
-            # 启动devin cli
-            print(f"  [launch] {pid} R{round_num} ({method})")
-            session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
-
-            now_ts = time.time()
-            now_iso = utc_now()
-            running[run_key] = {
-                "session_name": session_name,
-                "work_dir": work_dir,
-                "pid": pid,
-                "round_num": round_num,
-                "export_path": str(export_path),
-                "started_at": now_ts,
-                "started_at_iso": now_iso,
-                "last_activity": now_ts,
-                "last_pane_hash": "",
-                "round_metadata": round_metadata,
-            }
-
-            update_run(db, run_key, {
-                "status": "running",
-                "tmux_session": session_name,
-                "current_round": round_num,
-                "updated_at": now_iso,
-                "verdict": make_verdict("running", f"round{round_num}_launched"),
-            })
-            add_running(r, run_key, {
-                "pid": pid,
-                "round_num": round_num,
-                "tmux_session": session_name,
-                "started_at": now_ts,
-            })
-            update_stats(r)
-
-            insert_event(db, batch_id, "continuation_launched", {
-                "pid": pid,
-                "round_num": round_num,
-                "method": method,
-                "handover_success": round_handover_success,
-                "session_name": session_name,
-            }, run_key=run_key)
-
-            # 3秒间隔——避免rate limit
-            time.sleep(3)
+                round_metadata = {
+                    "method": method, "handover_success": False, "handover_path": "",
+                    "map_path": "", "prompt_path": str(prompt_file), "prev_export": prev_export,
+                }
+                print(f"  [launch] {pid} R{round_num} (v1)")
+                session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
+                now_ts = time.time()
+                now_iso = utc_now()
+                running[run_key] = {
+                    "session_name": session_name, "work_dir": work_dir, "pid": pid,
+                    "round_num": round_num, "export_path": str(export_path),
+                    "started_at": now_ts, "started_at_iso": now_iso,
+                    "last_activity": now_ts, "last_pane_hash": "",
+                    "round_metadata": round_metadata,
+                }
+                update_run(db, run_key, {
+                    "status": "running", "tmux_session": session_name,
+                    "current_round": round_num, "updated_at": now_iso,
+                    "verdict": make_verdict("running", f"round{round_num}_launched"),
+                })
+                add_running(r, run_key, {
+                    "pid": pid, "round_num": round_num,
+                    "tmux_session": session_name, "started_at": now_ts,
+                })
+                update_stats(r)
+                insert_event(db, batch_id, "continuation_launched", {
+                    "pid": pid, "round_num": round_num, "method": method,
+                    "handover_success": False, "session_name": session_name,
+                }, run_key=run_key)
+                time.sleep(3)
 
         # 检查运行中的
         to_remove = []

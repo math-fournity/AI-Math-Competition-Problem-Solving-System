@@ -318,7 +318,7 @@ def check_failure_rate(db, batch_id):
 def check_launcher_dead(db, batch_id):
     """A8: launcher进程是否还在"""
     result = subprocess.run(
-        ["pgrep", "-f", "run_continuation_pipeline.*launch"],
+        ["pgrep", "-f", "continuation_launcher.*" + batch_id],
         capture_output=True, text=True
     )
     if result.returncode != 0:

@@ -259,3 +259,25 @@ python run_continuation_pipeline.py --batch-id p27-full --step launch
 python run_continuation_pipeline.py --batch-id p27-full --step feed
 python run_continuation_pipeline.py --batch-id p27-full --step launch
 ```
+
+## 循环监控SOP（2026-08-18新增）
+
+**核心认知**：检查脚本的输出不仅是信息，更是对AI的行动指令。AI通过反复运行检查脚本，形成"检查→处理→等待→再检查"的循环，直到所有题完成。这个循环可以跨越多个session——session被中断后，下一个session的AI只需运行检查脚本即可恢复全部上下文。
+
+### 循环监控步骤
+1. 运行标准化检查脚本（`monitor_check_continuation.sh` for Pipe 4, `monitor_check.sh` for Pipe 1/2/3）
+2. 阅读检查脚本的输出——7项检查结果+行动清单+循环监控指令
+3. 按行动清单逐项处理（重启挂掉的服务、处理alert、重新入队失败的题、修复代码bug）
+4. 等待60-120秒，让devin cli继续工作
+5. 再次运行检查脚本——如此循环，直到进度显示所有题completed或failed
+6. 如果发现系统问题（代码bug/架构问题），修复代码后重启系统，然后继续循环监控
+
+### 跨session连续性
+- 检查脚本的输出包含系统当前状态、需要处理的问题、以及循环监控指令本身
+- session被中断后，下一个session的AI只需运行检查脚本——脚本的输出会告诉你系统当前状态和需要做什么
+- 不需要阅读之前的session历史——检查脚本是自包含的上下文恢复机制
+
+### 系统健康判断标准
+- ✅ 健康 = launcher+monitor运行中 + devin cli活跃（pane有内容）+ 进度在推进
+- ⚠️ 需关注 = 有新alert + 失败率>15% + handover生成慢
+- ❌ 修复 = launcher/monitor挂了 + devin cli全卡住 + 进度停滞
