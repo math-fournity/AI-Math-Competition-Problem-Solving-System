@@ -28,7 +28,7 @@ from src.continuation_config import (
     CONTINUATION_SOLVER_BASE, CONTINUATION_TRAJECTORY_BASE,
     CONTINUATION_RUNS_COLLECTION,
 )
-from src.continuation_db_schema import connect_db, ensure_schema, insert_run, update_run
+from src.continuation_db_schema import connect_db, ensure_schema, insert_run, update_run, insert_batch
 from monitoring.shared_logger import get_logger
 
 logger = get_logger("continuation_collector")
@@ -109,6 +109,19 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
 
     db = connect_db()
     ensure_schema(db)
+
+    # 创建batch记录（如果不存在）——launcher的update_batch需要batch记录已存在
+    from src.continuation_config import CONTINUATION_BATCHES_COLLECTION
+    batch_doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
+    if not batch_doc:
+        insert_batch(db, {
+            "_key": batch_id,
+            "batch_id": batch_id,
+            "status": "collecting",
+            "total": len(problems),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        print(f"  batch记录已创建: {batch_id}")
 
     prepared = 0
     skipped = 0

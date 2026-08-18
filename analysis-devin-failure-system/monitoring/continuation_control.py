@@ -69,13 +69,16 @@ def tmux_running(name: str) -> bool:
 
 
 def list_p27_sessions():
-    """列出所有p27-开头的tmux session（devin cli实例）"""
+    """列出所有p27-开头的tmux session（devin cli实例），排除服务session"""
+    # 排除服务session——它们不是devin cli实例
+    EXCLUDE = {LAUNCHER_SESSION, MONITOR_SESSION, WATCHDOG_SESSION}
     result = subprocess.run(["tmux", "list-sessions"], capture_output=True, text=True, timeout=5)
     sessions = []
     for line in result.stdout.strip().split("\n"):
         if line.startswith("p27-"):
             name = line.split(":")[0]
-            sessions.append(name)
+            if name not in EXCLUDE:
+                sessions.append(name)
     return sessions
 
 

@@ -49,6 +49,7 @@ CONTINUATION_BATCHES_COLLECTION = "p27_continuation_batches"
 CONTINUATION_RUNS_COLLECTION = "p27_continuation_runs"
 CONTINUATION_EVENTS_COLLECTION = "p27_continuation_events"
 CONTINUATION_RESULTS_COLLECTION = "p27_continuation_results"
+MONITOR_ALERTS_COLLECTION = "p27_monitor_alerts"
 
 # === devin cli配置 ===
 DEVIN_MODEL = "glm-5-2"
