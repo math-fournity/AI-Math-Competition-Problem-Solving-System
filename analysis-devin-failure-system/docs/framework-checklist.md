@@ -6,7 +6,7 @@
 
 ---
 
-## 清单总览（12项）
+## 清单总览（14项）
 
 | 序号 | 方面 | 一句话 | 参考实现 |
 |---|---|---|---|
@@ -22,6 +22,8 @@
 | 10 | Monitor Pipe | 三层架构（规范+执行+查询），alert到DB | `monitor_continuation.py` + `p27_monitor_spec.md` |
 | 11 | DB-文件双向可追溯 | run记录指向work_dir，work_dir有proof.md | `continuation_db_schema.py` + `continuation_collector.py` |
 | 12 | 多轮续传（如适用） | v1机械拼接vs v2交接文档，截断判定 | `continuation_launcher.py` `is_truncated()`/`generate_handover()` |
+| 13 | 中间产物不可覆盖 | 每轮的中间产物用round编号区分路径，不被后续round覆盖 | `continuation_launcher.py` `generate_handover()`/`make_round_log_entry()` |
+| 14 | DB记录完整性 | 所有路径（成功/截断/失败）都写入rounds_log和event集合 | `continuation_launcher.py` `make_round_log_entry()`/`insert_event()` |
 
 ---
 
@@ -219,6 +221,33 @@ if new_conc != concurrency:
 
 **详见**：`docs/operational-concerns.md`
 
+### 13. 中间产物不可覆盖
+
+**必须**：每轮的所有中间产物（HANDOVER.md/conversation_map.md/proof.md/handover_run/）必须用round编号区分路径，不被后续round覆盖。
+
+**为什么**：如果路径不唯一，后续round会覆盖前面round的中间产物，导致历史过程丢失、is_completed误判、无法审计。
+
+**怎么做**：
+- `generate_handover()`中：`map_path = work_dir / f"round{N}_conversation_map.md"`，`handover_path = work_dir / f"round{N}_HANDOVER.md"`
+- 完成判定时归档proof.md：`shutil.copy2(proof_path, work_dir / f"round{N}_proof.md")`
+- 启动新round前删除旧proof.md：`old_proof.unlink()`（防止is_completed误判）
+- `make_round_log_entry()`统一构造rounds_log条目，包含7个中间产物路径字段
+- rounds_log的字段名必须读写一致——写入和读取都用`"export"`（不能用`"export_path"`）
+
+**参考**：`continuation_launcher.py` `generate_handover()`/`make_round_log_entry()`/完成判定中的归档逻辑
+
+### 14. DB记录完整性
+
+**必须**：所有路径（成功/截断/失败）都必须写入rounds_log和event集合。
+
+**为什么**：失败路径如果不写rounds_log，失败轮次的过程信息完全丢失——无法审计AI在哪一轮失败、为什么失败。
+
+**怎么做**：
+- 所有6种失败路径（dead_session/unknown_state/rate_limited/timeout/stall/failed_connection）都调用`make_round_log_entry()`写入rounds_log
+- 所有路径都记录`insert_event()`：continuation_launched/continuation_completed/continuation_truncated/continuation_truncated_at_max/continuation_failed/infra_failure
+
+**参考**：`continuation_launcher.py` 中所有`rounds_log.append()`和`insert_event()`调用
+
 ---
 
 ## 验证清单
@@ -234,3 +263,5 @@ if new_conc != concurrency:
 - [ ] Monitor Pipe验证——启动后每轮检查正常，alert写入DB
 - [ ] 检查脚本验证——`monitor_check_{name}.sh`输出N项检查+行动清单
 - [ ] 小批量测试——10题端到端测试
+- [ ] 中间产物不可覆盖验证——检查rounds_log中每轮的export/handover/proof路径都不重复
+- [ ] DB记录完整性验证——制造一次失败（如kill devin session），检查rounds_log和event是否记录了失败

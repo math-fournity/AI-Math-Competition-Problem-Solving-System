@@ -231,10 +231,42 @@ src/monitor_continuation.py:run_monitor_loop()
   ├── check_handover_completeness()# B4/B5: HANDOVER.md完整性
   ├── check_truncation_pattern()  # B6: 5轮全截断
   ├── check_status_anomaly()      # B7: final_status分布异常
+  ├── check_rounds_log_integrity()       # B8: rounds_log完整性检查
+  ├── check_intermediate_product_uniqueness() # B9: 中间产物唯一性检查
   ├── flag_for_ai_review()        # C1-C5: 抽样标记needs_ai_review
   ├── create_alert()              # 写alert到DB
   └── 检查退出条件
 ```
+
+#### B类检查项详细说明（`monitor_continuation.py`）
+
+| 检查项 | 函数 | 检查内容 |
+|---|---|---|
+| B1/B2/B3 | `check_proof_completeness()` | proof.md完整性——文件存在、字段齐全、格式正确 |
+| B4/B5 | `check_handover_completeness()` | HANDOVER.md完整性——文件存在、字段齐全 |
+| B6 | `check_truncation_pattern()` | 5轮全截断——连续5轮truncated=True则告警 |
+| B7 | `check_status_anomaly()` | final_status分布异常——completed/failed/truncated比例偏离预期 |
+| **B8** | `check_rounds_log_integrity()` | **rounds_log完整性检查**——见下方详细说明 |
+| **B9** | `check_intermediate_product_uniqueness()` | **中间产物唯一性检查**——见下方详细说明 |
+
+**B8: rounds_log完整性检查**（`check_rounds_log_integrity`）
+
+检查rounds_log每条记录的完整性和路径有效性：
+
+- 检查rounds_log每条记录是否有完整字段（round/export/truncated/completed/reason）
+- 检查export指向的文件是否实际存在
+- 检查handover_path指向的文件是否存在（如果handover_success=True）
+- 检查proof_path指向的文件是否存在（如果completed=True）
+- 检查同一run的rounds_log中round编号是否连续无重复
+
+**B9: 中间产物唯一性检查**（`check_intermediate_product_uniqueness`）
+
+检查不同run/round的中间产物路径不冲突：
+
+- 检查同一run不同round的export路径不重复
+- 检查同一run不同round的handover_path不重复
+- 检查同一run不同round的proof_path不重复
+- 检查不同run的work_dir不重复
 
 #### 检查脚本的行动清单（`monitor_check_continuation.sh`）
 
@@ -473,7 +505,7 @@ cp specs/p27_monitor_spec.md specs/{name}_monitor_spec.md
 **必须修改**：
 - §1模块职责——改为你的系统的职责
 - §2.1 A类自动检查——选择适用于你的系统的检查项（通常A1-A9都适用）
-- §2.2 B类质量检查——**这是你的系统特有的**，参考Pipe 4的B1-B7，但根据你的产出调整
+- §2.2 B类质量检查——**这是你的系统特有的**，参考Pipe 4的B1-B9，但根据你的产出调整
 - §2.3 C类AI review抽样——**这是你的系统特有的**，参考Pipe 4的C1-C5，但根据你的产出调整
 - §3检查标准——每项的阈值和通过/不通过判定
 - §6查询脚本输出规范——根据你的系统调整检查项数量
@@ -490,7 +522,7 @@ cp src/monitor_continuation.py src/monitor_{name}.py
 - import改为`{name}_config`/`{name}_db_schema`
 - `MONITOR_ALERTS_COLLECTION = "{name}_monitor_alerts"`——独立的alert集合
 - A类检查函数——通常不需要改逻辑，只改集合名和Redis前缀
-- **B类检查函数**——根据你的检查规范§2.2实现，Pipe 4的B1-B7是续传特有的，你的系统有不同的B类检查
+- **B类检查函数**——根据你的检查规范§2.2实现，Pipe 4的B1-B9是续传特有的，你的系统有不同的B类检查
 - **C类抽样函数**——`flag_for_ai_review()`中AI需要检查的项目，根据你的检查规范§2.3调整
 
 **参考`monitor_continuation.py`的`run_monitor_loop()`函数**——主循环结构（A类→B类→C类抽样→创建alerts→状态报告→退出检查）通常不需要改。
@@ -564,7 +596,7 @@ bash scripts/monitor_check_{name}.sh {name}-test
 | 优先级 | 文件 | 行数 | 读什么 |
 |---|---|---|---|
 | 1 | `src/continuation_launcher.py` | 580行 | **核心**——launch_batch()的主循环、stall/rate_limit/zombie检测、多轮续传逻辑 |
-| 2 | `src/monitor_continuation.py` | 748行 | Monitor Pipe的16项检查实现、alert管理、AI review抽样 |
+| 2 | `src/monitor_continuation.py` | 748行 | Monitor Pipe的18项检查实现（A1-A9+B1-B9+C1-C5）、alert管理、AI review抽样 |
 | 3 | `specs/p27_monitor_spec.md` | 242行 | 检查规范的写法——A类/B类/C类分类、检查标准、alert结构 |
 | 4 | `scripts/monitor_check_continuation.sh` | 241行 | 检查脚本的6项输出+行动清单写法 |
 | 5 | `run_continuation_pipeline.py` | 100行 | 端到端入口的4步串联（collect→feed→launch→collect-results） |

@@ -130,3 +130,60 @@ analysis-devin-failure-system/
 ├── run_selection_pipeline.py    # Pipe 3端到端入口
 └── run_continuation_pipeline.py # Pipe 4端到端入口
 ```
+
+## 6. Pipe 4的DB记录设计
+
+### rounds_log结构
+
+每轮（包括成功/截断/失败）都写入rounds_log，包含完整中间产物路径：
+
+```python
+{
+    "round": 2,                    # 轮次编号
+    "export": ".../round2/exports/conversation.json",  # 本轮export
+    "truncated": False,            # 是否截断
+    "completed": True,             # 是否完成
+    "reason": "proof.md有boxed",   # 完成原因/截断原因/失败原因
+    "method": "v2",                # 使用的方法（v2或v1回退）
+    "handover_success": True,      # Pipe A是否成功
+    "handover_path": ".../round1_HANDOVER.md",  # HANDOVER.md路径
+    "map_path": ".../round1_conversation_map.md",  # 面包屑地图路径
+    "prompt_path": ".../round2_prompt.txt",  # 续传prompt路径
+    "prev_export": ".../round1_export.json",  # 前一轮export路径
+    "proof_path": ".../round2_proof.md",  # 归档的proof路径（不会被覆盖）
+}
+```
+
+通过`make_round_log_entry()`函数统一构造，确保字段名一致。
+
+### event类型
+
+| event_type | 触发时机 | 含义 |
+|---|---|---|
+| continuation_launched | 每轮启动时 | 含handover_success和session_name |
+| continuation_completed | 完成时 | proof.md有boxed |
+| continuation_truncated | 截断续传时 | 重新入队等下一轮 |
+| continuation_truncated_at_max | 达到最大轮次时 | TRUNCATED_AT_MAX |
+| continuation_failed | dead_session/unknown/timeout/stall | 模型能力失败 |
+| infra_failure | rate_limited/failed_connection | 基础设施失败 |
+
+### proof.md归档机制
+
+- 完成判定时归档：`shutil.copy2(work_dir/proof.md, work_dir/round{N}_proof.md)`
+- 启动新round前删除旧proof.md：防止is_completed误判
+- run级`proof_path`指向归档路径（`round{N}_proof.md`），不会被后续round覆盖
+
+### 中间产物路径约定
+
+所有中间产物在work_dir内，用round编号区分：
+- `round{N}_export.json` — Round N的原始export（仅Round 1）
+- `round{N}_prompt.txt` — Round N的续传prompt
+- `round{N}_handover_prompt.txt` — Round N的Pipe A prompt
+- `round{N}_conversation_map.md` — Round N的面包屑地图
+- `round{N}_HANDOVER.md` — Round N的交接文档
+- `round{N}_handover_run/` — Round N的Pipe A运行目录
+- `round{N}_proof.md` — Round N的归档proof
+
+trajectory目录中按run_key/round{N}/分目录：
+- `{run_key}/round{N}/exports/conversation.json` — Round N的export
+- `{run_key}/round{N}/tmux/tmux.log` — Round N的tmux日志

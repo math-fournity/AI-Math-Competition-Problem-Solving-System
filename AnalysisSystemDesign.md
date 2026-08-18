@@ -211,7 +211,7 @@ python pipe_control.py concurrency 50
 
 ---
 
-## 5. 设计原则（6条）
+## 5. 设计原则（8条）
 
 1. **独立自包含**（Pipe 4模式）——新Pipe不修改现有Pipe的代码，所有组件独立
 2. **优雅停止**——停launcher不kill devin实例，等running自然完成；**有watchdog时先停watchdog**
@@ -219,6 +219,8 @@ python pipe_control.py concurrency 50
 4. **Monitor Pipe**——应该由AI智能检查的项目全部放入Pipe，结果收集到DB的alert集合
 5. **DB-文件双向可追溯**——DB中run记录指向工作目录，工作目录有产出文件
 6. **痕迹保留**——alert写入ArangoDB，全过程可审计
+7. **中间产物不可覆盖**——每轮的中间产物用round编号区分路径，不被后续round覆盖（§6.6）
+8. **DB记录完整性**——所有路径（成功/截断/失败）都写入rounds_log和event集合（§6.7）
 
 ---
 
@@ -262,6 +264,65 @@ Pipe 4的`classify_failure()`函数和`retry_eligible`字段实现这个区分�
 919题跑8天，launcher可能因为Redis断连、未处理异常等崩溃。不自动重启会导致整个batch停滞。
 
 auto-restart用bash while循环包裹：`while true; do python launcher.py; echo "退出, 5秒后重启"; sleep 5; done`
+
+### 6.6 中间产物不可覆盖原则（2026-08-18踩坑修复）
+
+**问题**：多轮续传中，每轮的中间产物（HANDOVER.md/conversation_map.md/proof.md/handover_run/）如果路径不唯一，会被后续round覆盖，导致：
+- 历史过程丢失——无法审计AI在每轮做了什么
+- is_completed误判——Round 3启动时看到Round 2的proof.md，误判为已完成
+- rounds_log字段名不匹配——写入时用`"export"`，读取时用`"export_path"`，导致Round 3+全部失败
+
+**原则**：每轮的所有中间产物必须用round编号区分，路径唯一，不被后续round覆盖。
+
+**实现**（`continuation_launcher.py`）：
+- `generate_handover()`：`map_path = work_dir / f"round{N}_conversation_map.md"`，`handover_path = work_dir / f"round{N}_HANDOVER.md"`
+- 完成判定时归档proof.md：`shutil.copy2(proof_path, work_dir / f"round{N}_proof.md")`
+- 启动新round前删除旧proof.md：`old_proof.unlink()`（防止is_completed误判）
+- `make_round_log_entry()`：统一构造rounds_log条目，包含7个中间产物路径字段
+
+**rounds_log每条记录的完整字段**：
+```python
+{
+    "round": 2,                    # 轮次编号
+    "export": ".../round2/exports/conversation.json",
+    "truncated": False,
+    "completed": True,
+    "reason": "proof.md有boxed",
+    "method": "v2",                # 使用的方法（v2或v1回退）
+    "handover_success": True,      # Pipe A是否成功
+    "handover_path": ".../round1_HANDOVER.md",
+    "map_path": ".../round1_conversation_map.md",
+    "prompt_path": ".../round2_prompt.txt",
+    "prev_export": ".../round1_export.json",
+    "proof_path": ".../round2_proof.md",  # 归档路径，不会被覆盖
+}
+```
+
+### 6.7 DB记录完整性原则（2026-08-18踩坑修复）
+
+**问题**：失败路径（dead_session/stall/timeout/rate_limited/unknown）不写rounds_log，只更新run的status。导致失败轮次的过程信息完全丢失——无法审计AI在哪一轮失败、为什么失败。
+
+**原则**：所有路径（成功/截断/失败）都必须写入rounds_log和event集合。
+
+**实现**（`continuation_launcher.py`）：
+- 所有6种失败路径都调用`make_round_log_entry()`写入rounds_log
+- 所有路径都记录`insert_event()`：
+  - `continuation_launched`（启动时，含handover_success）
+  - `continuation_completed`（完成时）
+  - `continuation_truncated`（截断续传时）
+  - `continuation_truncated_at_max`（达到最大轮次时）
+  - `continuation_failed`（dead_session/unknown/timeout/stall）
+  - `infra_failure`（rate_limited/failed_connection）
+
+### 6.8 Monitor Pipe检测能力完整性（2026-08-18踩坑修复）
+
+**问题**：Monitor Pipe的`check_handover_completeness`用了和`generate_handover`一样的错误路径逻辑，检查了错误的目录。而且完全没有检查文件路径唯一性、rounds_log字段一致性、proof.md覆盖。
+
+**原则**：Monitor Pipe不仅要检查结果质量，还要检查中间产物的完整性和唯一性。
+
+**新增检查项**（`monitor_continuation.py`）：
+- B8 `check_rounds_log_integrity`：检查rounds_log字段完整性 + export/handover/proof文件存在性 + round编号连续性
+- B9 `check_intermediate_product_uniqueness`：检查同一run不同round的export/handover/proof路径不重复 + 不同run的work_dir不重复
 
 ---
 
