@@ -289,10 +289,13 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
     返回HANDOVER.md的路径，或None（失败时）。
     """
     export_path = str(export_path)
-    round_dir = Path(export_path).parent.parent  # .../roundN/
-    map_path = round_dir / "conversation_map.md"
-    handover_path = round_dir / "HANDOVER.md"
-    handover_run_dir = round_dir / "handover_run"
+    work_dir = Path(work_dir)
+
+    # 所有中间文件放在work_dir内——每道题独立，不互相覆盖
+    # devin cli的workspace是work_dir，所以文件必须在work_dir内才能访问
+    map_path = work_dir / f"round{round_num}_conversation_map.md"
+    handover_path = work_dir / f"round{round_num}_HANDOVER.md"
+    handover_run_dir = work_dir / f"round{round_num}_handover_run"
     handover_run_dir.mkdir(parents=True, exist_ok=True)
     handover_export = handover_run_dir / "conversation.json"
 
@@ -608,7 +611,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             else:
                 # Round N: 用上一轮的export
                 prev_round_info = existing_rounds[-1]
-                prev_export = prev_round_info.get("export_path", "")
+                prev_export = prev_round_info.get("export", "")
                 round_num = current_round
 
                 if method == "v2":
@@ -619,20 +622,27 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         prompt_text = build_v2_continue_prompt(problem_text, handover_path, round_num - 1)
                     else:
                         all_rc = "\n\n".join(
-                            extract_reasoning(r.get("export_path", ""))
-                            for r in existing_rounds if r.get("export_path")
+                            extract_reasoning(r.get("export", ""))
+                            for r in existing_rounds if r.get("export")
                         )
                         prompt_text = build_continue_prompt(problem_text, all_rc, round_num - 1)
                 else:
                     all_rc = "\n\n".join(
-                        extract_reasoning(r.get("export_path", ""))
-                        for r in existing_rounds if r.get("export_path")
+                        extract_reasoning(r.get("export", ""))
+                        for r in existing_rounds if r.get("export")
                     )
                     prompt_text = build_continue_prompt(problem_text, all_rc, round_num - 1)
 
             # 写prompt文件
             prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
             prompt_file.write_text(prompt_text)
+
+            # 清理旧round的proof.md——防止新round的is_completed误判
+            # 旧proof已经在完成判定时归档为round{N}_proof.md，这里只需删除
+            old_proof = Path(work_dir) / PROOF_FILE_NAME
+            if old_proof.exists():
+                old_proof.unlink()
+                logger.info(f"[{pid}] 清理旧proof.md（启动R{round_num}前）")
 
             # 准备export路径
             round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
@@ -707,6 +717,11 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     is_done = True
                     done_reason = f"proof.md有boxed ({len(proof_text)}c)"
                     proof_found = True
+                    # 归档proof.md为round{N}_proof.md——防止后续round覆盖
+                    archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
+                    import shutil
+                    shutil.copy2(proof_path, archived_proof)
+                    logger.info(f"[{pid}] proof.md已归档为round{round_num}_proof.md")
 
             # 检查devin cli退出
             if not tmux_running(session_name):
