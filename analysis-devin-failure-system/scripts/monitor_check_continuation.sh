@@ -239,11 +239,15 @@ running = r.hlen('p27:running')
 pending = r.zcard('p27:pending')
 completed = r.llen('p27:completed')
 
-# tmux session分类
+# tmux session分类——排除服务session（p27-launcher/monitor-p27/p27-watchdog）
+SERVICE_SESSIONS = {'p27-launcher', 'monitor-p27', 'p27-watchdog'}
 sessions = subprocess.run(['tmux', 'list-sessions'], capture_output=True, text=True).stdout
-p27_solve = [s for s in sessions.split('\n') if 'p27-p27-full-' in s]  # 解题session
-p27_handover = [s for s in sessions.split('\n') if s.startswith('p27-') and '-r1-h' in s]  # handover session
-p27_service = [s for s in sessions.split('\n') if s.startswith('p27-launcher') or s.startswith('monitor-p27') or s.startswith('p27-watchdog')]
+all_lines = sessions.split('\n')
+# 解题session: p27-{run_key_short}-r{round}（不含-h后缀）
+p27_solve = [s for s in all_lines if s.startswith('p27-') and '-r' in s and '-h' not in s and s.split(':')[0] not in SERVICE_SESSIONS]
+# handover session: p27-{run_key_short}-r{round}-h（任意round的handover）
+p27_handover = [s for s in all_lines if s.startswith('p27-') and '-h' in s and s.split(':')[0] not in SERVICE_SESSIONS]
+p27_service = [s for s in all_lines if s.startswith('p27-launcher') or s.startswith('monitor-p27') or s.startswith('p27-watchdog')]
 
 print(f'  Redis: pending={pending} running={running} completed={completed}')
 print(f'  tmux: 解题session={len(p27_solve)} handover session={len(p27_handover)} 服务session={len(p27_service)}')

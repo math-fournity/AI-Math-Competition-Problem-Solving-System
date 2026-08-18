@@ -120,10 +120,13 @@ def resolve_alert(db, alert_key, resolution="fixed"):
 
 def check_session_health(db, batch_id, expected_concurrency):
     """A1: p27- session数 vs DB running数 vs 设定并发"""
+    # 排除服务session——它们不是devin cli实例
+    SERVICE_SESSIONS = {"p27-launcher", "monitor-p27", "p27-watchdog"}
     result = subprocess.run(
         ["tmux", "list-sessions"], capture_output=True, text=True, timeout=5
     )
-    p27_sessions = [l for l in result.stdout.split("\n") if l.startswith("p27-")]
+    p27_sessions = [l for l in result.stdout.split("\n")
+                    if l.startswith("p27-") and l.split(":")[0] not in SERVICE_SESSIONS]
     actual = len(p27_sessions)
 
     aql = (
@@ -215,10 +218,13 @@ def check_rate_limit(db, batch_id, interval_seconds=120):
 
 def check_zombie_sessions(db, batch_id):
     """A5: 空pane僵尸session"""
+    # 排除服务session——它们的pane内容模式不同，不应作为zombie检测对象
+    SERVICE_SESSIONS = {"p27-launcher", "monitor-p27", "p27-watchdog"}
     result = subprocess.run(
         ["tmux", "list-sessions"], capture_output=True, text=True, timeout=5
     )
-    p27_sessions = [l.split(":")[0] for l in result.stdout.split("\n") if l.startswith("p27-")]
+    p27_sessions = [l.split(":")[0] for l in result.stdout.split("\n")
+                    if l.startswith("p27-") and l.split(":")[0] not in SERVICE_SESSIONS]
 
     zombies = []
     for s in p27_sessions:

@@ -538,7 +538,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
     # 状态跟踪
     running = {}  # {run_key: {session_name, work_dir, pid, round_num, ...}}——解题devin cli
-    handover_pending = {}  # {run_key: {hinfo, pid, work_dir, ...}}——handover生成中，不占并发槽
+    handover_pending = {}  # {run_key: {hinfo, pid, work_dir, ...}}——handover生成中，占并发槽（与running合计不超过concurrency）
     completed = []
     failed = []
     rate_limit_paused_until = 0
@@ -818,7 +818,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     time.sleep(3)
                     continue
 
-                # handover生成已启动——放入handover_pending，不占并发槽
+                # handover生成已启动——放入handover_pending，占并发槽（与running合计不超过concurrency）
                 handover_pending[run_key] = {
                     "hinfo": hinfo,
                     "pid": pid,
