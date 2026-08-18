@@ -58,7 +58,7 @@ DEVIN_PERMISSION_MODE = "dangerous"
 # === 并发配置（续传比分析任务慢，需要更长的timeout/stall）===
 DEFAULT_CONCURRENCY = 5
 DEFAULT_MAX_RUNTIME_SECONDS = 1800   # 30分钟（续传单轮可能thinking spin很久）
-DEFAULT_STALL_SECONDS = 300          # 5分钟无活动判定为stall
+DEFAULT_STALL_SECONDS = 600          # 10分钟无活动判定为stall（续传解题thinking可能很长）
 DEFAULT_POLL_SECONDS = 15            # 轮询间隔
 DEFAULT_MAX_ROUNDS = 5               # 最多续传5轮
 
