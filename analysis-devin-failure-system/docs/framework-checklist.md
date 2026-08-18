@@ -121,9 +121,10 @@ if new_conc != concurrency:
 3. `stop_batch()`向launcher发送SIGINT（不kill-session，不清队列）
 4. 提供`--force`选项用于强制停止（kill所有session+清空队列）
 5. **如果有watchdog**——stop命令的第一步必须是`stop_watchdog()`：
-   - `launchctl unload` plist文件（阻止launchd重启）
+   - `launchctl unload` plist文件（从当前session移除，阻止launchd立即重启）
+   - `launchctl disable` 服务（永久禁用，即使系统重启也不会自动加载——unload不够，plist还在，重启后launchd会重新加载）
    - kill watchdog的tmux session（阻止当前运行的实例）
-   - 两步都要做——只做一步会导致watchdog继续运行或被launchd重启
+   - 三步都要做——只做unload不disable，系统重启后watchdog会自动回来
 
 **参考**：
 - `monitoring/graceful_shutdown.py`——信号处理模块

@@ -121,24 +121,35 @@ watchdog有两种启动方式：
 1. **launchd自动启动**——通过plist文件，进程退出后launchd自动重启
 2. **手动tmux运行**——`tmux new-session -d -s p27-watchdog "bash continuation_watchdog.sh"`
 
-只kill tmux session不够（launchd会重启）；只unload plist不够（手动运行的进程继续）。
+只kill tmux session不够（launchd会重启）；只unload plist不够（手动运行的进程继续）；只unload不disable不够（系统重启后launchd会自动重新加载plist）。
 
 ### 解决方案
 
-`stop_watchdog()`函数必须同时做两步：
-1. `launchctl unload` plist文件（阻止launchd重启）
-2. kill watchdog的tmux session或进程（阻止当前运行的实例）
+`stop_watchdog()`函数必须同时做三步：
+1. `launchctl unload` plist文件（从当前session移除，阻止launchd立即重启）
+2. `launchctl disable` 服务（永久禁用，即使系统重启也不会自动加载）
+3. kill watchdog的tmux session或进程（阻止当前运行的实例）
 
 ```python
 def stop_watchdog():
-    # 步骤1：卸载launchd plist（如果存在）
+    # 步骤1：卸载launchd plist（从当前session移除）
     if os.path.exists(WATCHDOG_PLIST):
         subprocess.run(["launchctl", "unload", WATCHDOG_PLIST], ...)
 
-    # 步骤2：kill tmux session（如果存在）
+        # 步骤2：永久禁用——即使系统重启也不会自动加载
+        service_id = os.path.basename(WATCHDOG_PLIST).replace(".plist", "")
+        subprocess.run(["launchctl", "disable", f"gui/$(id -u)/{service_id}"], ...)
+
+    # 步骤3：kill tmux session（如果存在）
     if tmux_running(WATCHDOG_SESSION):
         subprocess.run(["tmux", "kill-session", "-t", WATCHDOG_SESSION], ...)
 ```
+
+**unload vs disable的区别**：
+- `launchctl unload`——从当前session移除，plist文件还在，**下次系统重启或用户登录时launchd会自动重新加载**
+- `launchctl disable`——永久禁用，即使plist文件存在、即使系统重启，**launchd也不会加载它**
+
+**恢复watchdog时**需要先`launchctl enable`再`launchctl load`。
 
 ### 在stop命令中的位置
 

@@ -94,18 +94,28 @@ def stop_watchdog():
     """停止watchdog——必须同时处理tmux session和launchd plist
 
     核心问题：如果watchdog通过launchd自动启动，只kill tmux session不够——
-    launchd会立即重启它。必须先launchctl unload plist，再kill tmux session。
+    launchd会立即重启它。必须先launchctl unload+disable plist，再kill tmux session。
 
-    反过来，如果只unload plist但不kill tmux session，watchdog进程继续运行
-    （只是不会被launchd重启）。所以两步都要做。
+    launchctl unload只是从当前session移除——plist文件还在，下次系统重启或用户登录时
+    launchd会自动重新加载。必须launchctl disable来永久禁用，这样即使系统重启也不会加载。
+
+    反过来，如果只unload+disable plist但不kill tmux session，watchdog进程继续运行
+    （只是不会被launchd重启）。所以三步都要做。
     """
-    # 步骤1：卸载launchd plist（如果存在）
+    # 步骤1：卸载launchd plist（从当前session移除）
     if os.path.exists(WATCHDOG_PLIST):
         subprocess.run(["launchctl", "unload", WATCHDOG_PLIST],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         print(f"  [watchdog] launchd plist已卸载: {WATCHDOG_PLIST}")
 
-    # 步骤2：kill tmux session（如果存在）
+        # 步骤2：永久禁用——即使系统重启也不会自动加载
+        # service identifier是plist文件名（去掉.plist）
+        service_id = os.path.basename(WATCHDOG_PLIST).replace(".plist", "")
+        subprocess.run(["launchctl", "disable", f"gui/$(id -u)/{service_id}"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        print(f"  [watchdog] launchd服务已永久禁用: {service_id}")
+
+    # 步骤3：kill tmux session（如果存在）
     if tmux_running(WATCHDOG_SESSION):
         subprocess.run(["tmux", "kill-session", "-t", WATCHDOG_SESSION],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)

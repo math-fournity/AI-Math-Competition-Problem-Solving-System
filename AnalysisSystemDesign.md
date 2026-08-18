@@ -238,9 +238,12 @@ Pipe 4改为`specs/p27_monitor_spec.md`——独立的`.ai-check`格式文件，
 
 watchdog通过launchd自动启动后，如果只kill服务tmux session而不停watchdog，watchdog会在30秒内重启刚停掉的服务——导致"停不掉"。
 
-`stop_watchdog()`必须同时做两步：
-1. `launchctl unload` plist（阻止launchd重启）
-2. kill watchdog的tmux session或进程（阻止当前运行的实例）
+`stop_watchdog()`必须同时做三步：
+1. `launchctl unload` plist（从当前session移除，阻止launchd立即重启）
+2. `launchctl disable` 服务（永久禁用——unload不够，plist文件还在，系统重启后launchd会自动重新加载）
+3. kill watchdog的tmux session或进程（阻止当前运行的实例）
+
+**unload vs disable**：unload只是当前session移除，disable是永久禁用。只unload不disable，系统重启后watchdog会自动回来。
 
 ### 6.4 为什么区分基础设施失败和模型能力失败
 
