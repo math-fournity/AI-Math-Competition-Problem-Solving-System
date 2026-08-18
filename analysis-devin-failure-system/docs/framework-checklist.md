@@ -111,22 +111,27 @@ if new_conc != concurrency:
 
 ### 6. 优雅停止
 
-**必须**：停止launcher时不kill正在运行的devin cli实例，让它们自然完成。
+**必须**：停止launcher时不kill正在运行的devin cli实例，让它们自然完成。**如果有watchdog，必须先停watchdog再停服务。**
 
-**为什么**：用户明确要求（415号§9.6）"已启动的续传run不应该终止"。kill devin实例会浪费已消耗的API配额，且可能导致产出文件不完整。
+**为什么**：用户明确要求（415号§9.6）"已启动的续传run不应该终止"。kill devin实例会浪费已消耗的API配额，且可能导致产出文件不完整。watchdog如果不先停，会重启刚停掉的服务——导致"停不掉"。
 
 **怎么做**：
 1. launcher启动时注册优雅退出：`register_shutdown("{name}_launcher")`
 2. 主循环检查`should_stop()`，为true时不再dequeue新run，等running自然完成
 3. `stop_batch()`向launcher发送SIGINT（不kill-session，不清队列）
 4. 提供`--force`选项用于强制停止（kill所有session+清空队列）
+5. **如果有watchdog**——stop命令的第一步必须是`stop_watchdog()`：
+   - `launchctl unload` plist文件（阻止launchd重启）
+   - kill watchdog的tmux session（阻止当前运行的实例）
+   - 两步都要做——只做一步会导致watchdog继续运行或被launchd重启
 
 **参考**：
 - `monitoring/graceful_shutdown.py`——信号处理模块
 - `continuation_launcher.py` `stop_batch()`——优雅停止实现
 - `continuation_launcher.py` `launch_batch()` 第480-490行——should_stop检查
+- `monitoring/continuation_control.py` `stop_watchdog()`——watchdog停止实现
 
-**详见**：`docs/graceful-shutdown.md`
+**详见**：`docs/graceful-shutdown.md` §5（watchdog停止——核心问题）
 
 ### 7. stall检测
 

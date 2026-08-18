@@ -103,14 +103,64 @@ python -m src.continuation_launcher --batch-id p27-full --stop
 
 # 强制停止——kill所有devin实例+清空队列
 python -m src.continuation_launcher --batch-id p27-full --stop --force
+
+# 通过continuation_control停止（推荐——自动处理watchdog）
+python -m monitoring.continuation_control stop          # 优雅
+python -m monitoring.continuation_control stop --force  # 强制
 ```
 
-## 5. 新Pipe如何实现
+## 5. watchdog停止——核心问题
+
+### 问题
+
+watchdog通过launchd自动启动后，停止系统时如果只kill服务tmux session而不停watchdog，watchdog会在30秒内重启刚停掉的服务——导致"停不掉"。
+
+### 根因
+
+watchdog有两种启动方式：
+1. **launchd自动启动**——通过plist文件，进程退出后launchd自动重启
+2. **手动tmux运行**——`tmux new-session -d -s p27-watchdog "bash continuation_watchdog.sh"`
+
+只kill tmux session不够（launchd会重启）；只unload plist不够（手动运行的进程继续）。
+
+### 解决方案
+
+`stop_watchdog()`函数必须同时做两步：
+1. `launchctl unload` plist文件（阻止launchd重启）
+2. kill watchdog的tmux session或进程（阻止当前运行的实例）
+
+```python
+def stop_watchdog():
+    # 步骤1：卸载launchd plist（如果存在）
+    if os.path.exists(WATCHDOG_PLIST):
+        subprocess.run(["launchctl", "unload", WATCHDOG_PLIST], ...)
+
+    # 步骤2：kill tmux session（如果存在）
+    if tmux_running(WATCHDOG_SESSION):
+        subprocess.run(["tmux", "kill-session", "-t", WATCHDOG_SESSION], ...)
+```
+
+### 在stop命令中的位置
+
+**stop_watchdog()必须是stop命令的第一步**——在停launcher和monitor之前。否则：
+1. 停launcher → watchdog检测到launcher死了 → 重启launcher
+2. 你以为停了，实际上launcher又被watchdog拉起来了
+
+### 解题系统的同步修复
+
+解题系统（`xishujuzhen/solver_harness/pipe/pipe_stop.sh`）的`--kill`/`--finish`/`--force`三种模式都已加入：
+1. `launchctl unload` plist
+2. `pkill -f "pipe_watchdog.sh"` kill手动运行的watchdog进程
+
+默认优雅停止模式保留watchdog（守护collector），但在提示中明确告知用户watchdog仍在运行，需要用`--finish`或`--force`来停watchdog。
+
+## 6. 新Pipe如何实现
 
 1. 复制`monitoring/graceful_shutdown.py`（共享模块，不需要复制）
 2. launcher启动时调用`register_shutdown("{name}_launcher")`
 3. 主循环加入`should_stop()`检查
 4. dequeue循环条件加`not should_stop()`
 5. `stop_batch()`实现两种模式（graceful+force）
+6. **如果有watchdog**——stop命令的第一步必须是`stop_watchdog()`（unload plist + kill session）
 
-**参考**：`continuation_launcher.py`的完整实现
+**参考**：`continuation_launcher.py`的完整实现 + `continuation_control.py`的`stop_watchdog()`

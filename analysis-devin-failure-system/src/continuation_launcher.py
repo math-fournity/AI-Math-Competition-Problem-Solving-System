@@ -56,6 +56,19 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def classify_failure(failure_type: str) -> str:
+    """区分基础设施失败和模型能力失败
+
+    基础设施失败（infra）——可重试：rate_limited/failed_connection/launch_error/dead_session
+    模型能力失败（model）——不可重试，是数据：failed_timeout/failed_stall/failed_no_proof/truncated_at_max
+
+    参考：xishujuzhen/solver_harness/pipe/retry_infrastructure.py
+    """
+    if failure_type in INFRA_FAILURES:
+        return "infra"
+    return "model"
+
+
 # =============================================================================
 # tmux操作（复用analysis_launcher的模式）
 # =============================================================================
@@ -715,6 +728,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                             "status": "dead_session",
                             "updated_at": utc_now(),
                             "verdict": make_verdict("dead_session", "dead_session"),
+                            "failure_category": classify_failure("dead_session"),
+                            "retry_eligible": True,
                         })
                         remove_running(r, run_key)
                         add_failed(r, {"run_key": run_key, "reason": "dead_session"})
@@ -851,6 +866,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "status": detected_error,
                     "updated_at": utc_now(),
                     "verdict": make_verdict(detected_error, detected_error),
+                    "failure_category": classify_failure(detected_error),
+                    "retry_eligible": classify_failure(detected_error) == "infra",
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": detected_error})
@@ -858,6 +875,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 insert_event(db, batch_id, "infra_failure", {
                     "pid": pid, "round": round_num,
                     "failure_type": detected_error, "elapsed": elapsed_sec,
+                    "failure_category": classify_failure(detected_error),
                 }, run_key=run_key)
                 continue
 
@@ -879,6 +897,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "status": "failed_timeout",
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_timeout", "max_runtime_exceeded"),
+                    "failure_category": classify_failure("failed_timeout"),
+                    "retry_eligible": False,
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "timeout"})
@@ -895,6 +915,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "status": "failed_stall",
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_stall", "stall_detected"),
+                    "failure_category": classify_failure("failed_stall"),
+                    "retry_eligible": False,
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "stall"})
