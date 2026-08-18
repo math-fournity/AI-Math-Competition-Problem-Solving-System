@@ -916,7 +916,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     logger.info(f"[{pid}] proof.md已归档为round{round_num}_proof.md")
 
             # 检查devin cli退出
-            if not tmux_running(session_name):
+            # 方式1: tmux session消失
+            # 方式2: pane中有DEVIN_CLI_EXITED标记（devin cli退出后tmux session不自动销毁）
+            devin_exited = "DEVIN_CLI_EXITED" in pane_text
+            if not tmux_running(session_name) or devin_exited:
                 if not is_done:
                     # session退出——检查export
                     comp, comp_reason = is_completed(export_path, work_dir)
