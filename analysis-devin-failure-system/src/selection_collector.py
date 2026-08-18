@@ -59,6 +59,11 @@ def get_pass_selectable_results(source_batch_id, limit=None):
     FOR r IN @@audit_results
       FILTER r.batch_id == @source_batch_id
       FILTER r.audit_status == 'PASS_SELECTABLE'
+      FILTER r.problem_id NOT IN (
+        FOR s IN selection_runs
+          FILTER s.status IN ['prepared', 'running', 'completed']
+          RETURN s.problem_id
+      )
       FOR a IN analysis_results
         FILTER a._key == r.source_result_key
         RETURN {
