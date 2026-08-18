@@ -47,6 +47,7 @@ from src.continuation_redis_queue import (
     update_stats, get_stats, clear_all, pending_count,
 )
 from monitoring.shared_logger import get_logger
+from monitoring.graceful_shutdown import register_shutdown, should_stop
 
 logger = get_logger("continuation_launcher")
 
@@ -419,6 +420,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     logger.info(f"启动续传批次 batch={batch_id} concurrency={concurrency} method={method}")
     print(f"=== 启动续传批次 batch={batch_id} concurrency={concurrency} method={method} ===")
 
+    # 注册优雅退出——SIGTERM/SIGINT只设flag，不kill devin session
+    register_shutdown("continuation_launcher")
+
     db = connect_db()
     ensure_schema(db)
 
@@ -473,6 +477,17 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         if not running and pending_count(r) == 0:
             break
 
+        # 优雅退出检查——收到SIGTERM/SIGINT后不再启动新run，等running自然完成
+        if should_stop():
+            if not running:
+                print(f"  [graceful_shutdown] running已全部完成，launcher退出")
+                break
+            else:
+                print(f"  [graceful_shutdown] 不再启动新run，等待{len(running)}个running自然完成...")
+                # 继续轮询running状态，但不dequeue新任务
+                time.sleep(poll_seconds)
+                # 跳过下面的"启动新的"部分，只做running状态检查
+                # （fall through到running状态检查逻辑）
         # rate_limit暂停检查
         now_ts = time.time()
         if rate_limit_paused_until > now_ts:
@@ -496,8 +511,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         except Exception:
             pass
 
-        # 启动新的（填满并发槽）
-        while len(running) < concurrency and pending_count(r) > 0:
+        # 启动新的（填满并发槽）——优雅退出模式下跳过
+        while not should_stop() and len(running) < concurrency and pending_count(r) > 0:
             items = dequeue_pending(r, count=1)
             if not items:
                 break
@@ -974,21 +989,69 @@ def status_batch(batch_id):
     print(f"  运行中的{TMUX_PREFIX} tmux session: {len(p27_sessions)}")
 
 
-def stop_batch(batch_id):
-    """停止批次——kill所有p27 tmux session"""
-    print(f"=== 停止续传批次: {batch_id} ===")
-    result = subprocess.run(["tmux", "list-sessions"], capture_output=True, text=True, timeout=5)
-    p27_sessions = [l.split(":")[0] for l in result.stdout.split("\n")
-                    if l.startswith(f"{TMUX_PREFIX}-")]
-    for s in p27_sessions:
-        subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True, timeout=5)
-        print(f"  killed: {s}")
-    print(f"  共kill {len(p27_sessions)}个session")
+def stop_batch(batch_id, force=False):
+    """停止批次——优雅停止（默认）或强制kill
 
-    # 清空Redis队列
-    r = get_redis()
-    clear_all(r)
-    print(f"  Redis队列已清空")
+    优雅停止（force=False，默认）：
+      - 向launcher进程发送SIGINT，launcher收到后不再启动新run
+      - 已在运行的devin cli session继续自然完成
+      - Redis队列不清空（恢复时可继续）
+
+    强制停止（force=True）：
+      - kill所有p27- tmux session（包括正在运行的devin cli）
+      - 清空Redis队列
+    """
+    print(f"=== 停止续传批次: {batch_id} (mode: {'force' if force else 'graceful'}) ===")
+
+    if force:
+        # 强制模式：kill所有session+清空队列
+        result = subprocess.run(["tmux", "list-sessions"], capture_output=True, text=True, timeout=5)
+        p27_sessions = [l.split(":")[0] for l in result.stdout.split("\n")
+                        if l.startswith(f"{TMUX_PREFIX}-")]
+        for s in p27_sessions:
+            subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True, timeout=5)
+            print(f"  killed: {s}")
+        print(f"  共kill {len(p27_sessions)}个session")
+
+        r = get_redis()
+        clear_all(r)
+        print(f"  Redis队列已清空")
+    else:
+        # 优雅模式：向launcher发送SIGINT，不kill devin session
+        launcher_pids = subprocess.run(
+            ["pgrep", "-f", f"continuation_launcher.*{batch_id}"],
+            capture_output=True, text=True
+        ).stdout.strip().split("\n")
+        launcher_pids = [p for p in launcher_pids if p]
+
+        if not launcher_pids:
+            print(f"  [WARNING] launcher进程未找到，可能已退出")
+            print(f"  如需强制停止所有session: python -m src.continuation_launcher --batch-id {batch_id} --stop --force")
+            return
+
+        for pid in launcher_pids:
+            try:
+                import os as _os
+                _os.kill(int(pid), 2)  # SIGINT=2
+                print(f"  向launcher PID={pid}发送SIGINT")
+            except Exception as e:
+                print(f"  向PID={pid}发送SIGINT失败: {e}")
+
+        print(f"  launcher收到SIGINT后不再启动新run，等待running自然完成")
+        print(f"  已在运行的devin cli session继续独立运行（不kill）")
+
+        # 检查当前running数
+        try:
+            r = get_redis()
+            running_count = r.hlen(f"{REDIS_PREFIX}:running") if hasattr(r, 'hlen') else 0
+            print(f"  当前running: {running_count}个（等待自然完成）")
+        except Exception:
+            pass
+
+        print(f"")
+        print(f"  ★ 等所有running完成后，launcher自动退出")
+        print(f"  ★ 如需立即强制停止（kill所有devin session）:")
+        print(f"    python -m src.continuation_launcher --batch-id {batch_id} --stop --force")
 
 
 def main():
@@ -1001,7 +1064,8 @@ def main():
     parser.add_argument("--stall-seconds", type=int, default=DEFAULT_STALL_SECONDS)
     parser.add_argument("--poll-seconds", type=int, default=DEFAULT_POLL_SECONDS)
     parser.add_argument("--status", action="store_true")
-    parser.add_argument("--stop", action="store_true")
+    parser.add_argument("--stop", action="store_true", help="优雅停止（不kill devin session）")
+    parser.add_argument("--force", action="store_true", help="强制停止（kill所有session+清空队列）")
     args = parser.parse_args()
 
     if args.status:
@@ -1009,7 +1073,7 @@ def main():
         return
 
     if args.stop:
-        stop_batch(args.batch_id)
+        stop_batch(args.batch_id, force=args.force)
         return
 
     launch_batch(
