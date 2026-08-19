@@ -338,7 +338,7 @@ WORKLOG.md告诉Monitor Exec Devin：
 |---|---|---|---|
 | S5. py_compile通过 | 修复代码后运行`python -m py_compile <修改的文件>` | 无语法错误 | 继续修直到通过 |
 | S6. git commit成功 | 修复后git add + git commit | commit成功 | 记录"commit失败，原因..." |
-| S7. 未修改禁止文件 | 检查git diff --name-only | 不包含AGENTS.md/specs/*.md/MonitorPipe.md/AnalysisSystemDesign.md/.devin/rules/*.md | 如果误改了，git checkout还原 |
+| S7. 未修改第二级架构级规范 | 检查git diff --name-only | 不包含AGENTS.md/.devin/rules/*.md/MonitorPipe.md/AnalysisSystemDesign.md的§5§6段落 | 如果误改了，git checkout还原；详见§4.5文档同步分级 |
 | S8. git add规范 | 检查git diff --cached --name-only | 只add了具体路径，没有git add -A/. /-u | 如果误add了，git reset HEAD <路径>后重新add |
 
 ### 4.3 行为正确性self-check
@@ -356,6 +356,47 @@ WORKLOG.md告诉Monitor Exec Devin：
 |---|---|---|---|
 | S13. 是否陷入重复修复 | 读最近3轮的MONITOR_EXEC_REPORT.md（从/Volumes/data/p27-monitor-exec/{exec_seq-1}/{exec_seq-2}/{exec_seq-3}/） | 同一个问题没有连续3轮修 | 如果陷入循环，在REPORT中写"⚠️ 同一问题已连续N轮未修好，建议escalate给Master Agent"，不再尝试修复该问题 |
 | S14. 同一alert是否反复出现 | 查DB中同一alert_type的alert创建历史 | 同一alert_type没有在最近5轮中反复创建 | 如果反复出现，说明根因没找到，在REPORT中写"⚠️ alert_type X反复出现，可能需要系统级重构" |
+
+### 4.5 文档同步self-check
+
+**背景问题**：如果Monitor Exec Devin改了代码但不改描述这段代码的文档，下一轮它读的认知资产就是过时的——按过时认知工作，可能改错或重复踩坑。这是自己方案里的死循环。
+
+**解决**：文档分两级，不是分两类。Monitor Exec Devin必须同步修改第一级（事实性文档），不能改第二级（架构级规范）。
+
+**第一级：事实性文档**（描述代码实际怎么工作的）——Monitor Exec Devin **必须**和代码同步修改，在同一个commit中：
+
+| 文档 | 位置 | 何时同步修改 |
+|---|---|---|
+| `docs/architecture.md` | `analysis-devin-failure-system/docs/` | 修改了架构/目录结构/4个Pipe的演进 |
+| `docs/operational-concerns.md` | `analysis-devin-failure-system/docs/` | 修改了rate_limit/stall/zombie/多轮续传的运维逻辑 |
+| `docs/graceful-shutdown.md` | `analysis-devin-failure-system/docs/` | 修改了停止/watchdog/信号处理逻辑 |
+| `docs/dynamic-concurrency.md` | `analysis-devin-failure-system/docs/` | 修改了动态并发逻辑 |
+| `docs/framework-checklist.md` | `analysis-devin-failure-system/docs/` | 修改了框架检查清单相关逻辑 |
+| `docs/monitor-pipe-pattern.md` | `analysis-devin-failure-system/docs/` | 修改了Monitor Pipe本地实现细节 |
+| `docs/solver-harness-borrowing.md` | `analysis-devin-failure-system/docs/` | 修改了与解题系统的借鉴关系 |
+| `AnalysisSystemDesign.md` §4 代码资产索引 | 项目repo根目录 | 新增/删除/重命名了代码文件 |
+| `specs/p27_monitor_spec.md` §2/§3 检查项和检查标准 | `analysis-devin-failure-system/specs/` | 修改了A/B/C类检查项或阈值 |
+| `specs/p27_monitor_pipe_operations.md` §3/§4 检查项目和self-check | `analysis-devin-failure-system/specs/` | 修改了检查项目或self-check项 |
+| `specs/p27_session_management_and_polish_spec.md` §A/§B 实现细节 | `analysis-devin-failure-system/specs/` | 修改了session管理或Exec Devin的实现细节 |
+
+**第二级：架构级规范**（定义系统应该怎么设计的）——Monitor Exec Devin **不能**改，只在REPORT和WORKLOG中记录建议：
+
+| 文档 | 位置 | 为什么不能改 |
+|---|---|---|
+| `AGENTS.md` | 项目repo根目录 | 项目级硬约束，变更需用户参与讨论 |
+| `.devin/rules/*.md` | 项目rule目录 | 工作纪律rule，变更需用户参与讨论 |
+| `MonitorPipe.md` 三层架构定义/设计原则 | 项目repo根目录 | 跨项目范式定义，变更需用户参与讨论 |
+| `AnalysisSystemDesign.md` §5 设计原则/§6 关键设计决策 | 项目repo根目录 | 架构级决策记录，变更需用户参与讨论 |
+
+**判定标准**：改的是"是什么"（事实）还是"应该是什么"（设计决策）。
+- "launcher的rate_limited分支从kill改为标记stuck" → 事实性变更 → 同步改`docs/operational-concerns.md`（第一级，自己改）
+- "Monitor Pipe应该从纯Python改为Python+devin cli两层" → 架构级变更 → 只在REPORT+WORKLOG记录建议（第二级，Master Agent改）
+
+| 检查项 | 检查方法 | 通过标准 | 不通过时怎么办 |
+|---|---|---|---|
+| **S15. 第一级文档同步** | 如果修改了代码，检查git diff中是否包含对应的第一级文档修改 | 改了代码就改了对应文档（在同一个commit中） | 补充修改文档，重新commit；如果确实不需要同步（如纯cosmetic改动），在REPORT中说明 |
+| **S16. 第二级规范建议记录** | 如果代码变更涉及第二级规范需更新 | 在REPORT和WORKLOG中记录"建议Master Agent同步更新X的Y段落" | 补充记录 |
+| **S17. 同步清单完整性** | 对照§4.5的第一级文档清单，检查所有相关文档 | 该改的都改了 | 补充遗漏的文档 |
 
 ---
 
@@ -406,10 +447,12 @@ WORKLOG.md告诉Monitor Exec Devin：
   ├── 代码bug（如export_missing/rounds_log_integrity/session_registry_inconsistency等）
   │   ├── 读相关代码（§2.3的代码资产）
   │   ├── 定位根因
-  │   ├── 修复
+  │   ├── 修复代码
   │   ├── S5: py_compile验证
-  │   ├── S7+S8: 检查未修改禁止文件 + git add规范
-  │   └── git commit
+  │   ├── ★同步修改第一级文档（§4.5清单——改了什么代码就改对应文档）★
+  │   ├── S7+S8: 检查未修改第二级架构级规范 + git add规范
+  │   ├── S16: 如果涉及第二级规范需更新，在REPORT+WORKLOG记录建议
+  │   └── git commit（代码+文档在同一个commit中）
   │
   ├── 数据问题（如proof_missing但题没做出来——C1判定FAIL且非代码bug）
   │   └── 记录为模型能力问题，不修代码
@@ -432,7 +475,8 @@ WORKLOG.md告诉Monitor Exec Devin：
   ├── S1-S4: 运行完整性
   ├── S5-S8: 修复正确性
   ├── S9-S12: 行为正确性
-  └── S13-S14: 循环检测
+  ├── S13-S14: 循环检测
+  └── S15-S17: 文档同步（§4.5——第一级文档是否同步改了/第二级建议是否记录了/清单是否完整）
   │
   ▼
 第五步：写MONITOR_EXEC_REPORT.md + 续写WORKLOG.md
@@ -487,6 +531,19 @@ WORKLOG.md告诉Monitor Exec Devin：
 - §2.1必读资产从3份扩展为7份（加入AnalysisSystemDesign.md/MonitorPipe.md/续传规范文档.md）
 - §5工作流程加入第0步读WORKLOG，第五步改为写REPORT+续写WORKLOG
 - §5启动描述加入"从上一轮复制WORKLOG.md"
+
+### v3 · 2026-08-19 · 文档同步分级（解决认知过时死循环）
+
+- §4.5新增文档同步self-check——文档分两级不是分两类
+  · 第一级（事实性文档）：docs/*.md + AnalysisSystemDesign.md §4 + specs/*.md的§2/§3/§A/§B实现细节
+    Monitor Exec Devin必须和代码同步修改，在同一个commit中
+  · 第二级（架构级规范）：AGENTS.md + .devin/rules/*.md + MonitorPipe.md架构定义 + AnalysisSystemDesign.md §5§6
+    Monitor Exec Devin不能改，只在REPORT+WORKLOG记录建议
+  · 判定标准：改的是"是什么"（事实）还是"应该是什么"（设计决策）
+- S7从"未修改禁止文件"修正为"未修改第二级架构级规范"
+- 新增S15（第一级文档同步）/S16（第二级规范建议记录）/S17（同步清单完整性）
+- §5工作流程第三步加入"同步修改第一级文档"和S16，第四步加入S15-S17
+- 解决的核心问题：改代码不改文档→下一轮认知过时→按过时认知工作→死循环
 
 ### 迭代规则
 

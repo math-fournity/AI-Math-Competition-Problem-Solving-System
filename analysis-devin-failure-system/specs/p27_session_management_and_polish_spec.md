@@ -492,12 +492,17 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
 
 1. **不能spawn subagent**——你自己完成所有工作
 2. **不能push代码**——只commit到本地
-3. **不能修改以下文件**——它们是规范，不是bug：
-   - /Users/user/glm5.2-math-worktree/AGENTS.md
-   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/*.md
-   - /Users/user/glm5.2-math-worktree/MonitorPipe.md
-   - /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md
-   - /Users/user/glm5.2-math-worktree/.devin/rules/*.md
+3. **文档同步分级**（详见p27_monitor_pipe_operations.md §4.5）：
+   - **第一级（事实性文档）——你必须和代码同步修改，在同一个commit中**：
+     - analysis-devin-failure-system/docs/ 下的所有模块文档（architecture/operational-concerns/graceful-shutdown/dynamic-concurrency/framework-checklist/monitor-pipe-pattern/solver-harness-borrowing）
+     - AnalysisSystemDesign.md §4 代码资产索引
+     - analysis-devin-failure-system/specs/*.md 的§2/§3/§A/§B实现细节（检查项/检查标准/session管理/Exec Devin实现细节）
+   - **第二级（架构级规范）——你不能改，只在REPORT和WORKLOG中记录建议**：
+     - /Users/user/glm5.2-math-worktree/AGENTS.md
+     - /Users/user/glm5.2-math-worktree/.devin/rules/*.md
+     - /Users/user/glm5.2-math-worktree/MonitorPipe.md 的三层架构定义和设计原则
+     - /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md 的§5设计原则和§6关键设计决策
+   - **判定标准**：改的是"是什么"（事实→第一级，自己改）还是"应该是什么"（设计决策→第二级，记录建议）
 4. **git操作规范**：
    - 禁止 `git add -A` / `git add .` / `git add -u`
    - 只 `git add <具体路径>`
