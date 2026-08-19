@@ -41,6 +41,12 @@ from src.continuation_config import (
 from src.continuation_db_schema import (
     connect_db, ensure_schema, update_run, update_batch, insert_event, make_verdict,
 )
+from src.session_registry import (
+    allocate_seq, create_session_record, make_session_name as _make_session_name,
+    update_session_status as _update_session_status,
+    get_session as _get_session, mark_stuck as _mark_stuck,
+    check_done_md as _check_done_md,
+)
 from src.continuation_redis_queue import (
     get_redis, enqueue_pending, dequeue_pending,
     add_running, remove_running, add_completed, add_failed,
@@ -73,12 +79,26 @@ def classify_failure(failure_type: str) -> str:
 # tmux操作（复用analysis_launcher的模式）
 # =============================================================================
 
-def tmux_session_name(run_key, round_num, is_handover=False):
-    """生成tmux session名"""
-    # 截断run_key避免超过50字符
+def tmux_session_name(run_key, round_num, is_handover=False, seq=None):
+    """生成tmux session名
+
+    如果传了seq（编号化管理），生成编号格式：
+      p27-s{seq:04d}-solve-{short}-r{round}  或
+      p27-s{seq:04d}-handover-{short}-r{round}
+
+    如果没传seq（向后兼容），用旧格式：
+      p27-{short}-r{round}[-h]
+    """
     short = run_key[-40:] if len(run_key) > 40 else run_key
-    suffix = "-h" if is_handover else ""
-    return f"{TMUX_PREFIX}-{short}-r{round_num}{suffix}"
+    if seq is not None:
+        # 编号化管理格式
+        session_type = "handover" if is_handover else "solve"
+        suffix = f"{short}-r{round_num}"
+        return f"p27-s{seq:04d}-{session_type}-{suffix}"
+    else:
+        # 旧格式（向后兼容）
+        suffix = "-h" if is_handover else ""
+        return f"{TMUX_PREFIX}-{short}-r{round_num}{suffix}"
 
 
 def tmux_running(session_name):
@@ -334,11 +354,14 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
     return None
 
 
-def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL):
+def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL,
+                   db=None, batch_id=None):
     """v2方案Pipe A的异步启动——生成面包屑地图 + 启动devin cli，立即返回
 
-    返回handover信息dict（含session_name和路径），或None（启动失败时）。
+    返回handover信息dict（含session_name/session_key和路径），或None（启动失败时）。
     主循环通过check_handover()检查是否完成。
+
+    如果传了db，使用编号化管理（allocate_seq + create_session_record）。
     """
     export_path = str(export_path)
     work_dir = Path(work_dir)
@@ -378,10 +401,25 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
     prompt_file = work_dir / f"round{round_num}_handover_prompt.txt"
     prompt_file.write_text(prompt_text)
 
-    # Step 3: 启动devin -p编写HANDOVER.md（不等完成，立即返回）
-    tmux_sess = tmux_session_name(pid, round_num, is_handover=True)
-    tmux_kill(tmux_sess)
+    # Step 3: 分配seq + 创建注册表记录（编号化管理）
+    session_key = None
+    if db is not None:
+        seq = allocate_seq(db)
+        short = pid[-40:] if len(pid) > 40 else pid
+        tmux_sess = _make_session_name(seq, "handover", f"{short}-r{round_num}")
+        session_key = f"p27-s{seq:04d}"
+        tmux_kill(tmux_sess)  # 清理同名session（正常不会撞名，因为seq唯一）
+        create_session_record(db, seq, tmux_sess, "handover",
+                              batch_id or "p27-full",
+                              run_key=pid, round=round_num,
+                              export_path=str(handover_export),
+                              work_dir=str(work_dir))
+    else:
+        # 向后兼容——旧格式
+        tmux_sess = tmux_session_name(pid, round_num, is_handover=True)
+        tmux_kill(tmux_sess)
 
+    # Step 4: 启动devin -p编写HANDOVER.md（不等完成，立即返回）
     cmd = [
         "devin", "-p",
         "--prompt-file", str(prompt_file),
@@ -399,6 +437,7 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
 
     return {
         "session_name": tmux_sess,
+        "session_key": session_key,  # 编号化管理的key（如p27-s0042）
         "handover_path": handover_path,
         "map_path": map_path,
         "prompt_file": prompt_file,
@@ -434,10 +473,25 @@ def check_handover(hinfo, pid):
 # 启动单个devin cli（Pipe B解题）
 # =============================================================================
 
-def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid):
-    """启动一个devin cli续传实例（Pipe B解题）"""
-    session_name = tmux_session_name(run_key, round_num)
-    tmux_kill(session_name)
+def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
+                 db=None, batch_id=None):
+    """启动一个devin cli续传实例（Pipe B解题）
+
+    如果传了db，使用编号化管理（allocate_seq + create_session_record）。
+    返回 (session_name, session_key) 元组——session_key在编号化管理时为"p27-s{seq}"，
+    向后兼容时为None。
+    """
+    # 分配seq + 创建注册表记录（编号化管理）
+    session_key = None
+    if db is not None:
+        seq = allocate_seq(db)
+        short = run_key[-40:] if len(run_key) > 40 else run_key
+        session_name = _make_session_name(seq, "solve", f"{short}-r{round_num}")
+        session_key = f"p27-s{seq:04d}"
+        tmux_kill(session_name)  # 清理同名session（正常不会撞名）
+    else:
+        session_name = tmux_session_name(run_key, round_num)
+        tmux_kill(session_name)
 
     traj_dir = Path(export_path).parent.parent
     tmux_log_path = traj_dir / "tmux" / "tmux.log"
@@ -470,7 +524,16 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid):
         capture_output=True, timeout=5,
     )
 
-    return session_name
+    # 创建注册表记录
+    if db is not None and session_key:
+        create_session_record(db, seq, session_name, "solve",
+                              batch_id or "p27-full",
+                              run_key=run_key, round=round_num,
+                              export_path=str(export_path),
+                              work_dir=str(work_dir),
+                              tmux_log_path=str(tmux_log_path))
+
+    return session_name, session_key
 
 
 # =============================================================================
@@ -648,12 +711,14 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
             # 启动解题devin cli
             print(f"  [launch] {pid} R{round_num} ({method}, handover={'ok' if round_handover_success else 'v1_fallback'})")
-            session_name = launch_solve(h_run_key, work_dir, prompt_file, export_path, round_num, pid)
+            session_name, session_key = launch_solve(h_run_key, work_dir, prompt_file, export_path, round_num, pid,
+                                                      db=db, batch_id=batch_id)
 
             now_ts = time.time()
             now_iso = utc_now()
             running[h_run_key] = {
                 "session_name": session_name,
+                "session_key": session_key,
                 "work_dir": work_dir,
                 "pid": pid,
                 "round_num": round_num,
@@ -766,7 +831,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if method == "v2":
                 print(f"  [handover_start] {pid} R{round_num} (生成round{round_num-1}的HANDOVER.md)")
                 hinfo = start_handover(
-                    prev_export, pid, round_num - 1, problem_text, Path(work_dir)
+                    prev_export, pid, round_num - 1, problem_text, Path(work_dir),
+                    db=db, batch_id=batch_id,
                 )
                 if hinfo is None:
                     # start_handover失败（地图生成失败等）——直接用v1
@@ -797,11 +863,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         "map_path": "", "prompt_path": str(prompt_file), "prev_export": prev_export,
                     }
                     print(f"  [launch] {pid} R{round_num} (v1_fallback)")
-                    session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
+                    session_name, session_key = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
+                                                              db=db, batch_id=batch_id)
                     now_ts = time.time()
                     now_iso = utc_now()
                     running[run_key] = {
-                        "session_name": session_name, "work_dir": work_dir, "pid": pid,
+                        "session_name": session_name, "session_key": session_key,
+                        "work_dir": work_dir, "pid": pid,
                         "round_num": round_num, "export_path": str(export_path),
                         "started_at": now_ts, "started_at_iso": now_iso,
                         "last_activity": now_ts, "last_pane_hash": "",
@@ -865,11 +933,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     "map_path": "", "prompt_path": str(prompt_file), "prev_export": prev_export,
                 }
                 print(f"  [launch] {pid} R{round_num} (v1)")
-                session_name = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid)
+                session_name, session_key = launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
+                                                          db=db, batch_id=batch_id)
                 now_ts = time.time()
                 now_iso = utc_now()
                 running[run_key] = {
-                    "session_name": session_name, "work_dir": work_dir, "pid": pid,
+                    "session_name": session_name, "session_key": session_key,
+                    "work_dir": work_dir, "pid": pid,
                     "round_num": round_num, "export_path": str(export_path),
                     "started_at": now_ts, "started_at_iso": now_iso,
                     "last_activity": now_ts, "last_pane_hash": "",
