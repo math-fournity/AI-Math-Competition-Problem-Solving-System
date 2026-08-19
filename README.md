@@ -137,6 +137,19 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 **依赖关系**：完整需求点索引见 `checklist/README.md`；检查规范见 `docs/specs/p27_monitor_pipe_operations.md`。
 
+**注意**：该角色已由 Master Agent 接管，本文件保留作为历史参考。Master Agent 现在使用 `checklist/MasterAgentCheck.md`。
+
+### `checklist/MasterAgentCheck.md` — Master Agent 检查工作清单
+
+Master Agent 接管 Monitor Pipe 检查工作后使用的检查清单（取代 ExecDevin.md 的角色）。从 ExecDevin.md 提取 Master Agent 需要执行的检查项，重新组织为"Master Agent 视角"。包含6个部分：C类AI判断（MON-C1~C5）、self-check（SELF-S1~S17）、新alert分类处理、已知问题诊断（MON-A-issue-01~05）、落盘完整性检查、修复操作规范。
+
+**覆盖问题场景**：
+- Master Agent 检查系统状态时——运行 `./scripts/monitor_check_continuation.sh <batch_id>` 后全文加载本文件逐项处理
+- 确认 Master Agent 需要执行哪些检查项时
+- 查找某个检查项的处理方式时
+
+**依赖关系**：完整需求点索引见 `checklist/README.md`；检查规范见 `docs/specs/p27_monitor_spec.md`；来源（历史参考）见 `checklist/ExecDevin.md`；需求来源见 `dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md` + `dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md`。
+
 ### `checklist/<编号>.md` — 单个checkpoint详情（153个）
 
 每个需求点一个独立文件，文件名即编号（如 `ENV-01.md`、`MON-A1.md`、`SELF-S1.md`）。扁平化存放，不设门类子目录——编号前缀已自带门类分类。每个文件包含：需求描述、验证方法、涉及的文档和代码、状态、负责的WP、来源、变更记录。

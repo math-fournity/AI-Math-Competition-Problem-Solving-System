@@ -77,7 +77,8 @@
 
 ## 相关文件
 
-- `checklist/ExecDevin.md`——Monitor Exec Devin 必读子集（约68个需求点）
+- `checklist/MasterAgentCheck.md`——**Master Agent 检查工作清单**（Master Agent 接管 Monitor Pipe 检查工作后使用的检查清单，取代 ExecDevin.md 的角色）。当 Master Agent 需要检查系统状态时，运行 `./scripts/monitor_check_continuation.sh <batch_id>` 后全文加载本文件逐项处理。
+- `checklist/ExecDevin.md`——Monitor Exec Devin 必读子集（约68个需求点）。**历史参考**——原来给独立 Monitor Pipe devin cli 用的，该角色已由 Master Agent 接管，但文件保留作为历史参考。
 - `working-packages/`——工作包实施计划，WP 中引用 checkpoint 编号
 - `docs/specs/`——检查规范详情，部分 checkpoint 的来源
 

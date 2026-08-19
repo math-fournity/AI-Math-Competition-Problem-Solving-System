@@ -1,11 +1,12 @@
 #!/bin/bash
-# monitor_check_continuation.sh — POC-2.7续传Pipe的标准化Monitor Pipe检查脚本
+# monitor_check_continuation.sh — POC-2.7续传Pipe的标准化检查脚本（Master Agent 接管版）
 # 用法: ./scripts/monitor_check_continuation.sh <batch_id> [monitor_tmux_session]
-# 输出6项检查结果: Monitor Pipe pane输出 / alerts / 进程状态 / 进度 / 续传质量 / 通过率判定
+# 输出8项自动化检查结果 + 末尾"AI后续检查清单"（指向 checklist/MasterAgentCheck.md）
 #
-# 检查规范: specs/p27_monitor_spec.md
+# 检查规范: docs/specs/p27_monitor_spec.md
 # 这个脚本是对monitor_check_selection.sh的continuation版本——针对POC-2.7续传监控。
-# 每次检查都要调用此脚本，它在输出最后提醒你去检查Monitor Pipe留下的检查结果。
+# 2026-08-19扩展：加第8项runtime_health_check 10维度 + 末尾AI后续检查清单（Master Agent接管Monitor Pipe检查工作）。
+# 自动化检查由本脚本完成；需要AI判断的检查项见末尾"AI后续检查清单"，全文加载 checklist/MasterAgentCheck.md 逐项处理。
 
 set -uo pipefail
 
@@ -306,33 +307,58 @@ echo "     - devin cli进程数是否>0？为0说明所有devin cli已退出，�
 echo "     - running < concurrency持续很长时间？检查launcher日志是否有handover阻塞"
 echo "     - 完成率是否在增长？对比上次检查的completed数"
 
+# --- 检查8: 运行时健康检查（10维度 A-J）---
+echo ""
+echo "=== 8. 运行时健康检查（10维度 A-J）==="
+cd "$PROJ_ROOT"
+$PY -m monitoring.runtime_health_check --batch-id "$BATCH_ID" 2>&1 || echo "  [runtime_health_check执行失败——可能Redis未运行或DB未配置]"
+echo ""
+echo "  >> 需要检查："
+echo "     - 10维度中哪些有⚠️问题？逐个关注"
+echo "     - [A] Redis原子性：running集合是否有残留"
+echo "     - [B] DB-Redis一致性：DB running数 vs Redis running数"
+echo "     - [C] 重复run：同一题是否有重复running"
+echo "     - [D] 并发上限：是否超过配置并发数"
+echo "     - [E] devin进程数：是否有僵尸进程"
+echo "     - [F] 网络健康：API是否可达"
+echo "     - [G] devin退出健康：异常退出率"
+echo "     - [H] 落盘完整性：completed的题是否都有落盘"
+echo "     - [I] 批次进度：进度是否在推进"
+echo "     - [J] 日志健康：是否有异常日志"
+
 echo ""
 echo ""
 echo "============================================"
 echo "检查完成 @ $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo ""
-echo ">> 行动清单（按顺序执行）："
-echo "   1. 仔细阅读第1项Monitor Pipe pane输出中的每轮ALERT和AI_REVIEW"
-echo "   2. 有新alert时逐个recheck（第2项），按specs/p27_monitor_spec.md §2分类处理，处理完用--resolve-alert标记"
-echo "   3. 进程NOT RUNNING时重启launcher/monitor（第3项）"
-echo "   4. 有新增失败时重新入队（第4项）"
-echo "   5. 进度停滞时检查launcher日志和rate_limit_pause状态"
-echo "   6. 从alert的problem_ids字段获取需重跑的题，改status为prepared后重新launch"
-echo "   7. AI_REVIEW抽样的结果——读proof.md和HANDOVER.md，按specs/p27_monitor_spec.md §3.3的C1-C5标准逐项检查"
-echo "   8. 对照第6项通过率判定——如果COMPLETED≥50%，POC-2.7通过"
+echo ">> AI后续检查清单（Master Agent 逐项处理）："
+echo "   以下项目需要 Master Agent 全文加载 checklist/MasterAgentCheck.md 逐项处理："
 echo ""
-echo ">> 循环监控指令（这是你的核心职责——反复执行直到所有题完成）："
-echo "   ⚠️ 不要STOP！不要结束turn！你必须持续阻塞TUI，反复运行本脚本！"
-echo "   ⚠️ 每次运行完本脚本并处理完行动清单后，sleep 120然后再次运行本脚本！"
-echo "   ⚠️ 这个循环必须持续到所有题completed或failed——可能需要数小时甚至数天！"
-echo "   1. 执行完上述行动清单后，sleep 120（让devin cli继续工作）"
-echo "   2. 再次运行本脚本: ./scripts/monitor_check_continuation.sh $BATCH_ID"
-echo "   3. 根据新的输出重复执行行动清单"
-echo "   4. 如此循环，直到第4项进度显示所有题completed或failed（无prepared/running剩余）"
-echo "   5. 如果发现系统问题（代码bug/架构问题），修复代码后重启系统，然后继续循环监控"
-echo "   6. 如果session被中断，下一个session的AI只需运行本脚本即可恢复全部上下文"
-echo "     ——本脚本的输出会告诉你系统当前状态和需要做什么"
-echo "   7. 你绝对不能在进度未完成时结束turn——你必须持续监控！"
+echo "   1. [C类AI判断] MON-C1~C5：读proof.md/HANDOVER.md做判断"
+echo "      - 详见 checklist/MasterAgentCheck.md §C类AI判断"
+echo ""
+echo "   2. [self-check] SELF-S1~S17：每轮必须执行的自我检查"
+echo "      - 详见 checklist/MasterAgentCheck.md §self-check"
+echo ""
+echo "   3. [新alert分类处理] 读第2项alerts输出，逐个recheck"
+echo "      - 按docs/specs/p27_monitor_spec.md §2分类处理"
+echo "      - 处理完用 --resolve-alert <key> 标记为fixed"
+echo "      - 详见 checklist/MasterAgentCheck.md §新alert分类处理"
+echo ""
+echo "   4. [已知问题诊断] MON-A-issue-01~05中未诊断的优先诊断"
+echo "      - 详见 checklist/MasterAgentCheck.md §已知问题诊断"
+echo ""
+echo "   5. [落盘完整性检查] 每个round的完整落盘验证"
+echo "      - 详见 checklist/MasterAgentCheck.md §落盘完整性检查"
+echo ""
+echo "   6. [修复操作] 发现问题后修复，修复后同步更新文档+commit"
+echo "      - 详见 checklist/MasterAgentCheck.md §修复操作规范"
+echo ""
+echo ">> 执行方式："
+echo "   - 全文加载 checklist/MasterAgentCheck.md"
+echo "   - 逐项处理上述清单中的每一项"
+echo "   - 每完成一项立即 commit（含 trace.csv 同步）"
+echo "   - 全部处理完后写执行结果记录"
 echo ""
 echo ">> 系统健康判断标准："
 echo "   ✅ 健康 = launcher+monitor运行中 + devin cli活跃（pane有内容） + 进度在推进"
