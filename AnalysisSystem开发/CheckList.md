@@ -410,6 +410,113 @@ POC-2.7 运行结束后的系统审计。
 
 ---
 
+## 维护规则
+
+本文件是活文件——系统需求变化时必须同步更新。以下定义"什么变了要更新什么"。
+
+### 规则1：系统需求发生变化时
+
+**触发条件**：新增功能需求、修改功能定义、删除功能、阈值调整、通过标准变化。
+
+**更新内容**：
+
+| 变化类型 | 本文件的更新 | 同步更新的文件 |
+|---|---|---|
+| 新增需求点 | 对应门类追加新行，编号续接（不重排） | 对应的 spec/docs/WP |
+| 修改需求点定义 | 更新对应行的描述 | 权威来源 spec（见下方"check points 变化"规则） |
+| 删除需求点 | 标记 `[-]`，不删除行（保留历史） | 对应的 spec/docs |
+| 需求点完成 | 状态 `[ ]`→`[x]` | 不需要同步（状态是本文件独有） |
+| 发现需求点有问题 | 状态 `[ ]`→`[!]`，加说明 | 对应的 WP（记录 bug） |
+
+**编号规则**：编号稳定，不随文档重组而变。新增续接（如 MON-A 已有 A12，新增为 A13）。删除标记 `[-]` 不回收编号。
+
+### 规则2：Monitor Pipe 的 AI（Exec Devin）应该检查的 check points 发生变化时
+
+**这是最常见的变化场景**——check points 的信息散落在多个文件中，变更必须同步整条链条，否则 Exec Devin 读到的认知资产就是过时的。
+
+**check points 信息的分布**：
+
+| 文件 | 节 | 角色 |
+|---|---|---|
+| `p27_monitor_spec.md` | §2（分类表）+ §3（详细标准） | **权威来源**——check points 定义从这里出发 |
+| `p27_monitor_pipe_operations.md` | §3（A/B/C 速查表） | Exec Devin 读的速查版 |
+| `p27_monitor_pipe_operations.md` | §3.1.1（A 类已知问题） | 已知问题专表 |
+| `p27_monitor_pipe_operations.md` | §4（self-check S1-S17） | self-check 定义 |
+| `p27_session_management_and_polish_spec.md` | §A.7（A10/A11/A12） | session 相关检查的权威来源 |
+| `CheckList.md` | MON-A/B/C/SELF 门类 | 需求点清单视角（编号+状态） |
+| `CheckList-ExecDevin.md` | MON-A/B/C/SELF 门类 | Exec Devin 必读视角（编号+状态+已知问题速查） |
+
+**更新链条**（按顺序执行）：
+
+```
+第1步：源头更新（check points 的权威来源）
+  │
+  ├── A/B/C 类变化 → p27_monitor_spec.md §2（分类表）+ §3（详细标准）
+  ├── A10/A11/A12 变化 → p27_session_management_and_polish_spec.md §A.7
+  └── S 类变化 → p27_monitor_pipe_operations.md §4（self-check 表）
+  │
+  ▼
+第2步：速查表同步（Exec Devin 读的版本）
+  │
+  └── p27_monitor_pipe_operations.md §3（A/B/C 速查表）——从 spec 同步
+  │
+  ▼
+第3步：CheckList 同步（需求点清单视角）
+  │
+  ├── CheckList.md 对应门类（MON-A/MON-B/MON-C/SELF）——更新定义和状态
+  └── CheckList-ExecDevin.md 子集——如果变化的 check point 在子集范围内
+  │
+  ▼
+第4步：已知问题特殊处理（如涉及）
+  │
+  ├── 新增已知问题 → p27_monitor_pipe_operations.md §3.1.1 + CheckList.md MON-A!XX + CheckList-ExecDevin.md 速查
+  └── 已知问题修复 → 状态 [!]→[x]，从 §3.1.1 当前问题区移到"已修复"记录
+  │
+  ▼
+第5步：迭代记录
+  │
+  └── p27_monitor_pipe_operations.md §6 加版本号+日期+修改内容摘要
+```
+
+**变化类型与更新对照**：
+
+| 变化类型 | 第1步 | 第2步 | 第3步 | 第4步 | 第5步 |
+|---|---|---|---|---|---|
+| 新增检查项（如 A13） | spec §2/§3 加行 | operations §3 加行 | CheckList 加行 | — | 加 v 记录 |
+| 修改阈值（如 A11 >5 改 >3） | spec §3 改 | operations §3 改 | CheckList 改 | — | 加 v 记录 |
+| 删除检查项 | spec §2/§3 标记删除 | operations §3 删行 | CheckList 标记 `[-]` | — | 加 v 记录 |
+| 新增已知问题 | — | — | CheckList 加 `[!]` 行 | operations §3.1.1 加行 + ExecDevin 速查加行 | 加 v 记录 |
+| 已知问题被修复 | — | — | CheckList `[!]`→`[x]` | operations §3.1.1 移到已修复 + ExecDevin 速查更新 | 加 v 记录 |
+| 新增 self-check（如 S18） | operations §4 加行 | — | CheckList SELF 加行 | — | 加 v 记录 |
+
+### 规则3：谁负责更新
+
+**CheckList 内容的两层性质**：
+
+| 内容 | 性质 | Exec Devin 能不能改 | Master Agent/开发者能不能改 |
+|---|---|---|---|
+| 需求点**定义**（检查项是什么、阈值是多少、通过标准） | **第二级**（架构级——定义系统应该检查什么） | **不能**——在 REPORT 中建议，Master Agent 决定 | 能 |
+| 需求点**状态标记**（`[ ]`/`[x]`/`[!]`/`[-]`） | **第一级**（事实性——反映代码/系统实际状态） | **能**——SELF-S15 第一级文档同步的一部分 | 能 |
+| 已知问题**条目**（MON-A!XX 的存在和内容） | **第一级**（事实性——反映已知的未修复问题） | **能**——发现问题就记录，修复了就更新状态 | 能 |
+
+**分工**：
+
+| 场景 | 谁做 | 做什么 |
+|---|---|---|
+| Master Agent/开发者主动变更检查项 | Master Agent/开发者 | 执行第1-5步全部链条 |
+| Exec Devin 修复了已知问题 | Exec Devin | 更新状态 `[!]`→`[x]`（第3步）+ 移到已修复（第4步）+ 加 v 记录（第5步）——这是第一级文档同步 |
+| Exec Devin 发现需要新增/修改检查项 | Exec Devin | **不自己改**——在 REPORT 和 WORKLOG 中建议，Master Agent 决定后执行链条 |
+| Exec Devin 发现新的已知问题 | Exec Devin | 在 REPORT 中记录 + 更新 CheckList 状态 `[ ]`→`[!]` + 建议加入 §3.1.1（Master Agent 确认后加入） |
+
+### 规则4：不更新的情况
+
+- **单个 bug 修复**（不涉及检查项定义变化）→ 不需要更新 CheckList，只更新状态标记（如果该需求点状态变了）
+- **代码内部重构**（不改变对外行为）→ 不需要更新 CheckList
+- **阈值微调**（如 A11 从 >5 改为 >6，属于运行中调参）→ 只更新 spec §3 + CheckList 对应行，不需要加 v 记录（v 记录留给有架构影响的变更）
+
+---
+
 ## 版本记录
 
 - **v1 · 2026-08-19** · 初始版本——13 门类 127 需求点。整合自 AnalysisSystem.md §6/§7 + p27 三个 spec + WP-01~WP-10 + 2026-08-19 审计发现的遗漏点。
+- **v1.1 · 2026-08-19** · 新增"维护规则"节（规则1-4）——定义系统需求变化时和 check points 变化时的更新链条、谁负责更新、不更新的情况。
