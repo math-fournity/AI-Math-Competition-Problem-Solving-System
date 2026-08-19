@@ -642,8 +642,18 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             print(f"  [rate_limit_pause] 恢复运行")
             rate_limit_paused_until = 0
 
-        # 并发数写死为5——不从DB动态读取，避免外部修改导致并发失控
-        # concurrency参数已在函数入口固定，此处不再动态调整
+        # 动态并发——从DB读取batch.concurrency，支持运行中通过set-concurrency调整
+        # concurrency参数是启动时的初始值，主循环中每轮从DB刷新
+        try:
+            batch_doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
+            if batch_doc and "concurrency" in batch_doc:
+                db_concurrency = batch_doc["concurrency"]
+                if db_concurrency != concurrency:
+                    print(f"  [concurrency] 并发数调整: {concurrency} → {db_concurrency}（从DB读取）")
+                    concurrency = db_concurrency
+        except Exception as e:
+            # DB读取失败时保持当前concurrency，不让DB故障导致launcher崩溃
+            pass
 
         # === 检查handover_pending中的run——handover生成完成后启动解题 ===
         handover_done = []

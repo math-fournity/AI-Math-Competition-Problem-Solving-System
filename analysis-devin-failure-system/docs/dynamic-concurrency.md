@@ -30,13 +30,19 @@ redis_conc = int(r.get("math:config:concurrency") or args.concurrency)
 
 错题分析系统用ArangoDB的batch记录存储并发数：
 ```python
-# launcher主循环每轮从DB读取
-batch_doc = db.collection(BATCHES_COLLECTION).get(batch_id)
-new_conc = int(batch_doc.get("concurrency", concurrency))
-if new_conc != concurrency:
-    print(f"  [dynamic] concurrency {concurrency} → {new_conc}")
-    concurrency = new_conc
+# launcher主循环每轮从DB读取（continuation_launcher.py 第645-656行）
+try:
+    batch_doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
+    if batch_doc and "concurrency" in batch_doc:
+        db_concurrency = batch_doc["concurrency"]
+        if db_concurrency != concurrency:
+            print(f"  [concurrency] 并发数调整: {concurrency} → {db_concurrency}（从DB读取）")
+            concurrency = db_concurrency
+except Exception:
+    pass  # DB读取失败时保持当前concurrency，不让DB故障导致launcher崩溃
 ```
+
+**注意**：concurrency参数（命令行`--concurrency`传入）是启动时的初始值。主循环中每轮从DB刷新，`set-concurrency`命令修改DB字段后，launcher在下次poll时自动读取新值。
 
 修改并发：
 ```python
