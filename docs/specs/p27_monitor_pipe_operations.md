@@ -223,7 +223,7 @@ WORKLOG.md告诉Monitor Exec Devin：
 | 4 | **系统总索引** | `../../docs/system/AnalysisSystemDesign.md` | 错题分析系统设计总索引——文档体系/规范/代码资产/设计原则/关键决策 |
 | 5 | **Monitor Pipe设计范式** | `../../docs/patterns/MonitorPipe.md` | Monitor Pipe三层架构设计范式（跨项目） |
 | 6 | **续传规范** | `../../docs/patterns/续传规范文档.md` | 续传机制标准规范——HANDOFF.md结构/截断判定/prompt模板 |
-| 7 | **Exec Devin必读需求点清单** | `../../dev/CheckList-ExecDevin.md` | 从系统全集127个需求点中提取的Exec Devin必读子集（约68点）——"我要检查什么、要遵守什么"的统一列表，含A类已知问题速查 |
+| 7 | **Exec Devin必读需求点清单** | `../../checklist/ExecDevin.md` | 从系统全集127个需求点中提取的Exec Devin必读子集（约68点）——"我要检查什么、要遵守什么"的统一列表，含A类已知问题速查 |
 
 ### 2.2 按需读取资产（遇到相关问题时读）
 

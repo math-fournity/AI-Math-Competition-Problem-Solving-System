@@ -23,6 +23,10 @@
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
+| README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
+| ExecDevin.md | `checklist/` | Monitor Exec Devin必读子集 |
+| README.md | `working-packages/` | 工作包目录说明 |
+| INDEX.md | `working-packages/` | 工作包跟踪表（动态） |
 
 详细定位和依赖关系见 `README.md` 引导地图。
 

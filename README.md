@@ -111,21 +111,59 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ---
 
-## 四、开发工作包管理——dev/
+## 四、需求点清单——checklist/
 
-### `dev/README.md` — 目录说明（静态）
+### `checklist/README.md` — 需求点清单索引
 
-`dev/` 目录的结构说明+使用指南。目录结构图、文件类型说明、README与INDEX的关系、编号规则（需求点编号/工作包编号）、新AI接手时的阅读顺序、维护规则。静态文档，很少改。
+错题分析系统全部功能需求点的索引。14个门类134个需求点，每个需求点（checkpoint）一个独立文件，文件名即编号。README.md 只保留门类索引表+编号规则+状态标记说明，不重复每个 checkpoint 的内容。用 checklist 推进和管理整个项目研发，每个 checkpoint 记录它涉及的文档和代码。
 
 **覆盖问题场景**：
-- 第一次进入开发工作包目录时——了解这里有什么、怎么导航
-- 查询编号规则时——门类代号、需求点编号格式、工作包编号格式
-- 确认阅读顺序时——README→INDEX→CheckList→WP→CheckPoints
+- 开发前确认功能无遗漏时——查门类索引表
+- 开发中引用需求点编号时（WP和commit message可引用）
+- 验收时逐项打勾判定系统是否完成时
+- 跨session新AI了解系统全貌时
+- 查找某个checkpoint详情时——按编号直接读 `checklist/<编号>.md`
+- 按状态筛选checkpoint时——`grep -l '\[ \]' checklist/*.md` 找所有待做的
+
+**依赖关系**：执行某个WP时读对应的 `working-packages/WP-XX-*.md`；Exec Devin必读子集见 `checklist/ExecDevin.md`。
+
+### `checklist/ExecDevin.md` — Monitor Exec Devin必读子集
+
+从全集134个需求点中提取的 Monitor Exec Devin 必读子集（约68个需求点）。Exec Devin 启动后读这个文件，知道自己本轮要检查什么、要遵守什么约束、对自己做什么 self-check。
+
+**覆盖问题场景**：
+- Monitor Exec Devin启动时加载——知道自己要检查什么
+- 确认Exec Devin的必读需求点时
+
+**依赖关系**：完整需求点索引见 `checklist/README.md`；检查规范见 `docs/specs/p27_monitor_pipe_operations.md`。
+
+### `checklist/<编号>.md` — 单个checkpoint详情（153个）
+
+每个需求点一个独立文件，文件名即编号（如 `ENV-01.md`、`MON-A1.md`、`SELF-S1.md`）。扁平化存放，不设门类子目录——编号前缀已自带门类分类。每个文件包含：需求描述、验证方法、涉及的文档和代码、状态、负责的WP、来源、变更记录。
+
+**覆盖问题场景**：
+- 需要了解某个需求点详情时——按编号直接读
+- 修改需求点状态时——直接改文件中的状态标记
+- 新增需求点时——用 `scripts/generate_checkpoint.py <编号>` 生成模板文件
+
+**依赖关系**：需求点索引见 `checklist/README.md`；需求点所属的WP见 `working-packages/WP-XX-*.md`。
+
+---
+
+## 五、工作包管理——working-packages/
+
+### `working-packages/README.md` — 目录说明（静态）
+
+`working-packages/` 目录的结构说明+使用指南。目录结构图、文件类型说明、README与INDEX的关系、编号规则、新AI接手时的阅读顺序、维护规则。静态文档，很少改。
+
+**覆盖问题场景**：
+- 第一次进入工作包目录时——了解这里有什么、怎么导航
+- 确认阅读顺序时——README→INDEX→WP
 - 确认维护规则时——什么时候改哪个文件
 
-**依赖关系**：读完后读 `INDEX.md` 了解当前进度；读 `CheckList.md` 了解全部需求点。
+**依赖关系**：读完后读 `INDEX.md` 了解当前进度；读 `checklist/README.md` 了解全部需求点。
 
-### `dev/INDEX.md` — 工作包跟踪表（动态）
+### `working-packages/INDEX.md` — 工作包跟踪表（动态）
 
 10个工作包（WP-01~WP-10）的清单+依赖图+执行顺序+当前系统状态。动态文档，经常改。包含WP状态（待执行/进行中/完成）、优先级（P0/P1/P2）、依赖关系图、执行顺序建议、当前系统状态快照、铁律提醒。
 
@@ -135,31 +173,9 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 - 查看当前系统状态时——DB状态、已完成commit、已知未修复问题
 - 确认铁律提醒时——改代码同步文档、git显式路径add、不kill无DONE.md的session
 
-**依赖关系**：执行某个WP时读对应的 `WP-XX-*.md`；了解需求点详情读 `CheckList.md`。
+**依赖关系**：执行某个WP时读对应的 `WP-XX-*.md`；了解需求点详情读 `checklist/<编号>.md`。
 
-### `dev/CheckList.md` — 需求点全集
-
-错题分析系统全部功能需求点的分门别类清单。13门类127+个需求点，编号+状态标记。用途：开发前确认无遗漏、开发中WP和commit可引用编号、验收时逐项打勾、跨session新AI一眼看清全貌。状态标记：`[ ]`待做/`[~]`进行中/`[x]`已完成/`[!]`已知有问题/`[-]`决定不做。
-
-**覆盖问题场景**：
-- 开发前确认功能无遗漏时
-- 开发中引用需求点编号时（WP和commit message可引用）
-- 验收时逐项打勾判定系统是否完成时
-- 跨session新AI了解系统全貌时
-
-**依赖关系**：需求点详情读 `CheckPoints/<门类>/<编号>.md`（如存在）；Exec Devin必读子集见 `CheckList-ExecDevin.md`。
-
-### `dev/CheckList-ExecDevin.md` — Exec Devin必读子集
-
-从CheckList全集提取的Exec Devin必读需求点（约68个，第一档+第二档）。Monitor Exec Devin的执行依据。
-
-**覆盖问题场景**：
-- Monitor Exec Devin启动时加载——知道自己要检查什么
-- 确认Exec Devin的必读需求点时
-
-**依赖关系**：完整需求点见 `CheckList.md`；检查规范见 `docs/specs/p27_monitor_pipe_operations.md`。
-
-### `dev/WP-01~WP-10` — 工作包实施计划（10个）
+### `working-packages/WP-01~WP-10` — 工作包实施计划（10个）
 
 10个工作包的实施计划文件。每个WP包含：目标、要读的文档、任务清单（带打勾）、验证标准、依赖关系。WP编号稳定不重排。
 
@@ -176,7 +192,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 | WP-09 | POC-2.7并发1运行和监控 | P0 | 以并发1启动系统运行 |
 | WP-10 | 系统审计 | P2 | 所有工作完成后审计 |
 
-**依赖关系**：WP状态和执行顺序见 `INDEX.md`；WP引用的需求点详情见 `CheckList.md` 和 `CheckPoints/`。
+**依赖关系**：WP状态和执行顺序见 `INDEX.md`；WP引用的需求点详情见 `checklist/<编号>.md`。
 
 ---
 
@@ -192,10 +208,10 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ### 目录结构
 
-见 `dev/README.md`
+见 `working-packages/README.md` 和 `checklist/README.md`
 
 ### git 历史
 
 本 repo 从数学大师 repo（`/Users/user/glm5.2-math-worktree/`）用 git filter-repo 拆分而来，
-保留了 `src/`、`monitoring/`、`dev/`、5 个设计文档、POC-2.7 数据、
+保留了 `src/`、`monitoring/`、`checklist/`、`working-packages/`、5 个设计文档、POC-2.7 数据、
 conversation_mapper.py 的完整 commit 历史。
