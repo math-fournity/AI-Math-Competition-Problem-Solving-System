@@ -210,6 +210,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 **当前文档**：
 - `dev-docs/001-目录结构扁平化重组方案.md`——取消`analysis-devin-failure-system/`嵌套，代码提到根目录，文档统一归入`docs/`分层，`AnalysisSystem开发/`改名`dev/`
 - `dev-docs/002-checklist-working-packages拆分.md`——`dev/`拆解为`checklist/`（需求点清单，扁平化）和`working-packages/`（工作包管理），checklist成为研发核心驱动力
+- `dev-docs/003-README三层架构与分类法设计.md`——README.md从"文档描述"重构为"分类法索引"的三层架构设计（AGENTS.md→README.md→看法文件），定义7个分类法
 
 **依赖关系**：无前置依赖，可独立阅读。
 
