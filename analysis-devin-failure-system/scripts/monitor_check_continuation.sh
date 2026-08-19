@@ -37,6 +37,23 @@ echo "     - 每轮是否有新ALERT？alert类型是什么（critical/warning/i
 echo "     - AI_REVIEW抽样的结果——需按specs/p27_monitor_spec.md §3.3的C1-C5标准检查"
 echo "     - progress是否在推进？如果停滞，检查launcher日志"
 echo "     - pass_rate是否在增长？目标COMPLETED≥50%（415号§7.1）"
+echo ""
+echo "  >> Session注册表状态（编号化管理）："
+$PY -c "
+import sys; sys.path.insert(0, '$PROJ_ROOT/analysis-devin-failure-system')
+from src.continuation_db_schema import connect_db
+from src.session_registry import list_sessions
+db = connect_db()
+for status in ['running', 'stuck', 'done']:
+    sessions = list_sessions(db, status=status, limit=100)
+    if sessions:
+        print(f'     {status}: {len(sessions)}个')
+        if status == 'stuck':
+            for s in sessions[:3]:
+                print(f'       {s[\"_key\"]} ({s[\"session_name\"]}) — {s.get(\"notes\", \"\")[:50]}')
+            if len(sessions) > 3:
+                print(f'       ... 还有{len(sessions)-3}个')
+" 2>/dev/null || echo "     [DB查询失败]"
 
 # --- 检查2: alerts集合（新alert，最多显示5条）---
 echo ""

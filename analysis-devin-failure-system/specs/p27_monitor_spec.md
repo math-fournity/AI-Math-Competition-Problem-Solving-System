@@ -39,6 +39,9 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | A7. failure_rate | failure_rate | warning | >15% | 最近interval失败率 |
 | A8. launcher_dead | launcher_dead | critical | — | launcher进程消失但还有prepared/running任务 |
 | A9. stall_detection | long_running | warning | 单轮>30分钟 | 单个续传轮次运行超时 |
+| A10. session_registry_consistency | session_registry_inconsistency | critical/warning | — | 注册表 vs tmux实际session不一致（见`p27_session_management_and_polish_spec.md` §A.7） |
+| A11. stuck_sessions | stuck_session_accumulated | warning/critical | >5 warning, >10 critical | stuck状态session数量（无DONE.md但超时/rate_limit的session） |
+| A12. done_sessions_uncleaned | done_session_uncleaned | info | >20个 | done状态但未清理的session（占tmux资源） |
 
 ### 2.2 B类：续传质量检查（POC-2.7特有，脚本判定）
 
@@ -218,7 +221,7 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 - 所有任务完成后自动退出
 
 ### 5.2 检查顺序（每轮）
-1. A1-A9自动检查（顺序执行）
+1. A1-A12自动检查（顺序执行——A10-A12为session编号化管理检查）
 2. B1-B9续传质量检查（从第2轮开始，需要有completed的run）
 3. C1-C5 AI review抽样（每3轮一次）
 4. 创建alerts

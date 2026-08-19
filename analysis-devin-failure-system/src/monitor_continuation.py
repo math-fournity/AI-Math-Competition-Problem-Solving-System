@@ -31,8 +31,14 @@ from src.continuation_config import (
     CONTINUATION_RUNS_COLLECTION, CONTINUATION_RESULTS_COLLECTION,
     CONTINUATION_SOLVER_BASE, CONTINUATION_TRAJECTORY_BASE,
     PROOF_FILE_NAME, DEFAULT_MAX_RUNTIME_SECONDS,
+    SESSIONS_COLLECTION, SESSION_COUNTER_KEY,
 )
 from src.continuation_db_schema import connect_db
+from src.session_registry import (
+    consistency_check as _session_consistency_check,
+    list_sessions as _list_sessions,
+    update_tmux_alive_status as _update_tmux_alive,
+)
 from monitoring.shared_logger import get_logger
 
 logger = get_logger("monitor_continuation")
@@ -50,6 +56,11 @@ PROOF_TOO_SMALL_BYTES = 1024
 HANDOVER_TOO_SMALL_BYTES = 500
 SAMPLE_SIZE = 2
 AI_REVIEW_INTERVAL = 3              # 每3轮抽样一次
+
+# A10-A12阈值（来自specs/p27_session_management_and_polish_spec.md §A.7）
+STUCK_SESSION_WARNING_THRESHOLD = 5
+STUCK_SESSION_CRITICAL_THRESHOLD = 10
+DONE_UNCLEANED_INFO_THRESHOLD = 20
 
 
 def _utc_now():
@@ -752,6 +763,71 @@ def flag_for_ai_review(db, batch_id, sample_size=SAMPLE_SIZE):
 # 主监控循环
 # ============================================================
 
+def check_session_registry_consistency(db, batch_id):
+    """A10: 注册表 vs tmux实际session的一致性"""
+    try:
+        cc = _session_consistency_check(db)
+        alerts = []
+        # 注册表有但tmux无的orphaned session
+        for s in cc.get("orphaned_in_registry", []):
+            if not s.get("done_md"):
+                # stuck session消失了——可能是devin cli崩溃
+                alerts.append(("session_registry_inconsistency", "critical", {
+                    "summary": f"stuck session {s['key']}从tmux消失但无DONE.md——可能devin cli崩溃",
+                    "session_key": s["key"],
+                    "session_name": s["session_name"],
+                    "status": s["status"],
+                    "done_md": s.get("done_md", False),
+                }))
+        # tmux有但注册表无的unregistered session
+        for name in cc.get("unregistered_in_tmux", []):
+            alerts.append(("session_registry_inconsistency", "warning", {
+                "summary": f"tmux中有未注册的session: {name}——可能是手动启动的",
+                "session_name": name,
+            }))
+        return alerts
+    except Exception as e:
+        logger.error(f"A10 session_registry_consistency检查失败: {e}")
+        return []
+
+
+def check_stuck_sessions(db, batch_id):
+    """A11: stuck状态session的数量"""
+    try:
+        stuck = _list_sessions(db, status="stuck", limit=100)
+        if len(stuck) >= STUCK_SESSION_CRITICAL_THRESHOLD:
+            return [("stuck_session_accumulated", "critical", {
+                "summary": f"{len(stuck)}个stuck session累积——需Master Agent在用户授意下清理",
+                "count": len(stuck),
+                "sessions": [{"key": s["_key"], "name": s["session_name"],
+                              "notes": s.get("notes", "")} for s in stuck[:10]],
+            })]
+        elif len(stuck) >= STUCK_SESSION_WARNING_THRESHOLD:
+            return [("stuck_session_accumulated", "warning", {
+                "summary": f"{len(stuck)}个stuck session累积",
+                "count": len(stuck),
+            })]
+        return []
+    except Exception as e:
+        logger.error(f"A11 stuck_sessions检查失败: {e}")
+        return []
+
+
+def check_done_sessions_uncleaned(db, batch_id):
+    """A12: done状态但未清理的session数量（占tmux资源）"""
+    try:
+        done = _list_sessions(db, status="done", limit=200)
+        if len(done) >= DONE_UNCLEANED_INFO_THRESHOLD:
+            return [("done_session_uncleaned", "info", {
+                "summary": f"{len(done)}个done session未清理——占tmux资源，可用 sessions --clean-done 清理",
+                "count": len(done),
+            })]
+        return []
+    except Exception as e:
+        logger.error(f"A12 done_sessions_uncleaned检查失败: {e}")
+        return []
+
+
 def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
     """运行监控循环"""
     logger.info(f"续传监控Pipe启动 batch={batch_id} interval={interval}s")
@@ -794,6 +870,22 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
         all_alerts.extend(alerts)
 
         alerts = check_long_running(db, batch_id)
+        all_alerts.extend(alerts)
+
+        # A10-A12: Session编号化管理检查（见specs/p27_session_management_and_polish_spec.md §A.7）
+        # 先更新tmux_alive状态——对比注册表和tmux实际状态
+        try:
+            _update_tmux_alive(db)
+        except Exception as e:
+            logger.error(f"update_tmux_alive失败: {e}")
+
+        alerts = check_session_registry_consistency(db, batch_id)
+        all_alerts.extend(alerts)
+
+        alerts = check_stuck_sessions(db, batch_id)
+        all_alerts.extend(alerts)
+
+        alerts = check_done_sessions_uncleaned(db, batch_id)
         all_alerts.extend(alerts)
 
         # B类续传质量检查（从第2轮开始）
