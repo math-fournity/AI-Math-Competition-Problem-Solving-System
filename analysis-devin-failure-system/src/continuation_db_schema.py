@@ -43,10 +43,12 @@ def ensure_schema(db):
 
     # === session_counter文档初始化 ===
     # 存在SESSIONS_COLLECTION中，_key=SESSION_COUNTER_KEY
-    # allocate_seq通过update递增seq字段（原子操作）
+    # allocate_seq通过update递增counter字段（原子操作）
+    # 注意：用"counter"字段而非"seq"字段——因为p27_session_idx_seq是seq字段上的
+    # unique索引，counter文档如果也有seq字段会和新session记录的seq冲突
     sessions_col = db.collection(SESSIONS_COLLECTION)
     if not sessions_col.has(SESSION_COUNTER_KEY):
-        sessions_col.insert({"_key": SESSION_COUNTER_KEY, "seq": 0})
+        sessions_col.insert({"_key": SESSION_COUNTER_KEY, "counter": 0})
 
     # === 索引 ===
     runs = db.collection(CONTINUATION_RUNS_COLLECTION)

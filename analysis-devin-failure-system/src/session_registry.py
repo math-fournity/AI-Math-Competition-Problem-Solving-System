@@ -69,9 +69,12 @@ def allocate_seq(db) -> int:
     """原子递增全局seq，返回新分配的序号。
 
     用ArangoDB的update实现原子递增：
-    1. 读取session_counter文档的当前seq
-    2. update文档，seq+1
-    3. 返回新的seq
+    1. 读取session_counter文档的当前counter值
+    2. update文档，counter+1
+    3. 返回新的counter值作为seq
+
+    注意：counter文档用"counter"字段而非"seq"字段——因为p27_session_idx_seq
+    是seq字段上的unique索引，counter文档如果也有seq字段会和新session记录的seq冲突。
 
     ArangoDB的update是原子的（单文档级别），并发调用不会冲突。
     如果极端并发下出现冲突，重试一次。
@@ -82,10 +85,15 @@ def allocate_seq(db) -> int:
             doc = col.get(SESSION_COUNTER_KEY)
             if doc is None:
                 # counter文档不存在——重新初始化
-                col.insert({"_key": SESSION_COUNTER_KEY, "seq": 0})
+                col.insert({"_key": SESSION_COUNTER_KEY, "counter": 0})
                 doc = col.get(SESSION_COUNTER_KEY)
-            new_seq = doc["seq"] + 1
-            col.update({"_key": SESSION_COUNTER_KEY, "seq": new_seq})
+            # 兼容旧文档：如果doc有"seq"字段无"counter"字段，迁移
+            if "counter" not in doc and "seq" in doc:
+                old_seq = doc["seq"]
+                col.update({"_key": SESSION_COUNTER_KEY, "counter": old_seq, "seq": None})
+                doc = col.get(SESSION_COUNTER_KEY)
+            new_seq = doc.get("counter", 0) + 1
+            col.update({"_key": SESSION_COUNTER_KEY, "counter": new_seq})
             return new_seq
         except Exception:
             if attempt == 2:

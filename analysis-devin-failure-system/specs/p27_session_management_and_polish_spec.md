@@ -102,7 +102,7 @@ handover session（生成HANDOFF.md的devin，进注册表）:
 ```
 
 **索引**：
-- `seq`（unique）——序号唯一
+- `seq`（unique）——序号唯一（仅session记录有seq字段，session_counter文档用counter字段避开此索引）
 - `session_name`（unique）——session名唯一
 - `status`——按状态查询
 - `batch_id + type`——按批次和类型查询
