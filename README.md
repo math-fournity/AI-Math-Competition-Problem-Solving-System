@@ -196,7 +196,23 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ---
 
-## 六、变更历史与方案记录——dev-docs/
+## 六、幂等追溯体系——全资产追溯关系
+
+### `views/idempotency.md` — 幂等追溯分类法
+
+repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资产（代码/文档/checkpoint/wp/dev-doc/脚本/配置/模板/commit/DB/运行资产）之间的所有关系（3910条，20种关系类型）。当你需要追溯任何资产的关系、维护 trace.csv、或验证 repo 幂等性时，从这分类法出发。
+
+**覆盖问题场景**：
+- 追溯任何资产的关系链——"这个代码文件实现了哪些checkpoint？被哪些commit改动？"
+- 维护 trace.csv——代码/文档变更后更新追溯关系
+- 验证 repo 幂等性——全资产覆盖、全关系覆盖、孤立资产检查
+- 理解幂等追溯体系的设计——为什么这样设计、怎么建立起来的
+
+**依赖关系**：看法文件 `views/idempotency.md` 索引了15个文件（trace.py/trace.csv/6个录入脚本/验证脚本/4个dev-docs/WP-TRACE）。映射数据库 `scripts/view-index.csv` 跟踪看法文件与文档的双向映射。
+
+---
+
+## 七、变更历史与方案记录——dev-docs/
 
 ### `dev-docs/` — 重组方案与执行记录
 

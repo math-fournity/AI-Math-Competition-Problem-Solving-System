@@ -15,6 +15,21 @@ taxonomy,view_file,asset_path,asset_type,asset_title
 工作流,working-packages/README.md,working-packages/WP-08-阶段3文档同步.md,document,WP-08阶段3文档同步
 工作流,working-packages/README.md,working-packages/WP-09-POC-2.7并发1运行和监控.md,document,WP-09 POC-2.7并发1运行和监控
 工作流,working-packages/README.md,working-packages/WP-10-系统审计.md,document,WP-10系统审计
+幂等追溯,views/idempotency.md,dev-docs/004-幂等追溯体系与工作包自包含设计.md,document,幂等体系设计
+幂等追溯,views/idempotency.md,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,document,终极trace.csv需求
+幂等追溯,views/idempotency.md,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,document,终极trace.csv方案
+幂等追溯,views/idempotency.md,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,document,终极trace.csv执行结果
+幂等追溯,views/idempotency.md,scripts/asset_inventory.csv,data,全资产清单394个
+幂等追溯,views/idempotency.md,scripts/enumerate_assets.py,script,资产枚举脚本
+幂等追溯,views/idempotency.md,scripts/trace.py,script,全维度追溯工具
+幂等追溯,views/idempotency.md,scripts/trace_checkpoints.py,script,checkpoint关系录入
+幂等追溯,views/idempotency.md,scripts/trace_commits.py,script,changed-in关系录入
+幂等追溯,views/idempotency.md,scripts/trace_contains.py,script,contains关系录入
+幂等追溯,views/idempotency.md,scripts/trace_infra.py,script,DB/配置/模板关系录入
+幂等追溯,views/idempotency.md,scripts/trace_verify.py,script,幂等验证脚本
+幂等追溯,views/idempotency.md,scripts/trace_wp_devdoc.py,script,dev-doc/wp关系录入
+幂等追溯,views/idempotency.md,trace.csv,data,追溯关系数据3910条
+幂等追溯,views/idempotency.md,working-packages/WP-TRACE.md,document,幂等追溯工作包
 源码,src/README.md,docs/architecture/architecture.md,document,4个Pipe的演进与组件职责
 源码,src/README.md,docs/architecture/solver-trajectory-schema.md,document,trajectory数据schema
 源码,src/README.md,monitoring/analysis_control.py,code,分析控制（Pipe 1/2控制命令）
