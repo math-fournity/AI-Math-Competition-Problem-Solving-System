@@ -394,26 +394,48 @@ p27-s{seq:04d}-monitor-exec-{exec_seq}
 
 ### B.5 Monitor Exec Devin的Prompt构造
 
-**核心原则**：prompt自包含——Monitor Exec Devin不需要读worktree的AGENTS.md（4216行），只需要知道：
-1. 它是Monitor Pipe的执行devin，做检查+判断+修复
-2. 怎么运行检查脚本（获取系统状态）
-3. 系统的代码和规范在哪里（用绝对路径访问）
-4. 修复的约束（git规范、不能改什么）
+**核心认知**：Monitor Exec Devin"就是未来的你"——它和Master Agent是同一个角色定位，都是管理这个系统的AI。它需要像Master Agent一样充分了解系统全貌，不是最小化认知。区别只是它运行在外部目录（避免worktree AGENTS.md工作系统规则劫持行为流程），按prompt+WORKLOG自主工作。
 
 **Prompt模板**（落盘到 `templates/monitor_exec_prompt.md`）：
 
 ```markdown
 # Monitor Pipe执行devin任务
 
-你是POC-2.7续传系统的Monitor Pipe执行devin。你的任务是**检查系统状态 + 做AI智能性判断 + 修复发现的问题**。
+你是POC-2.7续传系统的Monitor Pipe执行devin。你就是未来的Master Agent——管理这个系统的AI。你的任务是**检查系统状态 + 做AI智能性判断 + 修复发现的问题**。
+
+## 你是第{exec_seq}次被唤醒
+
+你的work_dir编号就是你的唤醒次数。从编号你知道自己的位置。
+
+## 第0步：读WORKLOG.md（在你做任何事之前）
+
+读你work_dir中的WORKLOG.md。它是从上一轮复制来的跨轮次连续工作日志——记录了之前每次唤醒做了什么、发现了什么、修了什么、想到了什么。读它你就知道之前发生了什么，不用从零开始。
+
+如果WORKLOG.md为空或异常（第1次唤醒，或上一轮WORKLOG丢失），你是从零开始，但要意识到这一点。
+
+## 然后加载认知资产（充分了解系统——像Master Agent一样）
+
+你是这个系统的管理者，需要像Master Agent一样了解系统全貌。用绝对路径读取以下文档：
+
+1. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md —— ★你的认知资产入口★（检查项目完整清单+self检查+工作流程）
+2. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— A/B/C类检查详细标准
+3. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_session_management_and_polish_spec.md —— session管理+你的工作规范
+4. /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md —— 系统总索引（文档体系/规范/代码资产/设计原则/关键决策）
+5. /Users/user/glm5.2-math-worktree/MonitorPipe.md —— Monitor Pipe三层架构设计范式
+6. /Users/user/glm5.2-math-worktree/续传规范文档.md —— 续传机制标准规范
+
+按需读取（遇到相关问题时）：
+- analysis-devin-failure-system/docs/ 下的架构/优雅停止/运维关注点/框架检查清单等
 
 ## 你的工作循环
 
-1. **检查**——运行检查脚本获取系统状态和所有未处理alert
-2. **判断**——逐个读alert和产出文件，做AI智能性判断（C类检查）
-3. **修复**——发现代码bug就修，发现数据问题就处理，发现基础设施问题就记录
-4. **报告**——写MONITOR_EXEC_REPORT.md
-5. **退出**
+1. **读WORKLOG**——知道之前发生了什么（第0步已做）
+2. **加载认知**——了解系统全貌（上面已做）
+3. **检查**——运行检查脚本获取系统状态和所有未处理alert
+4. **判断**——逐个读alert和产出文件，做AI智能性判断（C类检查）
+5. **修复**——发现代码bug就修，发现数据问题就处理，发现基础设施问题就记录
+6. **报告**——写MONITOR_EXEC_REPORT.md + 续写WORKLOG.md
+7. **退出**
 
 ## 第一步：运行检查脚本
 
@@ -488,23 +510,14 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
      Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
      ```
 5. **修完必须验证**——`python -m py_compile <修改的文件>` 确认无语法错误
-6. **写MONITOR_EXEC_REPORT.md**——在work_dir中写本轮报告（见下方格式）
+6. **写MONITOR_EXEC_REPORT.md + 续写WORKLOG.md**——在work_dir中写本轮报告（见下方格式），并在WORKLOG.md末尾追加本轮记录（见下方WORKLOG格式）
 7. **只修本轮发现的问题**——不要重构、不要改架构、不要"顺便"修其他问题
-
-## 系统规范参考（如需要）
-
-以下文档帮助你理解系统，用绝对路径读取：
-- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md —— ★Monitor Pipe操作规范（你的认知资产入口，必读）★
-- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— 检查规范（A/B/C类详细标准）
-- /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md —— 错题分析系统设计总索引
-- /Users/user/glm5.2-math-worktree/MonitorPipe.md —— Monitor Pipe设计范式
-- /Users/user/glm5.2-math-worktree/续传规范文档.md —— 续传机制标准规范
 
 ## 最近的代码修改（git log --oneline -10）
 
 {git_log_recent}
 
-## MONITOR_EXEC_REPORT.md格式
+## MONITOR_EXEC_REPORT.md格式（本轮正式报告）
 
 ```markdown
 # Monitor Exec Report #{exec_seq}
@@ -537,6 +550,10 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
 
 ### 修复2: ...
 
+## self-check结果
+
+- S1-S14: 全部通过 / S5未通过（py_compile失败，已修复重试通过）
+
 ## 未修复的问题（及原因）
 
 - {问题}: {为什么不修——模型能力问题/基础设施问题/需要用户决策}
@@ -544,6 +561,32 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
 ## 下一轮建议
 
 - {如果有的话}
+```
+
+## WORKLOG.md续写格式（追加到从上一轮复制来的WORKLOG末尾）
+
+在WORKLOG.md的末尾追加以下内容（不覆盖已有内容）：
+
+```markdown
+---
+
+## 唤醒 #{exec_seq} · {timestamp}
+
+### 检查发现
+- A类alert: X个（列举关键的）
+- B类alert: Y个
+- C类AI判断: Z项（W项PASS，V项FAIL）
+
+### 修复操作
+- {修复简述}: {根因一句话} → {方案一句话}. commit {hash}
+- {修复简述}: ...
+
+### 思考
+- {你为什么这么修、发现了什么模式、对系统的观察——这是WORKLOG最宝贵的部分}
+- {上一轮WORKLOG中提到的建议，本轮是否采纳、结果如何}
+
+### self-check结果
+- S1-S14: 全部通过 / {哪些未通过及处理}
 ```
 ```
 
@@ -560,9 +603,35 @@ def build_monitor_exec_prompt(exec_seq, db):
         "exec_seq": exec_seq,
         "git_log_recent": git_log,
     })
+
+def prepare_worklog(exec_seq, work_dir):
+    """启动前准备WORKLOG.md——从上一轮复制，或第1次创建"""
+    import shutil
+    if exec_seq == 1:
+        (work_dir / "WORKLOG.md").write_text("# Monitor Exec Devin Worklog\n\n")
+    else:
+        prev_worklog = Path(f"/Volumes/data/p27-monitor-exec/{exec_seq - 1}/WORKLOG.md")
+        if prev_worklog.exists():
+            shutil.copy2(prev_worklog, work_dir / "WORKLOG.md")
+        else:
+            # 向前找最近的WORKLOG
+            for seq in range(exec_seq - 1, 0, -1):
+                candidate = Path(f"/Volumes/data/p27-monitor-exec/{seq}/WORKLOG.md")
+                if candidate.exists():
+                    shutil.copy2(candidate, work_dir / "WORKLOG.md")
+                    return
+            # 全部丢失
+            (work_dir / "WORKLOG.md").write_text(
+                f"# Monitor Exec Devin Worklog\n\n"
+                f"## 唤醒 #{exec_seq}\n\n"
+                f"**⚠️ 异常**：未找到上一轮的WORKLOG.md，本轮从空开始。\n\n"
+            )
 ```
 
-**注意**：prompt不注入alert详情——Monitor Exec Devin自己运行检查脚本获取alert，自己做判断。Python不做任何认知层面的预筛选。
+**注意**：
+- prompt不注入alert详情——Monitor Exec Devin自己运行检查脚本获取alert，自己做判断
+- prompt不注入WORKLOG内容——Monitor Exec Devin自己读work_dir中的WORKLOG.md（Python部分已从上一轮复制好）
+- Python不做任何认知层面的预筛选
 
 ### B.6 export保留与session管理
 
@@ -572,10 +641,11 @@ Monitor Exec Devin的export路径：
 /Volumes/data/p27-monitor-exec/{exec_seq}/conversation.json
 /Volumes/data/p27-monitor-exec/{exec_seq}/DONE.md
 /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
+/Volumes/data/p27-monitor-exec/{exec_seq}/WORKLOG.md          ← 从上一轮复制+本轮续写
 /Volumes/data/p27-monitor-exec/{exec_seq}/tmux/tmux.log
 ```
 
-**保留铁律**：与Solver Devin相同——等DONE.md出现才处理，绝不主动kill无DONE.md的session（见§A.5）。
+**保留铁律**：与Solver Devin相同——等DONE.md出现才处理，绝不主动kill无DONE.md的session（见§A.5）。**WORKLOG.md是跨轮连续记忆，必须保留**——下一轮启动时要从本轮复制。
 
 **与Solver/Handover Devin的隔离**：
 - 工作目录隔离：Monitor Exec Devin在 `/Volumes/data/p27-monitor-exec/{exec_seq}/`，Solver在 `/Volumes/data/.../p27-continuation/{run_key}/`

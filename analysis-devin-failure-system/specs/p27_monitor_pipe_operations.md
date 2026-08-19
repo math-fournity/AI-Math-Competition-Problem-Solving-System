@@ -24,20 +24,135 @@ Monitor Exec Devin每次被Python部分启动，都在一个新的、编号化�
   conversation.json           # --export的产出（完整thinking，可审计）
   DONE.md                     # 退出标记（echo $? > DONE.md）
   MONITOR_EXEC_REPORT.md      # 本轮检查+修复的完整报告
+  WORKLOG.md                  # ★跨轮次连续工作日志★（从上一轮复制+本轮续写）
   tmux/tmux.log               # tmux pane日志
   tmux/tmux_pipe.log          # tmux pipe-pane日志
 ```
 
-`exec_seq` 是单调递增的序号（从DB的session_counter读取），永不复用。
+`exec_seq` 是单调递增的序号（从DB的session_counter读取），永不复用。`exec_seq`就是"第几次被唤醒"——Monitor Exec Devin从自己work_dir的编号就知道自己是第几次运行。
 
-### 1.2 资产保留铁律
+### 1.2 WORKLOG.md——跨轮次连续工作日志
+
+**核心设计**：WORKLOG.md是Monitor Exec Devin的**跨轮次连续记忆**。每次运行不是从零开始，而是续写一个不断增长的工作日记。
+
+**跨目录传递机制**：
+```
+/Volumes/data/p27-monitor-exec/1/WORKLOG.md    —— 第1次唤醒：创建WORKLOG，记录本轮
+/Volumes/data/p27-monitor-exec/2/WORKLOG.md    —— 第2次唤醒：从1/复制WORKLOG，续写本轮
+/Volumes/data/p27-monitor-exec/3/WORKLOG.md    —— 第3次唤醒：从2/复制WORKLOG，续写本轮
+...
+/Volumes/data/p27-monitor-exec/N/WORKLOG.md    —— 第N次唤醒：从N-1/复制WORKLOG，续写本轮
+```
+
+**Python部分启动时的复制逻辑**（在`monitor_exec_launcher.py`中）：
+```python
+def prepare_worklog(exec_seq, work_dir):
+    if exec_seq == 1:
+        # 第1次唤醒——创建空WORKLOG.md
+        (work_dir / "WORKLOG.md").write_text("# Monitor Exec Devin Worklog\n\n")
+    else:
+        # 从上一轮复制WORKLOG.md
+        prev_worklog = Path(f"/Volumes/data/p27-monitor-exec/{exec_seq - 1}/WORKLOG.md")
+        if prev_worklog.exists():
+            shutil.copy2(prev_worklog, work_dir / "WORKLOG.md")
+        else:
+            # 上一轮的WORKLOG丢失了——从更早的最近一轮找
+            for seq in range(exec_seq - 1, 0, -1):
+                candidate = Path(f"/Volumes/data/p27-monitor-exec/{seq}/WORKLOG.md")
+                if candidate.exists():
+                    shutil.copy2(candidate, work_dir / "WORKLOG.md")
+                    break
+            else:
+                # 全部丢失——创建空WORKLOG，在开头记录这个异常
+                (work_dir / "WORKLOG.md").write_text(
+                    "# Monitor Exec Devin Worklog\n\n"
+                    "## 唤醒 #{exec_seq}\n\n"
+                    "**⚠️ 异常**：未找到上一轮的WORKLOG.md，本轮从空开始。\n\n"
+                )
+```
+
+**WORKLOG.md的格式**：
+```markdown
+# Monitor Exec Devin Worklog
+
+## 唤醒 #1 · {timestamp}
+
+### 检查发现
+- A类alert: 3个（session_health warning, rate_limit critical, ...）
+- B类alert: 1个（proof_missing critical, problem_id=CC-103_bare）
+- C类AI判断: 抽样2条，1条PASS，1条FAIL（CC-103_bare proof有幻觉）
+
+### 修复操作
+- 修复export_missing: launcher的kill逻辑在rate_limited时主动kill，
+  改为标记stuck不kill。commit abc123
+- CC-103_bare proof幻觉: 判定为模型能力问题，不修代码，标记需重跑
+
+### 思考
+- rate_limited的session可能还在写export，不应该kill——这个根因
+  和之前34d05f4修复的proof.md出现就kill是同一类问题
+- 下轮应该关注：改完rate_limited不kill后，这些stuck session的
+  export是否最终落盘
+
+### self-check结果
+- S1-S14全部通过
+- S13循环检测: 无重复修复
+
+---
+
+## 唤醒 #2 · {timestamp}
+
+### 检查发现
+- A类alert: 1个（done_session_uncleaned info, 8个done未清理）
+- B类alert: 0个
+- C类AI判断: 抽样2条，全部PASS
+
+### 修复操作
+- 运行 sessions --clean-done 清理了8个done session
+- 无代码bug需修复
+
+### 思考
+- 上轮改的rate_limited不kill生效了——之前3个stuck session中2个
+  的export已落盘（DONE.md出现），1个还在跑
+- 系统趋于稳定，下轮可以减少检查频率
+
+### self-check结果
+- S1-S14全部通过
+
+---
+
+## 唤醒 #3 · {timestamp}
+...
+```
+
+**WORKLOG.md的内容要求**：
+- **检查发现**：本轮A/B/C类alert的摘要（不需要全部详情，详情在DB的alert集合里）
+- **修复操作**：每个修复的简述（根因+方案+commit hash），不需要完整代码diff
+- **思考**：Monitor Exec Devin的推理和判断——为什么这么修、发现了什么模式、对系统的观察。**这是WORKLOG最宝贵的部分**——它记录了AI的思考演进，是export的thinking的结构化提炼
+- **self-check结果**：S1-S14的结果摘要
+
+**WORKLOG.md vs MONITOR_EXEC_REPORT.md vs conversation.json**：
+
+| 资产 | 范围 | 内容 | 用途 |
+|---|---|---|---|
+| conversation.json | 本轮 | 完整thinking（raw，含所有tool_call和推理） | 事后审计本轮的完整推理过程 |
+| MONITOR_EXEC_REPORT.md | 本轮 | 本轮的结构化报告（检查/判断/修复/self-check） | 本轮工作的正式产出 |
+| WORKLOG.md | 跨轮 | 累积的工作日记（每轮的摘要+思考） | **下一轮的连续记忆**——读它知道之前发生了什么 |
+
+**为什么需要WORKLOG.md（不能只靠DB的alert和git log）**：
+- DB的alert只记录问题，不记录AI的思考和判断
+- git log只记录代码修改，不记录为什么这么改、发现了什么模式
+- conversation.json是本轮的完整thinking，但下一轮的Monitor Exec Devin不会读上一轮的conversation.json（太大、太raw）
+- WORKLOG.md是**结构化的、精炼的、跨轮次的**——下一轮读它就能快速恢复上下文
+
+### 1.3 资产保留铁律
 
 - **等DONE.md出现才处理**——绝不主动kill无DONE.md的session（见`p27_session_management_and_polish_spec.md` §A.5）
 - **export是完整thinking**——conversation.json的reasoning_content记录Monitor Exec Devin的完整推理过程，事后可审计
-- **MONITOR_EXEC_REPORT.md是自述报告**——本轮检查了什么、发现了什么、判断了什么、修复了什么
+- **MONITOR_EXEC_REPORT.md是本轮自述报告**——本轮检查了什么、发现了什么、判断了什么、修复了什么
+- **WORKLOG.md是跨轮连续记忆**——从上一轮复制+本轮续写，是下一轮恢复上下文的依据
 - **tmux.log是行为日志**——记录devin cli的TUI输出，包括工具调用和结果
 
-### 1.3 session注册表记录
+### 1.4 session注册表记录
 
 每次启动在DB的`p27_sessions`集合中创建记录（见`p27_session_management_and_polish_spec.md` §A.3）：
 
@@ -54,16 +169,21 @@ Monitor Exec Devin每次被Python部分启动，都在一个新的、编号化�
     "export_path": "/Volumes/data/p27-monitor-exec/{exec_seq}/conversation.json",
     "work_dir": "/Volumes/data/p27-monitor-exec/{exec_seq}/",
     "report_path": "/Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md",
+    "worklog_path": "/Volumes/data/p27-monitor-exec/{exec_seq}/WORKLOG.md",
+    "prev_worklog_path": "/Volumes/data/p27-monitor-exec/{exec_seq-1}/WORKLOG.md",
     "status": "running",  # running | done | stuck | cleaned
 }
 ```
 
-### 1.4 运行历史可查询
+### 1.5 运行历史可查询
 
 ```bash
 # 查看所有Monitor Exec Devin运行记录
 cd analysis-devin-failure-system
 .venv/bin/python3 -m monitoring.continuation_control sessions --type monitor_exec
+
+# 查看最新一轮的WORKLOG（跨轮次连续记忆）
+cat /Volumes/data/p27-monitor-exec/{latest_exec_seq}/WORKLOG.md
 
 # 查看特定运行的report
 cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
@@ -76,27 +196,44 @@ cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
 
 ## §2. 认知资产加载清单
 
-**Monitor Exec Devin启动后、正式工作前，必须加载以下认知资产**。这些资产保证Monitor Exec Devin了解系统架构、检查标准、修复规范。如果这些资产不是最新的，Monitor Exec Devin的工作可能基于过时信息。
+**核心认知**：Monitor Exec Devin"就是未来的你"——它和Master Agent是同一个角色定位，都是管理这个系统的AI。区别只是Master Agent在用户session里有用户实时指导，Monitor Exec Devin在独立devin cli里按prompt+WORKLOG自主工作。**它们需要知道的东西是一样的**——整个错题分析系统和POC-2.7的所有设计。
 
-### 2.1 必读资产（每次启动都读）
+因此，Monitor Exec Devin的认资源加载不是"最小化"（只读3份spec），而是**充分加载**——像Master Agent一样了解系统全貌。只是它的运行在外部目录，避免worktree的AGENTS.md工作系统规则劫持它的行为流程。
+
+### 2.0 第0步：读WORKLOG.md（跨轮次连续记忆）
+
+**在加载任何认知资产之前，先读自己work_dir中的WORKLOG.md**（由Python部分从上一轮复制过来）。
+
+WORKLOG.md告诉Monitor Exec Devin：
+- 自己是第几次被唤醒（从work_dir编号exec_seq也知道）
+- 之前每次唤醒做了什么、发现了什么、修了什么、想到了什么
+- 系统从开始到现在的完整演进
+- 上一轮留下的"下一轮建议"
+
+**如果WORKLOG.md为空或异常**（第1次唤醒，或上一轮WORKLOG丢失）——从零开始，但要意识到自己是首次或异常状态。
+
+### 2.1 必读资产（每次启动都读——充分了解系统）
 
 | 序号 | 文档 | 路径 | 用途 |
 |---|---|---|---|
+| 0 | **WORKLOG.md** | 自己work_dir中 | 跨轮次连续记忆——之前发生了什么 |
 | 1 | **本文档** | `analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md` | 认知资产入口+检查项目完整清单+self检查 |
 | 2 | **检查规范详情** | `analysis-devin-failure-system/specs/p27_monitor_spec.md` | A/B/C类检查的详细标准（阈值/方法/通过条件） |
 | 3 | **session管理+Exec Devin架构** | `analysis-devin-failure-system/specs/p27_session_management_and_polish_spec.md` | session注册表/DONE.md铁律/Monitor Exec Devin工作循环/prompt构造 |
+| 4 | **系统总索引** | `/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md` | 错题分析系统设计总索引——文档体系/规范/代码资产/设计原则/关键决策 |
+| 5 | **Monitor Pipe设计范式** | `/Users/user/glm5.2-math-worktree/MonitorPipe.md` | Monitor Pipe三层架构设计范式（跨项目） |
+| 6 | **续传规范** | `/Users/user/glm5.2-math-worktree/续传规范文档.md` | 续传机制标准规范——HANDOFF.md结构/截断判定/prompt模板 |
 
 ### 2.2 按需读取资产（遇到相关问题时读）
 
 | 序号 | 文档 | 路径 | 何时读 |
 |---|---|---|---|
-| 4 | 系统总索引 | `/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md` | 需要理解系统全貌、找代码资产位置时 |
-| 5 | Monitor Pipe设计范式 | `/Users/user/glm5.2-math-worktree/MonitorPipe.md` | 需要理解Monitor Pipe三层架构设计时 |
-| 6 | 续传规范 | `/Users/user/glm5.2-math-worktree/续传规范文档.md` | 修复续传相关bug时（HANDOFF.md结构/截断判定/prompt模板） |
 | 7 | 系统架构 | `analysis-devin-failure-system/docs/architecture.md` | 需要理解4个Pipe的演进和目录结构时 |
 | 8 | 优雅停止 | `analysis-devin-failure-system/docs/graceful-shutdown.md` | 修复停止/watchdog相关bug时 |
 | 9 | 运维关注点 | `analysis-devin-failure-system/docs/operational-concerns.md` | 修复rate_limit/stall/zombie/多轮续传相关bug时 |
 | 10 | 框架检查清单 | `analysis-devin-failure-system/docs/framework-checklist.md` | 检查自己是否遗漏框架级问题时 |
+| 11 | 动态并发 | `analysis-devin-failure-system/docs/dynamic-concurrency.md` | 修复并发相关bug时 |
+| 12 | 解题系统借鉴 | `analysis-devin-failure-system/docs/solver-harness-borrowing.md` | 需要理解与解题系统的关系时 |
 
 ### 2.3 代码资产（修复bug时读）
 
@@ -225,14 +362,25 @@ cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
 ## §5. Monitor Exec Devin的完整工作流程
 
 ```
-启动（Python部分定时启动，分配exec_seq，创建work_dir，写入注册表）
+启动（Python部分定时启动，分配exec_seq，创建work_dir，从上一轮复制WORKLOG.md，写入注册表）
   │
   ▼
-加载认知资产（读§2的必读资产）
+第0步：读WORKLOG.md（跨轮次连续记忆）
+  │
+  ├── 读自己work_dir中的WORKLOG.md
+  ├── 知道自己是第{exec_seq}次被唤醒
+  ├── 了解之前每次唤醒做了什么、发现了什么、修了什么、想到了什么
+  └── 读上一轮留下的"下一轮建议"
+  │
+  ▼
+加载认知资产（充分了解系统——像Master Agent一样）
   │
   ├── 1. 读本文档（p27_monitor_pipe_operations.md）—— 知道检查什么、怎么工作
   ├── 2. 读p27_monitor_spec.md —— 知道A/B/C类检查详细标准
-  └── 3. 读p27_session_management_and_polish_spec.md —— 知道session管理和自己的工作规范
+  ├── 3. 读p27_session_management_and_polish_spec.md —— 知道session管理和自己的工作规范
+  ├── 4. 读AnalysisSystemDesign.md —— 系统总索引（文档体系/规范/代码资产/设计原则/关键决策）
+  ├── 5. 读MonitorPipe.md —— Monitor Pipe三层架构设计范式
+  └── 6. 续传规范文档.md —— 续传机制标准规范（如本轮涉及续传问题）
   │
   ▼
 第一步：检查系统状态
@@ -287,14 +435,22 @@ cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
   └── S13-S14: 循环检测
   │
   ▼
-第五步：写MONITOR_EXEC_REPORT.md
+第五步：写MONITOR_EXEC_REPORT.md + 续写WORKLOG.md
   │
-  ├── §检查结果摘要（A/B/C类alert统计）
-  ├── §C类AI判断详情（每条抽样的判断结果+依据）
-  ├── §修复操作（每个修复的根因+方案+commit+验证）
-  ├── §self-check结果
-  ├── §未修复的问题（及原因）
-  └── §下一轮建议（如有）
+  ├── MONITOR_EXEC_REPORT.md（本轮正式报告）：
+  │   ├── §检查结果摘要（A/B/C类alert统计）
+  │   ├── §C类AI判断详情（每条抽样的判断结果+依据）
+  │   ├── §修复操作（每个修复的根因+方案+commit+验证）
+  │   ├── §self-check结果
+  │   ├── §未修复的问题（及原因）
+  │   └── §下一轮建议（如有）
+  │
+  └── WORKLOG.md续写（追加到从上一轮复制来的WORKLOG末尾）：
+      ├── ## 唤醒 #{exec_seq} · {timestamp}
+      ├── ### 检查发现（A/B/C类alert摘要）
+      ├── ### 修复操作（每个修复简述+commit hash）
+      ├── ### 思考（推理和判断——为什么这么修、发现了什么模式、对系统的观察）
+      └── ### self-check结果
   │
   ▼
 第六步：resolve已处理的alert
@@ -304,7 +460,7 @@ cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
   └── C类判定FAIL的 → 写新alert（ai_review_*）不resolve原标记
   │
   ▼
-退出（DONE.md出现，Python部分下一轮定时启动）
+退出（DONE.md出现，Python部分下一轮定时启动——下一轮会复制本轮的WORKLOG.md）
 ```
 
 ---
@@ -320,6 +476,17 @@ cat /Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
 - 新增self检查项目（S1-S14，14项）
 - 定义可追溯性规范（work_dir结构/资产保留/session注册）
 - 定义认知资产加载清单（必读3份+按需7份+代码8份）
+
+### v2 · 2026-08-19 · WORKLOG.md+充分认知加载
+
+- §1新增WORKLOG.md——跨轮次连续工作日志（从上一轮复制+本轮续写）
+- §1.2定义WORKLOG.md的格式/内容要求/跨目录传递机制/Python复制逻辑
+- §1.2定义WORKLOG vs REPORT vs conversation.json三者关系
+- §2认知资产加载从"最小化"改为"充分加载"——Monitor Exec Devin"就是未来的你"，像Master Agent一样了解系统全貌
+- §2.0新增第0步：读WORKLOG.md（在加载任何认知资产之前先读）
+- §2.1必读资产从3份扩展为7份（加入AnalysisSystemDesign.md/MonitorPipe.md/续传规范文档.md）
+- §5工作流程加入第0步读WORKLOG，第五步改为写REPORT+续写WORKLOG
+- §5启动描述加入"从上一轮复制WORKLOG.md"
 
 ### 迭代规则
 
