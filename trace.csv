@@ -45,6 +45,8 @@ dev-doc,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,document,dev-
 dev-doc,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,dev-doc,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,comes-from,方案来自需求记录,
 dev-doc,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,document,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,produces,Master Agent接管Monitor Pipe检查工作的方案设计,
 dev-doc,dev-docs/007-checkpoint幂等关系全量维护预案.md,document,dev-docs/007-checkpoint幂等关系全量维护预案.md,produces,checkpoint幂等关系全量维护的分析和工作包拆解,
+dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,dev-doc,dev-docs/007-checkpoint幂等关系全量维护预案.md,supersedes,008覆盖007（007是008的子集）,
+dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,document,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,produces,全repo全资产幂等关系终极trace.csv的需求记录,
 document,README.md,commit,82ac6a8,changed-in,补充dev-docs引导条目,
 document,checklist/README.md,commit,f1ca691,changed-in,从CheckList.md精简为索引,
 document,docs/specs/p27_monitor_spec.md,checkpoint,MON-A1,verifies,p27规范验证A类检查项1,
