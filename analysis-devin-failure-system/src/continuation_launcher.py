@@ -170,14 +170,15 @@ def is_completed(export_path, work_dir):
             msg = len(last.get("message", "") or "")
             tc = len(last.get("tool_calls", []) or [])
             if msg > 0 or tc > 0:
-                # 有输出——检查proof.md
+                # 有输出——必须检查proof.md存在且有boxed答案
                 proof_path = Path(work_dir) / PROOF_FILE_NAME
                 if proof_path.exists():
                     proof_text = proof_path.read_text()
                     if re.search(PROOF_COMPLETE_MARKER, proof_text):
                         return True, f"proof.md有boxed答案 ({len(proof_text)}c)"
-                    return True, f"proof.md存在但无boxed ({len(proof_text)}c)"
-                return True, "有message输出但无proof.md"
+                    return False, f"proof.md存在但无boxed ({len(proof_text)}c)"
+                # 有message输出但无proof.md——不能判定为completed，需要继续续传
+                return False, "有message输出但无proof.md"
     return False, "no working output"
 
 
