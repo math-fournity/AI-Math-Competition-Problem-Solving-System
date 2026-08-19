@@ -4028,6 +4028,9 @@ wp,WP-10,checkpoint,AUDIT-05,creates,WP-10创建checkpoint AUDIT-05,
 wp,WP-10,checkpoint,AUDIT-06,creates,WP-10创建checkpoint AUDIT-06,
 wp,WP-10,checkpoint,AUDIT-07,creates,WP-10创建checkpoint AUDIT-07,
 wp,WP-10-系统审计,commit,f1ca691,changed-in,checklist/和working-packages/拆分到根目录，dev/目录删除,f1ca691
+wp,WP-11,dev-doc,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,comes-from,WP-11来自006方案WP-A,
+wp,WP-12,dev-doc,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,comes-from,WP-12来自006方案WP-B,
+wp,WP-12,wp,WP-11,depends-on,WP-12依赖WP-11产出的MasterAgentCheck.md路径,
 wp,WP-TRACE,commit,6a28bed,changed-in,新增WP-TRACE：全repo全资产幂等关系终极trace.csv工作包拆解（akash阶段3）,6a28bed
 wp,WP-TRACE,dev-doc,dev-docs/001-目录结构扁平化重组方案.md,comes-from,WP-TRACE引用dev-docs/001-目录结构扁平化重组方案.md,
 wp,WP-TRACE,dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,comes-from,WP-TRACE来自008需求,
