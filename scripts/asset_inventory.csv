@@ -1,0 +1,395 @@
+asset_type,asset_id,file_path,description
+code,src/__init__.py,src/__init__.py,__init__
+code,src/aggregator.py,src/aggregator.py,aggregator
+code,src/analysis_launcher.py,src/analysis_launcher.py,analysis_launcher
+code,src/audit_aggregator.py,src/audit_aggregator.py,audit_aggregator
+code,src/audit_collector.py,src/audit_collector.py,audit_collector
+code,src/audit_launcher.py,src/audit_launcher.py,audit_launcher
+code,src/audit_result_collector.py,src/audit_result_collector.py,audit_result_collector
+code,src/config.py,src/config.py,config
+code,src/continuation_collector.py,src/continuation_collector.py,continuation_collector
+code,src/continuation_config.py,src/continuation_config.py,continuation_config
+code,src/continuation_db_schema.py,src/continuation_db_schema.py,continuation_db_schema
+code,src/continuation_feeder.py,src/continuation_feeder.py,continuation_feeder
+code,src/continuation_launcher.py,src/continuation_launcher.py,continuation_launcher
+code,src/continuation_redis_queue.py,src/continuation_redis_queue.py,continuation_redis_queue
+code,src/continuation_result_collector.py,src/continuation_result_collector.py,continuation_result_collector
+code,src/data_collector.py,src/data_collector.py,data_collector
+code,src/db_schema.py,src/db_schema.py,db_schema
+code,src/feeder.py,src/feeder.py,feeder
+code,src/monitor_continuation.py,src/monitor_continuation.py,monitor_continuation
+code,src/monitor_pipe.py,src/monitor_pipe.py,monitor_pipe
+code,src/monitor_selection.py,src/monitor_selection.py,monitor_selection
+code,src/result_collector.py,src/result_collector.py,result_collector
+code,src/selection_collector.py,src/selection_collector.py,selection_collector
+code,src/selection_launcher.py,src/selection_launcher.py,selection_launcher
+code,src/selection_result_collector.py,src/selection_result_collector.py,selection_result_collector
+code,src/selfrun_driver.py,src/selfrun_driver.py,selfrun_driver
+code,src/selfrun_intake.py,src/selfrun_intake.py,selfrun_intake
+code,src/session_registry.py,src/session_registry.py,session_registry
+code,src/solver_launcher.py,src/solver_launcher.py,solver_launcher
+code,monitoring/__init__.py,monitoring/__init__.py,__init__
+code,monitoring/analysis_control.py,monitoring/analysis_control.py,analysis_control
+code,monitoring/audit_redis_queue.py,monitoring/audit_redis_queue.py,audit_redis_queue
+code,monitoring/audit_trace.py,monitoring/audit_trace.py,audit_trace
+code,monitoring/continuation_control.py,monitoring/continuation_control.py,continuation_control
+code,monitoring/graceful_shutdown.py,monitoring/graceful_shutdown.py,graceful_shutdown
+code,monitoring/query_failures.py,monitoring/query_failures.py,query_failures
+code,monitoring/query_progress.py,monitoring/query_progress.py,query_progress
+code,monitoring/recover_from_crash.py,monitoring/recover_from_crash.py,recover_from_crash
+code,monitoring/redis_queue.py,monitoring/redis_queue.py,redis_queue
+code,monitoring/reporter.py,monitoring/reporter.py,reporter
+code,monitoring/retry_infrastructure.py,monitoring/retry_infrastructure.py,retry_infrastructure
+code,monitoring/runtime_health_check.py,monitoring/runtime_health_check.py,runtime_health_check
+code,monitoring/shared_logger.py,monitoring/shared_logger.py,shared_logger
+code,monitoring/verify_completeness.py,monitoring/verify_completeness.py,verify_completeness
+code,monitoring/verify_result_integrity.py,monitoring/verify_result_integrity.py,verify_result_integrity
+script,scripts/continuation_watchdog.sh,scripts/continuation_watchdog.sh,continuation_watchdog
+script,scripts/monitor_check.sh,scripts/monitor_check.sh,monitor_check
+script,scripts/monitor_check_continuation.sh,scripts/monitor_check_continuation.sh,monitor_check_continuation
+script,scripts/monitor_check_selection.sh,scripts/monitor_check_selection.sh,monitor_check_selection
+script,scripts/conversation_mapper.py,scripts/conversation_mapper.py,conversation_mapper
+script,scripts/enumerate_assets.py,scripts/enumerate_assets.py,enumerate_assets
+script,scripts/fetch_poc0_candidates.py,scripts/fetch_poc0_candidates.py,fetch_poc0_candidates
+script,scripts/fetch_poc0_with_problems.py,scripts/fetch_poc0_with_problems.py,fetch_poc0_with_problems
+script,scripts/generate_checkpoint.py,scripts/generate_checkpoint.py,generate_checkpoint
+script,scripts/refactor_paths.py,scripts/refactor_paths.py,refactor_paths
+script,scripts/refactor_paths_pass2.py,scripts/refactor_paths_pass2.py,refactor_paths_pass2
+script,scripts/trace.py,scripts/trace.py,trace
+script,scripts/view_index.py,scripts/view_index.py,view_index
+document,docs/architecture/architecture.md,docs/architecture/architecture.md,architecture
+document,docs/architecture/dynamic-concurrency.md,docs/architecture/dynamic-concurrency.md,dynamic-concurrency
+document,docs/architecture/framework-checklist.md,docs/architecture/framework-checklist.md,framework-checklist
+document,docs/architecture/graceful-shutdown.md,docs/architecture/graceful-shutdown.md,graceful-shutdown
+document,docs/architecture/monitor-pipe-pattern.md,docs/architecture/monitor-pipe-pattern.md,monitor-pipe-pattern
+document,docs/architecture/operational-concerns.md,docs/architecture/operational-concerns.md,operational-concerns
+document,docs/architecture/selfrun-workflow.md,docs/architecture/selfrun-workflow.md,selfrun-workflow
+document,docs/architecture/solver-harness-borrowing.md,docs/architecture/solver-harness-borrowing.md,solver-harness-borrowing
+document,docs/architecture/solver-trajectory-schema.md,docs/architecture/solver-trajectory-schema.md,solver-trajectory-schema
+document,docs/patterns/MonitorPipe.md,docs/patterns/MonitorPipe.md,MonitorPipe
+document,docs/patterns/续传规范文档.md,docs/patterns/续传规范文档.md,续传规范文档
+document,docs/specs/p27_monitor_pipe_operations.md,docs/specs/p27_monitor_pipe_operations.md,p27_monitor_pipe_operations
+document,docs/specs/p27_monitor_spec.md,docs/specs/p27_monitor_spec.md,p27_monitor_spec
+document,docs/specs/p27_session_management_and_polish_spec.md,docs/specs/p27_session_management_and_polish_spec.md,p27_session_management_and_polish_spec
+document,docs/system/AnalysisSystem.md,docs/system/AnalysisSystem.md,AnalysisSystem
+document,docs/system/AnalysisSystemDesign.md,docs/system/AnalysisSystemDesign.md,AnalysisSystemDesign
+document,docs/system/AnalysisSystemOps.md,docs/system/AnalysisSystemOps.md,AnalysisSystemOps
+checkpoint,AUDIT-01,checklist/AUDIT-01.md,checkpoint AUDIT-01
+checkpoint,AUDIT-02,checklist/AUDIT-02.md,checkpoint AUDIT-02
+checkpoint,AUDIT-03,checklist/AUDIT-03.md,checkpoint AUDIT-03
+checkpoint,AUDIT-04,checklist/AUDIT-04.md,checkpoint AUDIT-04
+checkpoint,AUDIT-05,checklist/AUDIT-05.md,checkpoint AUDIT-05
+checkpoint,AUDIT-06,checklist/AUDIT-06.md,checkpoint AUDIT-06
+checkpoint,AUDIT-07,checklist/AUDIT-07.md,checkpoint AUDIT-07
+checkpoint,CTRL-01,checklist/CTRL-01.md,checkpoint CTRL-01
+checkpoint,CTRL-02,checklist/CTRL-02.md,checkpoint CTRL-02
+checkpoint,CTRL-03,checklist/CTRL-03.md,checkpoint CTRL-03
+checkpoint,CTRL-04,checklist/CTRL-04.md,checkpoint CTRL-04
+checkpoint,CTRL-05,checklist/CTRL-05.md,checkpoint CTRL-05
+checkpoint,CTRL-06,checklist/CTRL-06.md,checkpoint CTRL-06
+checkpoint,CTRL-07,checklist/CTRL-07.md,checkpoint CTRL-07
+checkpoint,CTRL-08,checklist/CTRL-08.md,checkpoint CTRL-08
+checkpoint,CTRL-09,checklist/CTRL-09.md,checkpoint CTRL-09
+checkpoint,DEC-01,checklist/DEC-01.md,checkpoint DEC-01
+checkpoint,DEC-02,checklist/DEC-02.md,checkpoint DEC-02
+checkpoint,DEC-03,checklist/DEC-03.md,checkpoint DEC-03
+checkpoint,DEC-04,checklist/DEC-04.md,checkpoint DEC-04
+checkpoint,DEC-05,checklist/DEC-05.md,checkpoint DEC-05
+checkpoint,DEC-06,checklist/DEC-06.md,checkpoint DEC-06
+checkpoint,DEC-07,checklist/DEC-07.md,checkpoint DEC-07
+checkpoint,DOC-01,checklist/DOC-01.md,checkpoint DOC-01
+checkpoint,DOC-02,checklist/DOC-02.md,checkpoint DOC-02
+checkpoint,DOC-03,checklist/DOC-03.md,checkpoint DOC-03
+checkpoint,DOC-04,checklist/DOC-04.md,checkpoint DOC-04
+checkpoint,DOC-05,checklist/DOC-05.md,checkpoint DOC-05
+checkpoint,DOC-06,checklist/DOC-06.md,checkpoint DOC-06
+checkpoint,DOC-07,checklist/DOC-07.md,checkpoint DOC-07
+checkpoint,DOC-08,checklist/DOC-08.md,checkpoint DOC-08
+checkpoint,ENV-01,checklist/ENV-01.md,checkpoint ENV-01
+checkpoint,ENV-02,checklist/ENV-02.md,checkpoint ENV-02
+checkpoint,ENV-03,checklist/ENV-03.md,checkpoint ENV-03
+checkpoint,ENV-04,checklist/ENV-04.md,checkpoint ENV-04
+checkpoint,ENV-05,checklist/ENV-05.md,checkpoint ENV-05
+checkpoint,ENV-06,checklist/ENV-06.md,checkpoint ENV-06
+checkpoint,ENV-07,checklist/ENV-07.md,checkpoint ENV-07
+checkpoint,EXEC-01,checklist/EXEC-01.md,checkpoint EXEC-01
+checkpoint,EXEC-02,checklist/EXEC-02.md,checkpoint EXEC-02
+checkpoint,EXEC-03,checklist/EXEC-03.md,checkpoint EXEC-03
+checkpoint,EXEC-04,checklist/EXEC-04.md,checkpoint EXEC-04
+checkpoint,EXEC-05,checklist/EXEC-05.md,checkpoint EXEC-05
+checkpoint,EXEC-06,checklist/EXEC-06.md,checkpoint EXEC-06
+checkpoint,EXEC-07,checklist/EXEC-07.md,checkpoint EXEC-07
+checkpoint,EXEC-08,checklist/EXEC-08.md,checkpoint EXEC-08
+checkpoint,EXEC-09,checklist/EXEC-09.md,checkpoint EXEC-09
+checkpoint,EXEC-10,checklist/EXEC-10.md,checkpoint EXEC-10
+checkpoint,EXEC-11,checklist/EXEC-11.md,checkpoint EXEC-11
+checkpoint,EXEC-12,checklist/EXEC-12.md,checkpoint EXEC-12
+checkpoint,EXEC-13,checklist/EXEC-13.md,checkpoint EXEC-13
+checkpoint,EXEC-14,checklist/EXEC-14.md,checkpoint EXEC-14
+checkpoint,EXEC-15,checklist/EXEC-15.md,checkpoint EXEC-15
+checkpoint,EXEC-16,checklist/EXEC-16.md,checkpoint EXEC-16
+checkpoint,EXEC-17,checklist/EXEC-17.md,checkpoint EXEC-17
+checkpoint,EXEC-18,checklist/EXEC-18.md,checkpoint EXEC-18
+checkpoint,EXEC-19,checklist/EXEC-19.md,checkpoint EXEC-19
+checkpoint,EXEC-20,checklist/EXEC-20.md,checkpoint EXEC-20
+checkpoint,EXEC-21,checklist/EXEC-21.md,checkpoint EXEC-21
+checkpoint,EXEC-22,checklist/EXEC-22.md,checkpoint EXEC-22
+checkpoint,EXEC-23,checklist/EXEC-23.md,checkpoint EXEC-23
+checkpoint,EXEC-24,checklist/EXEC-24.md,checkpoint EXEC-24
+checkpoint,EXEC-25,checklist/EXEC-25.md,checkpoint EXEC-25
+checkpoint,EXEC-26,checklist/EXEC-26.md,checkpoint EXEC-26
+checkpoint,EXEC-27,checklist/EXEC-27.md,checkpoint EXEC-27
+checkpoint,EXEC-28,checklist/EXEC-28.md,checkpoint EXEC-28
+document,checklist/ExecDevin.md,checklist/ExecDevin.md,ExecDevin
+checkpoint,HARD-01,checklist/HARD-01.md,checkpoint HARD-01
+checkpoint,HARD-02,checklist/HARD-02.md,checkpoint HARD-02
+checkpoint,HARD-03,checklist/HARD-03.md,checkpoint HARD-03
+checkpoint,HARD-04,checklist/HARD-04.md,checkpoint HARD-04
+checkpoint,HARD-05,checklist/HARD-05.md,checkpoint HARD-05
+checkpoint,HARD-06,checklist/HARD-06.md,checkpoint HARD-06
+checkpoint,HARD-07,checklist/HARD-07.md,checkpoint HARD-07
+checkpoint,HARD-08,checklist/HARD-08.md,checkpoint HARD-08
+checkpoint,HARD-09,checklist/HARD-09.md,checkpoint HARD-09
+checkpoint,HARD-10,checklist/HARD-10.md,checkpoint HARD-10
+checkpoint,LAUNCH-01,checklist/LAUNCH-01.md,checkpoint LAUNCH-01
+checkpoint,LAUNCH-02,checklist/LAUNCH-02.md,checkpoint LAUNCH-02
+checkpoint,LAUNCH-03,checklist/LAUNCH-03.md,checkpoint LAUNCH-03
+checkpoint,LAUNCH-04,checklist/LAUNCH-04.md,checkpoint LAUNCH-04
+checkpoint,LAUNCH-05,checklist/LAUNCH-05.md,checkpoint LAUNCH-05
+checkpoint,LAUNCH-06,checklist/LAUNCH-06.md,checkpoint LAUNCH-06
+checkpoint,LAUNCH-07,checklist/LAUNCH-07.md,checkpoint LAUNCH-07
+checkpoint,LAUNCH-08,checklist/LAUNCH-08.md,checkpoint LAUNCH-08
+checkpoint,LAUNCH-09,checklist/LAUNCH-09.md,checkpoint LAUNCH-09
+checkpoint,LAUNCH-10,checklist/LAUNCH-10.md,checkpoint LAUNCH-10
+checkpoint,MON-A-issue-01,checklist/MON-A-issue-01.md,checkpoint MON-A-issue-01
+checkpoint,MON-A-issue-02,checklist/MON-A-issue-02.md,checkpoint MON-A-issue-02
+checkpoint,MON-A-issue-03,checklist/MON-A-issue-03.md,checkpoint MON-A-issue-03
+checkpoint,MON-A-issue-04,checklist/MON-A-issue-04.md,checkpoint MON-A-issue-04
+checkpoint,MON-A-issue-05,checklist/MON-A-issue-05.md,checkpoint MON-A-issue-05
+checkpoint,MON-A1,checklist/MON-A1.md,checkpoint MON-A1
+checkpoint,MON-A10,checklist/MON-A10.md,checkpoint MON-A10
+checkpoint,MON-A11,checklist/MON-A11.md,checkpoint MON-A11
+checkpoint,MON-A12,checklist/MON-A12.md,checkpoint MON-A12
+checkpoint,MON-A2,checklist/MON-A2.md,checkpoint MON-A2
+checkpoint,MON-A3,checklist/MON-A3.md,checkpoint MON-A3
+checkpoint,MON-A4,checklist/MON-A4.md,checkpoint MON-A4
+checkpoint,MON-A5,checklist/MON-A5.md,checkpoint MON-A5
+checkpoint,MON-A6,checklist/MON-A6.md,checkpoint MON-A6
+checkpoint,MON-A7,checklist/MON-A7.md,checkpoint MON-A7
+checkpoint,MON-A8,checklist/MON-A8.md,checkpoint MON-A8
+checkpoint,MON-A9,checklist/MON-A9.md,checkpoint MON-A9
+checkpoint,MON-B1,checklist/MON-B1.md,checkpoint MON-B1
+checkpoint,MON-B2,checklist/MON-B2.md,checkpoint MON-B2
+checkpoint,MON-B3,checklist/MON-B3.md,checkpoint MON-B3
+checkpoint,MON-B4,checklist/MON-B4.md,checkpoint MON-B4
+checkpoint,MON-B5,checklist/MON-B5.md,checkpoint MON-B5
+checkpoint,MON-B6,checklist/MON-B6.md,checkpoint MON-B6
+checkpoint,MON-B7,checklist/MON-B7.md,checkpoint MON-B7
+checkpoint,MON-B8,checklist/MON-B8.md,checkpoint MON-B8
+checkpoint,MON-B9,checklist/MON-B9.md,checkpoint MON-B9
+checkpoint,MON-C1,checklist/MON-C1.md,checkpoint MON-C1
+checkpoint,MON-C2,checklist/MON-C2.md,checkpoint MON-C2
+checkpoint,MON-C3,checklist/MON-C3.md,checkpoint MON-C3
+checkpoint,MON-C4,checklist/MON-C4.md,checkpoint MON-C4
+checkpoint,MON-C5,checklist/MON-C5.md,checkpoint MON-C5
+document,checklist/README.md,checklist/README.md,README
+checkpoint,RUN-01,checklist/RUN-01.md,checkpoint RUN-01
+checkpoint,RUN-02,checklist/RUN-02.md,checkpoint RUN-02
+checkpoint,RUN-03,checklist/RUN-03.md,checkpoint RUN-03
+checkpoint,RUN-04,checklist/RUN-04.md,checkpoint RUN-04
+checkpoint,RUN-05,checklist/RUN-05.md,checkpoint RUN-05
+checkpoint,RUN-06,checklist/RUN-06.md,checkpoint RUN-06
+checkpoint,RUN-07,checklist/RUN-07.md,checkpoint RUN-07
+checkpoint,RUN-08,checklist/RUN-08.md,checkpoint RUN-08
+checkpoint,SELF-S1,checklist/SELF-S1.md,checkpoint SELF-S1
+checkpoint,SELF-S10,checklist/SELF-S10.md,checkpoint SELF-S10
+checkpoint,SELF-S11,checklist/SELF-S11.md,checkpoint SELF-S11
+checkpoint,SELF-S12,checklist/SELF-S12.md,checkpoint SELF-S12
+checkpoint,SELF-S13,checklist/SELF-S13.md,checkpoint SELF-S13
+checkpoint,SELF-S14,checklist/SELF-S14.md,checkpoint SELF-S14
+checkpoint,SELF-S15,checklist/SELF-S15.md,checkpoint SELF-S15
+checkpoint,SELF-S16,checklist/SELF-S16.md,checkpoint SELF-S16
+checkpoint,SELF-S17,checklist/SELF-S17.md,checkpoint SELF-S17
+checkpoint,SELF-S2,checklist/SELF-S2.md,checkpoint SELF-S2
+checkpoint,SELF-S3,checklist/SELF-S3.md,checkpoint SELF-S3
+checkpoint,SELF-S4,checklist/SELF-S4.md,checkpoint SELF-S4
+checkpoint,SELF-S5,checklist/SELF-S5.md,checkpoint SELF-S5
+checkpoint,SELF-S6,checklist/SELF-S6.md,checkpoint SELF-S6
+checkpoint,SELF-S7,checklist/SELF-S7.md,checkpoint SELF-S7
+checkpoint,SELF-S8,checklist/SELF-S8.md,checkpoint SELF-S8
+checkpoint,SELF-S9,checklist/SELF-S9.md,checkpoint SELF-S9
+checkpoint,SESS-01,checklist/SESS-01.md,checkpoint SESS-01
+checkpoint,SESS-02,checklist/SESS-02.md,checkpoint SESS-02
+checkpoint,SESS-03,checklist/SESS-03.md,checkpoint SESS-03
+checkpoint,SESS-04,checklist/SESS-04.md,checkpoint SESS-04
+checkpoint,SESS-05,checklist/SESS-05.md,checkpoint SESS-05
+checkpoint,SESS-06,checklist/SESS-06.md,checkpoint SESS-06
+checkpoint,SESS-07,checklist/SESS-07.md,checkpoint SESS-07
+checkpoint,SESS-08,checklist/SESS-08.md,checkpoint SESS-08
+checkpoint,SESS-09,checklist/SESS-09.md,checkpoint SESS-09
+checkpoint,SESS-10,checklist/SESS-10.md,checkpoint SESS-10
+checkpoint,SESS-11,checklist/SESS-11.md,checkpoint SESS-11
+checkpoint,SESS-12,checklist/SESS-12.md,checkpoint SESS-12
+document,working-packages/INDEX.md,working-packages/INDEX.md,INDEX
+document,working-packages/README.md,working-packages/README.md,README
+wp,WP-01-阶段1真实运行验证,working-packages/WP-01-阶段1真实运行验证.md,工作包 WP-01-阶段1真实运行验证
+wp,WP-02-已知bug修复,working-packages/WP-02-已知bug修复.md,工作包 WP-02-已知bug修复
+wp,WP-03-阶段2配置与模板,working-packages/WP-03-阶段2配置与模板.md,工作包 WP-03-阶段2配置与模板
+wp,WP-04-阶段2MonitorExecDevin启动器,working-packages/WP-04-阶段2MonitorExecDevin启动器.md,工作包 WP-04-阶段2MonitorExecDevin启动器
+wp,WP-05-阶段2MonitorPipe集成,working-packages/WP-05-阶段2MonitorPipe集成.md,工作包 WP-05-阶段2MonitorPipe集成
+wp,WP-06-阶段2export与report查看支持,working-packages/WP-06-阶段2export与report查看支持.md,工作包 WP-06-阶段2export与report查看支持
+wp,WP-07-阶段2端到端验证,working-packages/WP-07-阶段2端到端验证.md,工作包 WP-07-阶段2端到端验证
+wp,WP-08-阶段3文档同步,working-packages/WP-08-阶段3文档同步.md,工作包 WP-08-阶段3文档同步
+wp,WP-09-POC-2.7并发1运行和监控,working-packages/WP-09-POC-2.7并发1运行和监控.md,工作包 WP-09-POC-2.7并发1运行和监控
+wp,WP-10-系统审计,working-packages/WP-10-系统审计.md,工作包 WP-10-系统审计
+wp,WP-TRACE,working-packages/WP-TRACE.md,工作包 WP-TRACE
+dev-doc,dev-docs/001-目录结构扁平化重组方案.md,dev-docs/001-目录结构扁平化重组方案.md,001-目录结构扁平化重组方案
+dev-doc,dev-docs/002-checklist-working-packages拆分.md,dev-docs/002-checklist-working-packages拆分.md,002-checklist-working-packages拆分
+dev-doc,dev-docs/003-README三层架构与分类法设计.md,dev-docs/003-README三层架构与分类法设计.md,003-README三层架构与分类法设计
+dev-doc,dev-docs/004-幂等追溯体系与工作包自包含设计.md,dev-docs/004-幂等追溯体系与工作包自包含设计.md,004-幂等追溯体系与工作包自包含设计
+dev-doc,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,005-Master-Agent接管Monitor-Pipe检查工作
+dev-doc,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md,006-Master-Agent接管Monitor-Pipe检查工作方案
+dev-doc,dev-docs/007-checkpoint幂等关系全量维护预案.md,dev-docs/007-checkpoint幂等关系全量维护预案.md,007-checkpoint幂等关系全量维护预案
+dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,008-全repo全资产幂等关系终极trace.csv
+dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,009-全repo全资产幂等关系终极trace.csv方案
+template,docs/templates/analysis_agents_md.md,docs/templates/analysis_agents_md.md,analysis_agents_md
+template,docs/templates/audit_agents_md.md,docs/templates/audit_agents_md.md,audit_agents_md
+template,docs/templates/selection_agents_md.md,docs/templates/selection_agents_md.md,selection_agents_md
+template,docs/templates/selfrun_subagent_task.md,docs/templates/selfrun_subagent_task.md,selfrun_subagent_task
+config,.env.example,.env.example,.env
+config,src/config.py,src/config.py,config
+config,src/continuation_config.py,src/continuation_config.py,continuation_config
+commit,6a28bed,,新增WP-TRACE：全repo全资产幂等关系终极trace.csv工作包拆解（akash阶段3）
+commit,ccf19d3,,新增dev-docs/009：全repo全资产幂等关系终极trace.csv方案（akash阶段2）
+commit,5184e82,,新增dev-docs/008：全repo全资产幂等关系终极trace.csv（需求记录）
+commit,b66be93,,新增dev-docs/007：checkpoint幂等关系全量维护预案
+commit,855bb5d,,ENV-07幂等维护：记录所有启动devin cli的函数级追溯关系
+commit,925151a,,新增checkpoint ENV-07：启动devin cli必须指定glm-5.2-high
+commit,77dd5c4,,新增dev-docs/006：Master Agent接管检查工作方案（akash阶段2）
+commit,c93c0f0,,新增dev-docs/005：Master Agent接管Monitor Pipe检查工作（需求记录）
+commit,47d11a2,,新增dev-docs/004：幂等追溯体系与工作包自包含设计
+commit,18b61e5,,trace.py：资产分层+XPath-like寻址方案
+commit,ed30a57,,view-index.db (SQLite) → view-index.csv + trace.csv (git可追踪文本文件)
+commit,279fea7,,新增全维度追溯工具trace.py + 导入22条追溯关系
+commit,4c01629,,新增看法文件映射索引（SQLite）：文档/代码变更时可追溯要更新哪些看法文件
+commit,00a08d3,,记录README三层架构与7个分类法设计方案（dev-docs/003）
+commit,82ac6a8,,更新README.md认知地图：补充dev-docs/变更历史引导条目（read-sync skill修正）
+commit,b51aff7,,记录checklist/working-packages拆分过程（dev-docs/002）
+commit,f1ca691,,checklist/和working-packages/拆分到根目录，dev/目录删除
+commit,fcd1c9b,,更新README.md引导地图：修复specs路径引用一致性（read-sync skill）
+commit,a4f3a61,,目录结构扁平化重组（dev-docs/001方案A）
+commit,4b0bf33,,AGENTS.md加硬约束9（禁止绝对路径依赖）+目录重组方案文档
+commit,8f66457,,创建README.md引导地图+AGENTS.md（read-sync skill）
+commit,bd3342a,,路径迁移：硬编码路径改为动态获取+环境变量，文档引用改为相对路径
+commit,eb27fab,,目录重组：根文档移到docs/，POC-2.7数据移到data/，加.gitignore和.env.example
+commit,8768121,,建立CheckPoints目录——每个需求点一个详情文件+README目录说明
+commit,c59fc76,,CheckList加入维护规则——需求变化和check points变化时的更新链条
+commit,9ce1872,,建立AnalysisSystem开发工作包+CheckList体系+补全Exec Devin认知资产
+commit,88ac7b1,,AGENTS.md瘦身二期：POC续传SOP+研发资产管理外移+Grove认知压缩+外部文档索引
+commit,75355da,,AGENTS.md瘦身一期：三大块外移到根目录文档+索引
+commit,a689acb,,修复launcher重启覆盖DB concurrency导致动态并发失效
+commit,80ac371,,修复session_counter与session记录seq unique索引冲突
+commit,29643c3,,修复动态并发: launcher从DB读取batch.concurrency而非写死参数
+commit,f5c04e1,,新建AnalysisSystem.md——新Session接手AI的完整加载指南
+commit,9b1cb7f,,C.1.6文档同步：architecture.md + p27_monitor_pipe_operations.md v4
+commit,6cd1ec3,,C.1.5: monitor_continuation.py新增A10/A11/A12检查 + spec + 检查脚本更新
+commit,592e4da,,C.1.4: continuation_control.py新增sessions子命令 + list_sessions排除counter文档
+commit,a0276cb,,C.1.3: rate_limited/timeout/stall不kill改为标记stuck + stop --force分类处理
+commit,d5d46dd,,C.1.2: continuation_launcher.py接入编号化管理
+commit,94c84d5,,C.1.1+C.1.2: Session编号化管理——DB schema + session_registry.py
+commit,7a3acc5,,文档同步分级——解决Monitor Exec Devin认知过时死循环
+commit,3d76e54,,WORKLOG.md跨轮次连续记忆+认知资产充分加载
+commit,bb4c66e,,新增Monitor Pipe操作规范——认知资产入口+检查项目完整清单+self检查
+commit,fb24218,,修正Monitor Pipe架构：执行层恢复为Python+devin cli两层
+commit,0084273,,方案文档：Session编号化管理与打磨devin架构规范
+commit,e3d48f5,,降并发为1，验证DONE.md修复逻辑
+commit,2f42b69,,用DONE.md文件替代DEVIN_CLI_EXITED pane文本检测devin cli退出
+commit,4a72cbc,,修复export缺失：等devin cli自然退出后再清理session，不主动kill
+commit,8c5e5f2,,修复round2 export文件缺失根因：proof.md出现后立即kill session导致export未写入
+commit,2fa372f,,修复is_completed函数的严重bug：无proof.md被判定为completed
+commit,2010d93,,修复monitor_check_continuation.sh输出过长问题（13235行→~100行）
+commit,589e529,,加入DEVIN_CLI_EXITED检测——devin cli退出后立即处理，不等stall超时
+commit,ec382ba,,stall超时从300秒增加到600秒——续传解题thinking需要更长时间
+commit,b193f7e,,session检测4个bug修复——服务session混入计数+pattern错误+handover只查r1
+commit,bc03c9b,,"检查脚本加入""不要STOP""明确提醒——AI必须持续阻塞TUI反复监控"
+commit,6f3ddbd,,异步handover架构+并发写死5+循环监控SOP+进程检测修复
+commit,18c7983,,文档审计修复：subagent遗漏的过时引用+行数+spec检查规范
+commit,107e9f5,,文档同步更新+新规则：代码修改后同步更新文档
+commit,0e77b63,,续传系统DB记录完整性+Monitor Pipe检测能力修复
+commit,a9b07cb,,续传系统中间产物覆盖问题修复——3个关键bug
+commit,71959d6,,POC-2.7全量启动+watchdog session计数修复
+commit,c3dbefa,,小批量测试发现的3个bug修复
+commit,dc6ba35,,AnalysisSystemDesign.md加入续传规范文档索引
+commit,cb0f43a,,watchdog停止加入launchctl disable——永久禁用，防止系统重启后自动回来
+commit,f645eba,,创建AnalysisSystemDesign.md——错题分析系统设计总索引
+commit,95333a2,,watchdog停止问题修复+解题系统借鉴实现（auto-restart/watchdog/infra-vs-model失败）
+commit,6c47334,,错题分析系统框架化——优雅停止+完整文档体系+框架检查清单
+commit,00fe737,,MonitorPipe.md新增§6——如何参考错题分析系统实现新Pipe的具体操作指南
+commit,c8a4d4c,,MonitorPipe.md——连续工作系统的AI智能检查架构设计范式
+commit,c9bf19e,,POC-2.7续传Pipe的Monitor Pipe——检查规范+监控守护+查询脚本
+commit,9561887,,POC-2.7续传Pipe接入错题分析系统框架（Pipe 4）
+commit,8b302ce,,conversation_mapper.py：面包屑地图生成器实现+POC验证
+commit,43b9154,,POC-2.7批量续传基础设施：948道DIRECTION_ERROR题的自动化续传
+commit,54b378b,,续传规范文档.md：414号方案文档的项目根目录副本
+commit,13373ba,,POC-0 CasePack v1冻结：从Pipe 3的47道YES精筛6道正迁移+4道假朋友+2道边界
+commit,ca75a9d,,Pipe 3扩展：Monitor Pipe适配+collect去重+AGENTS.md运行SOP
+commit,35322bb,,Pipe 3扩展：提示词模板+解析器增加6项POC准备数据字段
+commit,70da699,,Pipe 3选题系统：复用错题分析框架，单例测试通过
+commit,4d3020c,,错题分析selfrun交接三件套：任务追踪08（进度游标+坑清单+恢复命令）+README DAG登记+workflow交接恢复节+AGENTS.md当前任务指
+commit,d1cda6b,,selfrun流程固化：任务文件化调度器+subagent规范v3（TL/PP精化判据）；wave001十二题100%格式通过；双盲一致率80%，分歧经三方盲读
+commit,ce2b9a4,,selfrun Step2完成：49题分层抽样全链路+5题审计全PASS；发现deepmath/oda题库题文-thinking错位污染（DIRECTION_E
+commit,a895eb6,,错题分析系统selfrun载体：ZCode接替devin cli的intake组件+工作流文档（3题全链路验证通过）
+commit,023724f,,"monitor_check.sh: 每个检查项后附带""需要检查""提示+行动清单"
+commit,8d069cf,,彻查rate limit根因+加入自动暂停机制
+commit,36fc8bf,,标准化Monitor Pipe检查脚本，索引到AGENTS.md
+commit,1bc5cbe,,Monitor Pipe发现并修正2个提示词设计缺陷
+commit,5d86582,,后处理修正：D1动词列表扩展，22%误判可修正
+commit,e1be773,,Monitor Pipe实现+监控SOP元组固化
+commit,58a7bf1,,修正审计提示词：D类检查不对CONNECTION_ERROR/TOKEN_LIMIT执行
+commit,e33ac4e,,Pipe 2审计Pipe实现+5题小规模测试通过
+commit,4725c0e,,错题分析系统深度验证：发现并修复d2_exp XML标签泄漏bug
+commit,8726fd4,,错题分析系统轮4：修正检查3误报+模板加TOKEN_LIMIT/PARTIAL_PROGRESS tiebreaker
+commit,215894e,,analysis-devin-failure-system: Schema文档补充内部详细结构
+commit,fae05d3,,analysis-devin-failure-system: Schema文档同步MITM优先级修正
+commit,0cba9d2,,analysis-devin-failure-system: 解题AI trajectory文件Schema文档
+commit,61e765f,,analysis-devin-failure-system: 连续打磨轮1-修复3个质量问题
+commit,8d9cbb6,,analysis-devin-failure-system: 修复CONNECTION_ERROR误判+data_collector支持从文件读题号
+commit,1b3dfd6,,analysis-devin-failure-system: result_collector支持从DB取completed的run
+commit,8155fd6,,analysis-devin-failure-system: 对齐solver_harness的启停——start/stop一键化+优雅退出
+commit,aa22530,,analysis-devin-failure-system: 用--prompt-file避免devin cli read AGENTS.md
+commit,14153ce,,analysis-devin-failure-system: 修复AGENTS.md模板——去掉注释行+手动替换占位符
+commit,3652d59,,analysis-devin-failure-system: 恢复3秒启动间隔，避免rate limit
+commit,d007691,,analysis-devin-failure-system: 去掉启动循环的sleep，快速启动所有并发槽
+commit,249ef81,,analysis-devin-failure-system: launcher对齐solver_harness的tmux启动方式
+commit,b932e0a,,analysis-devin-failure-system: feeder+launcher分离架构（对齐solver_harness）
+commit,ea1e841,,analysis-devin-failure-system: 运行时健康检查脚本+补全verify_completeness
+commit,76f72e1,,analysis-devin-failure-system: 完整异常处理+基础设施失败重试（对齐solver_harness）
+commit,ae9942c,,analysis-devin-failure-system: 动态并发调整（对齐solver_harness）
+commit,88d91d5,,analysis-devin-failure-system: 修复完成检测误判+新schema端到端验证通过
+commit,1a0d725,,analysis-devin-failure-system: 完整数据库+Redis队列对齐solver_harness
+commit,08d2e97,,analysis-devin-failure-system: 完整日志和监控脚本系统
+commit,118c042,,修复analysis-devin-failure-system的完成检测和XML解析
+commit,7e302da,,analysis-devin-failure-system: 错题分析系统代码库
+db-collection,analysis_runs,src/config.py,ANALYSIS_RUNS_COLLECTION=analysis_runs
+db-collection,analysis_events,src/config.py,ANALYSIS_EVENTS_COLLECTION=analysis_events
+db-collection,analysis_results,src/config.py,ANALYSIS_RESULTS_COLLECTION=analysis_results
+db-collection,analysis_batches,src/db_schema.py,ANALYSIS_BATCHES_COLLECTION=analysis_batches
+db-collection,analysis_counters,src/db_schema.py,ANALYSIS_COUNTERS_COLLECTION=analysis_counters
+db-collection,p27_continuation_batches,src/continuation_config.py,CONTINUATION_BATCHES_COLLECTION=p27_continuation_batches
+db-collection,p27_continuation_runs,src/continuation_config.py,CONTINUATION_RUNS_COLLECTION=p27_continuation_runs
+db-collection,p27_continuation_events,src/continuation_config.py,CONTINUATION_EVENTS_COLLECTION=p27_continuation_events
+db-collection,p27_continuation_results,src/continuation_config.py,CONTINUATION_RESULTS_COLLECTION=p27_continuation_results
+db-collection,p27_monitor_alerts,src/continuation_config.py,MONITOR_ALERTS_COLLECTION=p27_monitor_alerts
+db-collection,p27_sessions,src/continuation_config.py,SESSIONS_COLLECTION=p27_sessions
+db-collection,p27_session_counter,src/continuation_config.py,session counter key
+runtime-asset,SOLVER_BASE,.env.example,环境变量 SOLVER_BASE
+runtime-asset,TRAJECTORY_BASE,.env.example,环境变量 TRAJECTORY_BASE
+runtime-asset,DATASET_BASE,.env.example,环境变量 DATASET_BASE
+runtime-asset,KNOWLEDGE_BASE,.env.example,环境变量 KNOWLEDGE_BASE
+runtime-asset,ANALYSIS_SOLVER_BASE,src/config.py,派生路径 ANALYSIS_SOLVER_BASE
+runtime-asset,ANALYSIS_TRAJECTORY_BASE,src/config.py,派生路径 ANALYSIS_TRAJECTORY_BASE
+runtime-asset,OUTPUT_BASE,src/config.py,派生路径 OUTPUT_BASE
+runtime-asset,CONTINUATION_SOLVER_BASE,src/continuation_config.py,派生路径 CONTINUATION_SOLVER_BASE
+runtime-asset,CONTINUATION_TRAJECTORY_BASE,src/continuation_config.py,派生路径 CONTINUATION_TRAJECTORY_BASE
+runtime-asset,MONITOR_EXEC_EXPORT_BASE,src/continuation_config.py,派生路径 MONITOR_EXEC_EXPORT_BASE
+runtime-asset,POC_2_7_DIR,src/continuation_config.py,派生路径 POC_2_7_DIR

@@ -95,6 +95,11 @@ ASSET_TYPES = {
     "code": "代码（src/或monitoring/中的.py文件）",
     "script": "脚本（scripts/中的.sh或.py脚本）",
     "data": "数据资产",
+    "config": "配置文件（.env.example/src/config.py等）",
+    "template": "prompt模板文件（docs/templates/下的模板）",
+    # 运行时资产（不在repo文件树中，通过路径常量/环境变量引用）
+    "db-collection": "ArangoDB集合（如analysis_runs/p27_continuation_runs等）",
+    "runtime-asset": "运行时路径资产（如SOLVER_BASE/TRAJECTORY_BASE等路径常量）",
     # 第0层：原子单元（通过XPath-like路径表达，type仍用code/document等）
     #   代码函数/类：code类型，id含 :: 分隔符
     #   文档章节：document类型，id含 # 分隔符
@@ -119,6 +124,13 @@ RELATION_TYPES = {
     # 层级内关系
     "contains": "包含关系（文件→函数/章节，高层→低层）",
     "organizes": "组织关系（默认看法→看法文件，第3层→第2层）",
+    # 运行时关系（WP-TRACE-01新增，2026-08-19）
+    "reads-from": "代码读DB集合（code→db-collection）",
+    "writes-to": "代码写DB集合（code→db-collection）",
+    "configures": "配置项被代码引用（config→code）",
+    "generates": "代码生成运行时产物（code→runtime-asset）",
+    "uses-template": "launcher使用prompt模板（code→template）",
+    "indexes": "看法文件索引文档（view-file→document，indexed-by的反向）",
 }
 
 
