@@ -84,6 +84,7 @@ python pipe_control.py concurrency 50
 | selfrun-workflow.md | `analysis-devin-failure-system/docs/` | 使用selfrun模式时 |
 | solver-trajectory-schema.md | `analysis-devin-failure-system/docs/` | 处理trajectory数据时 |
 | p27_monitor_spec.md | `analysis-devin-failure-system/specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
+| **p27_session_management_and_polish_spec.md** | `analysis-devin-failure-system/specs/` | **Session编号化管理+打磨devin架构规范**——session注册表/DONE.md铁律/Polish Devin自动修复闭环。`p27_monitor_spec.md`的演进：后者定义"检查什么"，本规范定义"检查发现问题后怎么自动修复"和"session怎么管" |
 | POC-2.7/README.md | `POC-2.7/` | POC-2.7完整运行和检查指南 |
 
 ### 外部文档
