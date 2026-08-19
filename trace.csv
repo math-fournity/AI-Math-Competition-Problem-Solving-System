@@ -1725,6 +1725,8 @@ dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,docume
 dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,document,docs/templates/analysis_agents_md.md,produces,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md提及docs/templates/analysis_agents_md.md,
 dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,script,scripts/enumerate_assets.py,changes,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md提及scripts/enumerate_assets.py,
 dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,script,scripts/trace.py,changes,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md提及scripts/trace.py,
+dev-doc,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,comes-from,执行结果来自009方案,
+dev-doc,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,document,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,produces,全repo全资产幂等关系终极trace.csv的执行结果记录,
 document,.gitignore,commit,eb27fab,changed-in,目录重组：根文档移到docs/，POC-2.7数据移到data/，加.gitignore和.env.example,eb27fab
 document,AGENTS.md,commit,4b0bf33,changed-in,AGENTS.md加硬约束9（禁止绝对路径依赖）+目录重组方案文档,4b0bf33
 document,AGENTS.md,commit,8f66457,changed-in,创建README.md引导地图+AGENTS.md（read-sync skill）,8f66457
@@ -3906,3 +3908,4 @@ wp,WP-TRACE,commit,6a28bed,changed-in,新增WP-TRACE：全repo全资产幂等关
 wp,WP-TRACE,dev-doc,dev-docs/001-目录结构扁平化重组方案.md,comes-from,WP-TRACE引用dev-docs/001-目录结构扁平化重组方案.md,
 wp,WP-TRACE,dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,comes-from,WP-TRACE来自008需求,
 wp,WP-TRACE,dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,comes-from,WP-TRACE来自009方案,
+wp,WP-TRACE,dev-doc,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,produces,WP-TRACE的执行结果,
