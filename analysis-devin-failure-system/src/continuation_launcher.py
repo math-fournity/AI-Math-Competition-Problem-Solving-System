@@ -897,32 +897,35 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
             pane_text = tmux_pane_text(session_name)
 
-            # 检测完成——proof.md存在或有DEVIN_CLI_EXITED
+            # 检测完成——必须等devin cli自然退出后才处理
+            # proof.md只记录结果，不触发kill——等devin cli退出后export才写入
             is_done = False
             done_reason = ""
             proof_found = False
 
-            # 检查proof.md
+            # 预检proof.md（只记录，不触发完成）
             proof_path = Path(work_dir) / PROOF_FILE_NAME
             if proof_path.exists():
                 proof_text = proof_path.read_text()
                 if re.search(PROOF_COMPLETE_MARKER, proof_text):
-                    is_done = True
-                    done_reason = f"proof.md有boxed ({len(proof_text)}c)"
                     proof_found = True
+                    done_reason = f"proof.md有boxed ({len(proof_text)}c)"
+
+            # 检查devin cli退出——只有退出后才处理完成/失败
+            # 方式1: tmux session消失
+            # 方式2: pane中有DEVIN_CLI_EXITED标记（devin cli退出后tmux session不自动销毁）
+            devin_exited = "DEVIN_CLI_EXITED" in pane_text
+            if not tmux_running(session_name) or devin_exited:
+                # devin cli已退出——export已写入，现在可以安全处理
+                if proof_found:
+                    is_done = True
                     # 归档proof.md为round{N}_proof.md——防止后续round覆盖
                     archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
                     import shutil
                     shutil.copy2(proof_path, archived_proof)
                     logger.info(f"[{pid}] proof.md已归档为round{round_num}_proof.md")
-
-            # 检查devin cli退出
-            # 方式1: tmux session消失
-            # 方式2: pane中有DEVIN_CLI_EXITED标记（devin cli退出后tmux session不自动销毁）
-            devin_exited = "DEVIN_CLI_EXITED" in pane_text
-            if not tmux_running(session_name) or devin_exited:
-                if not is_done:
-                    # session退出——检查export
+                else:
+                    # devin cli退出但无proof.md——检查export判定完成/失败
                     comp, comp_reason = is_completed(export_path, work_dir)
                     if comp:
                         is_done = True
@@ -964,20 +967,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
                 # 检查这一轮是否真的完成（有proof.md）还是需要继续续传
                 if proof_found:
-                    # 真正完成——但先等待devin cli退出，确保export文件写入
-                    if not devin_exited:
-                        print(f"  [wait_export] {pid} R{round_num} — proof.md已生成，等待devin cli退出写export...")
-                        wait_start = time.time()
-                        while time.time() - wait_start < 60:  # 最多等60秒
-                            pane_text = tmux_pane_text(session_name)
-                            if "DEVIN_CLI_EXITED" in pane_text or not tmux_running(session_name):
-                                devin_exited = True
-                                break
-                            time.sleep(3)
-                        if not devin_exited:
-                            print(f"  [wait_export_timeout] {pid} R{round_num} — 60秒后devin cli仍未退出，强制kill")
+                    # 真正完成——devin cli已自然退出，export已写入
+                    # proof.md已在上面devin_exited分支中归档
 
-                    # 归档proof.md为round{N}_proof.md——防止后续round覆盖
                     archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
                     completed.append({"pid": pid, "round": round_num, "proof": str(archived_proof)})
                     to_remove.append(run_key)
