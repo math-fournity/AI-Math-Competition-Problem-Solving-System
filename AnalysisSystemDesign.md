@@ -84,7 +84,7 @@ python pipe_control.py concurrency 50
 | selfrun-workflow.md | `analysis-devin-failure-system/docs/` | 使用selfrun模式时 |
 | solver-trajectory-schema.md | `analysis-devin-failure-system/docs/` | 处理trajectory数据时 |
 | p27_monitor_spec.md | `analysis-devin-failure-system/specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
-| **p27_session_management_and_polish_spec.md** | `analysis-devin-failure-system/specs/` | **Session编号化管理+打磨devin架构规范**——session注册表/DONE.md铁律/Polish Devin自动修复闭环。`p27_monitor_spec.md`的演进：后者定义"检查什么"，本规范定义"检查发现问题后怎么自动修复"和"session怎么管" |
+| **p27_session_management_and_polish_spec.md** | `analysis-devin-failure-system/specs/` | **Session编号化管理+Monitor Pipe执行devin架构规范**——session注册表/DONE.md铁律/Monitor Exec Devin三位一体（检查+判断+修复）。`p27_monitor_spec.md`的演进：后者定义"检查什么"，本规范定义"Monitor Pipe执行devin怎么工作"和"session怎么管"。**修正了MonitorPipe.md §2.2的历史错误**——Monitor Pipe执行层恢复为Python(A/B类)+devin cli(C类+修复)两层架构，不再只是纯Python |
 | POC-2.7/README.md | `POC-2.7/` | POC-2.7完整运行和检查指南 |
 
 ### 外部文档
@@ -194,10 +194,14 @@ python pipe_control.py concurrency 50
 | `continuation_feeder.py` | `src/` | 入Redis队列 |
 | `continuation_launcher.py` | `src/` | **核心**——并发启动+stall/rate_limit/zombie检测+多轮续传+优雅停止+classify_failure+`make_round_log_entry()`+中间产物归档 |
 | `continuation_result_collector.py` | `src/` | 结果收集+通过率判定 |
-| `monitor_continuation.py` | `src/` | Pipe 4的Monitor Pipe守护进程（A1-A9+B1-B9+C1-C5） |
-| `continuation_control.py` | `monitoring/` | Pipe 4统一控制工具（start/stop/status/health/set-concurrency+stop_watchdog） |
+| `monitor_continuation.py` | `src/` | Pipe 4的Monitor Pipe守护进程Python部分（A1-A9+B1-B9+C类抽样标记+定时启动Monitor Exec Devin） |
+| `monitor_exec_launcher.py` | `src/` | **Monitor Pipe执行devin启动器**——定时启动devin cli做C类AI检查+修复（见`specs/p27_session_management_and_polish_spec.md` §B） |
+| `session_registry.py` | `src/` | **Session编号化管理**——seq分配+注册表CRUD+一致性检查（见`specs/p27_session_management_and_polish_spec.md` §A） |
+| `continuation_control.py` | `monitoring/` | Pipe 4统一控制工具（start/stop/status/health/set-concurrency+stop_watchdog+sessions管理） |
 | `continuation_watchdog.sh` | `scripts/` | watchdog脚本（每30秒检查服务存活） |
 | `p27_monitor_spec.md` | `specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
+| `p27_session_management_and_polish_spec.md` | `specs/` | **Session管理+Monitor Exec Devin架构规范**——session注册表/DONE.md铁律/三位一体工作循环 |
+| `monitor_exec_prompt.md` | `templates/` | Monitor Exec Devin的prompt模板 |
 | `monitor_check_continuation.sh` | `scripts/` | Pipe 4的检查脚本 |
 | `run_continuation_pipeline.py` | 根目录 | Pipe 4端到端入口 |
 
@@ -217,7 +221,7 @@ python pipe_control.py concurrency 50
 1. **独立自包含**（Pipe 4模式）——新Pipe不修改现有Pipe的代码，所有组件独立
 2. **优雅停止**——停launcher不kill devin实例，等running自然完成；**有watchdog时先停watchdog**
 3. **动态并发**——运行期可调整并发数，不需要重启
-4. **Monitor Pipe**——应该由AI智能检查的项目全部放入Pipe，结果收集到DB的alert集合
+4. **Monitor Pipe（两层执行层）**——应该由AI智能检查的项目由devin cli部分做（C类+修复），Python部分做A/B类自动检查。检查+修复的日常循环由Monitor Pipe执行devin完成，Master Agent只在用户主动询问或自愈循环失效时介入
 5. **DB-文件双向可追溯**——DB中run记录指向工作目录，工作目录有产出文件
 6. **痕迹保留**——alert写入ArangoDB，全过程可审计
 7. **中间产物不可覆盖**——每轮的中间产物用round编号区分路径，不被后续round覆盖（§6.6）

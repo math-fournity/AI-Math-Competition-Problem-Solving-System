@@ -71,7 +71,7 @@ Master AI（你——正在读这个文档的AI）在系统运行时的角色是
 2. **检查项目分类**：
    - A类自动检查（脚本判定，不需要AI）——session健康、队列推进、rate limit、僵尸session、export落地、失败率、launcher存活、stall检测
    - B类质量检查（脚本判定，系统特有）——产出完整性、格式正确性、字段填写率、值分布、逻辑一致性
-   - C类AI review抽样（需Master AI判断）——产出质量、语义正确性、方向正确性、幻觉检测、答案泄漏
+   - C类AI review抽样（devin cli部分做AI判断）——产出质量、语义正确性、方向正确性、幻觉检测、答案泄漏
 3. **检查标准**——每项的阈值、通过/不通过判定
 4. **alert结构**——alert_type/severity/details/status
 5. **运行规范**——检查间隔、退出条件、tmux session命名
@@ -79,29 +79,60 @@ Master AI（你——正在读这个文档的AI）在系统运行时的角色是
 
 **为什么提前落盘**：检查规范是系统资产（第2级资产，见`six-asset-grading.md`）。Monitor Pipe代码按规范实现，查询脚本按规范输出。规范文件和代码是"标准-实现"关系。Master AI处理alert时也参照规范中的检查标准。
 
-### 2.2 执行层——Monitor Pipe守护进程
+### 2.2 执行层——Monitor Pipe守护进程（两层架构）
 
-**承载方式**：devin cli非交互模式（`devin -p`），在独立tmux session中运行。
+**执行层包含两部分**：
 
-**为什么用devin cli非交互模式**：Monitor Pipe本身是一个需要持续运行的守护进程。用devin cli非交互模式承载，意味着Monitor Pipe可以：
+| 部分 | 承载 | 职责 |
+|---|---|---|
+| **Python部分** | `src/monitor_{system}.py`，Python脚本在tmux中持续运行 | A类自动检查 + B类质量检查 → 写alert到DB；定时启动devin cli部分 |
+| **devin cli部分** | devin cli非交互模式（`devin -p`），由Python部分定时启动 | C类AI智能性检查 + 发现问题的修复 + 写MONITOR_EXEC_REPORT.md |
+
+**为什么执行层要包含devin cli**（用户原意）：
+- Master Agent监控整个系统运行时，有些检查可以通过Python程序完成，有些检查需要AI的智能性
+- 把需要AI智能性的检查，放入Monitor Pipe——**Monitor Pipe应该启动一个devin cli，替Master Agent对整个系统做智能性检查**
+- devin cli部分不仅做C类AI检查，还做**发现问题的修复**——这是Monitor Pipe执行devin的自然延伸
+- Master Agent退出这个检查+修复的日常循环——Master Agent只在用户主动询问时介入，或自愈循环长时间无法解决问题时介入
+
+**Python部分**在tmux中持续运行：
 - 在tmux中持续运行，不依赖Master AI的session保持
-- 独立于Master AI的上下文窗口——Monitor Pipe的检查逻辑在代码中，不在prompt中
+- 独立于Master AI的上下文窗口——检查逻辑在代码中，不在prompt中
 - 所有任务完成后自动退出
 
-**实现**：`src/monitor_{system}.py`，Python脚本（不是devin cli的prompt——是普通Python脚本，在tmux中用`python -m src.monitor_{system}`运行）。
+**devin cli部分**由Python部分定时启动（每N分钟一轮）：
+- 在独立tmux session中运行，工作目录在外部（避免worktree AGENTS.md劫持）
+- 运行检查脚本获取系统状态 → 做C类AI判断 → 修复发现的问题 → 写报告 → 退出
+- export完整保留（DONE.md机制，见`specs/p27_session_management_and_polish_spec.md` §A.5）
+- 详见`specs/p27_session_management_and_polish_spec.md` §B
 
-> **澄清**：Monitor Pipe的承载是"在tmux中持续运行的Python脚本"。它不是devin cli实例——它是一个普通的Python守护进程。但它监控的对象（被监控的连续工作系统）中的每个工作单元是devin cli非交互模式实例。Monitor Pipe本身用Python实现是因为它需要操作Redis、ArangoDB、tmux，这些用Python比用devin cli的prompt更合适。
+> **历史说明**：本节曾有一个"澄清"段落，声称"Monitor Pipe不是devin cli实例——它是一个普通的Python守护进程"。这个澄清是对用户原意的降级——用户最初提出Monitor Pipe时，明确要求它启动一个devin cli做AI智能性检查。当前规范已修正，执行层恢复为Python+devin cli两层架构。
 
-**核心逻辑**（每轮循环）：
+**Python部分的核心逻辑**（每轮循环）：
 ```
 while True:
     1. 执行A类自动检查 → 发现问题生成alert
     2. 执行B类质量检查 → 发现问题生成alert
-    3. 每3轮执行C类AI review抽样 → 标记needs_ai_review
+    3. C类抽样标记needs_ai_review（供devin cli部分读取做AI判断）
     4. 创建alerts（写入DB的monitor_alerts集合）
-    5. 状态报告（print到tmux pane）
-    6. 检查退出条件（所有任务完成→退出）
-    7. sleep(interval)
+    5. 定时启动devin cli部分（检查无running的monitor_exec + 距上次完成已过interval）
+    6. 检查上一轮devin cli部分的DONE.md，出现的写monitor_exec_completed alert
+    7. 状态报告（print到tmux pane）
+    8. 检查退出条件（所有任务完成→退出）
+    9. sleep(interval)
+```
+
+**devin cli部分的核心逻辑**（每轮启动后）：
+```
+1. 运行检查脚本 → 获取系统状态 + 所有未处理alert + 行动清单
+2. 逐个读alert和产出文件 → 做C类AI智能性判断（proof质量/方向正确性/幻觉/答案泄漏）
+3. 发现问题 → 分类处理：
+   - 代码bug → 修复 → py_compile验证 → git commit
+   - 数据问题 → 记录（模型能力问题，不修代码）
+   - 基础设施问题 → 记录（等恢复）
+   - 需要重跑 → 改DB status重新入队
+   - 需要重启 → 重启服务
+4. 写MONITOR_EXEC_REPORT.md
+5. 退出（DONE.md出现）
 ```
 
 **alert写入DB**：alert存储在ArangoDB的独立集合中（如`p27_monitor_alerts`），每个alert有：
@@ -645,13 +676,15 @@ bash scripts/monitor_check_{name}.sh {name}-test
 
 ---
 
-## 7. 关键设计原则（来自用户原话）
+## 7. 关键设计原则（来自用户原话，2026-08-19修正）
 
 1. **Monitor Pipe的目的是让应该由Master AI进行智能检查的项目全部放入这个Pipe**——不是让Master AI手动检查，而是把检查项自动化，结果收集起来。
 2. **然后留下检查结果（alert）**——alert写入DB，持久化、可查询、可审计。
-3. **让Master AI的检查脚本可以查询到这些问题**——检查脚本是Master AI的入口，不是Monitor Pipe本身。
-4. **然后让Master AI可以整改**——Master AI看到alert后，对正在运行的系统进行调整、优化、排错。
-5. **查询脚本每次检查都要调用**——不是偶尔调用，而是每次检查都调用。
-6. **它在输出结果的最后提醒Master AI去检查Monitor Pipe留下的检查结果**——行动清单是核心设计。
-7. **能够规则化和代码化检查的内容，全面地进行检查，并放在检查的脚本中**——能代码化的全部代码化，不浪费AI的认知资源。
+3. **让检查脚本可以查询到这些问题**——检查脚本是被Monitor Pipe执行devin和Master AI共同使用的入口。
+4. **Monitor Pipe执行devin发现的问题由它自己修复**——执行devin做C类AI检查，发现问题后直接修复（代码bug→commit/数据问题→记录/需重跑→重新入队），不是只写alert等Master AI来修。Master AI退出这个检查+修复的日常循环。
+5. **查询脚本每次检查都要调用**——不是偶尔调用，而是每次检查都调用（Monitor Pipe执行devin每轮调用，Master AI主动询问时也调用）。
+6. **它在输出结果的最后附行动清单**——行动清单既指导Monitor Pipe执行devin的工作，也供Master AI主动询问时参考。
+7. **能够规则化和代码化检查的内容，全面地进行检查，并放在检查的脚本中**——能代码化的全部代码化（Python部分做），不浪费devin cli的认知资源；需要AI智能性的检查由devin cli部分做。
 8. **检查规范要提前落盘作为系统资产**——不是埋在代码里，而是独立可读的规范文件。
+
+> **修正说明**（2026-08-19）：原第3-4条把Master AI作为alert处理的唯一主体——"让Master AI的检查脚本可以查询到这些问题"和"让Master AI可以整改"。这背离了用户最初提出Monitor Pipe时的原意——Monitor Pipe应该启动devin cli替Master AI做智能性检查，而不是只写alert等Master AI来处理。当前修正恢复了执行层的devin cli部分，检查+修复的日常循环由Monitor Pipe执行devin完成，Master AI只在用户主动询问或自愈循环失效时介入。

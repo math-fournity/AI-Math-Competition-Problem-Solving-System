@@ -242,278 +242,397 @@ tmux有但注册表无（孤儿session，需人工检查）:
 
 ---
 
-## §B. 打磨devin架构规范
+## §B. Monitor Pipe执行devin架构规范
+
+### B.0 设计起源与当前实现的背离
+
+**用户原意**（Monitor Pipe最初提出时）：
+- Master Agent监控整个系统运行时，有些检查可以通过Python程序完成，有些检查需要AI的智能性
+- 把需要AI智能性的检查，放入Monitor Pipe
+- **Monitor Pipe应该启动一个devin cli，替Master Agent对整个系统做智能性检查**
+
+**当前实现的背离**（`monitor_continuation.py` 实际代码 + `MonitorPipe.md` §2.2"澄清"）：
+- Monitor Pipe被实现为纯Python脚本
+- C类"AI review"只写 `needs_ai_review=True` 标记到DB，没有启动devin cli，没有做任何AI判断
+- 真正的AI智能性检查落到了Master Agent头上——Master Agent运行检查脚本，看行动清单第7条去人工做C类检查
+- `MonitorPipe.md` §2.2甚至把"Monitor Pipe不是devin cli实例"写成了设计原则——这是对用户原意的降级
+
+**本规范的修正**：
+- Monitor Pipe的执行层恢复为**两层**：Python部分（A/B类，代码能做的）+ devin cli部分（C类，需要AI智能性的）
+- devin cli部分不仅做C类AI检查，还做**发现问题的修复**——这是Monitor Pipe执行devin的自然延伸
+- Master Agent退出这个检查+修复的循环——Master Agent只在用户主动询问时介入，或自愈循环长时间无法解决问题时介入
 
 ### B.1 角色定义
 
-**打磨devin**（Polish Devin）是POC-2.7系统的新角色：
+**Monitor Pipe执行devin**（Monitor Exec Devin）是Monitor Pipe执行层的AI部分，不是独立的新角色：
 
 | 角色 | 职责 | 启动方式 | export保留 |
 |---|---|---|---|
 | Solver Devin | 做数学题 | launcher自动启动 | 是（DONE.md机制） |
-| Handover Devin | 生成HANDOFF.md | launcher自动启动 | 是（DONE.md机制） |
-| **Polish Devin** | **修复系统代码bug** | **Monitor Pipe触发** | **是（DONE.md机制）** |
-| Master Agent | 检查系统健康、审计产出、决定是否接受Polish Devin的修复 | 用户session | - |
+| Handover Devin | 生成HANDOVER.md | launcher自动启动 | 是（DONE.md机制） |
+| **Monitor Exec Devin** | **C类AI检查 + 发现问题 + 修复问题** | **Python定时启动** | **是（DONE.md机制）** |
+| Master Agent | 用户主动询问时介入；自愈循环长时间无法解决时介入 | 用户session | - |
 
-**Polish Devin不是Master Agent**：
-- 不能spawn subagent（devin cli非交互模式本身就不支持subagent，但prompt里也要明确禁止）
-- 不能决定系统架构方向（只修alert指出的具体问题）
+**Monitor Exec Devin不是Master Agent**：
+- 不能spawn subagent（devin cli非交互模式本身不支持，prompt里也明确禁止）
+- 不能决定系统架构方向（只修具体问题，不改规范）
 - 不能push代码（只commit到本地，push需Master Agent在用户授意下做）
-- 不能修改AGENTS.md或spec文件（这些是规范，不是代码bug）
+- 不能修改AGENTS.md/spec/MonitorPipe.md/AnalysisSystemDesign.md等规范文件
 
-### B.2 触发条件
+### B.2 工作循环——三位一体
 
-Polish Devin由Monitor Pipe的alert触发。不是所有alert都触发Polish Devin——只有**代码可修复的alert**才触发：
+Monitor Exec Devin的工作是**检查+判断+修复**三位一体，不是三个独立角色，不是一个只检测不修复的旁观者：
 
-| alert类型 | 触发Polish Devin？ | 理由 |
-|---|---|---|
-| `export_missing` | ✅ | 代码bug——launcher的kill逻辑或DONE.md检测有问题 |
-| `proof_missing` | ❌ | 模型能力问题——AI没做出来，不是代码bug |
-| `rate_limit` | ❌ | 基础设施问题——等恢复即可，不是代码bug |
-| `session_registry_inconsistency` (A10) | ✅ | 代码bug——注册表同步逻辑有问题 |
-| `stuck_session_accumulated` (A11) | ❌ | 需要Master Agent判断——可能是devin cli真的卡了，需要人工kill |
-| `done_session_uncleaned` (A12) | ❌ | 不是bug——只是需要清理，Master Agent跑 `--clean-done` 即可 |
-| `rounds_log_integrity` (B8) | ✅ | 代码bug——rounds_log写入逻辑有问题 |
-| `intermediate_product_uniqueness` (B9) | ✅ | 代码bug——中间产物路径计算有问题 |
-| `proof_quality` (C1) | ❌ | 需要AI判断——不是代码bug |
-| `continuation_direction` (C5) | ❌ | 需要AI判断——不是代码bug |
+```
+Python定时启动Monitor Exec Devin（每N分钟一轮，或Monitor Pipe Python部分发现新alert时启动）
+  │
+  ▼
+Monitor Exec Devin执行（一个devin cli实例，非交互模式）:
+  │
+  ├── 1. 检查（运行检查脚本，获取系统状态）
+  │     bash monitor_check_continuation.sh p27-full
+  │     → 获取7项检查结果 + 所有未处理alert + 行动清单
+  │
+  ├── 2. 判断（AI智能性——C类检查在这里发生）
+  │     ├── 逐个读alert，判断是代码bug还是数据问题还是基础设施问题
+  │     ├── 对C类检查项做AI判断：
+  │     │   - 读proof.md判断数学正确性（C1 proof_quality）
+  │     │   - 读export判断方向正确性（C5 continuation_direction）
+  │     │   - 判断是否有幻觉（C2 proof_hallucination）
+  │     │   - 判断是否答案泄漏（C3 answer_leak）
+  │     │   - 判断handover质量（C4 handover_quality）
+  │     │   这些是Python做不了的，必须AI判断
+  │     └── 综合判断：哪些问题需要修复，哪些只需要记录
+  │
+  ├── 3. 修复（发现问题就去修）
+  │     ├── 代码bug → 读代码 → 定位根因 → 修复 → py_compile验证 → git commit
+  │     ├── 数据问题（如proof_missing但题没做出来）→ 标记为模型能力问题，不修代码
+  │     ├── 基础设施问题（如rate_limit）→ 不修，等恢复
+  │     ├── 需要重跑的题 → 改DB status为prepared重新入队
+  │     └── 需要重启的服务 → 重启launcher/monitor
+  │
+  ├── 4. 写MONITOR_EXEC_REPORT.md（本轮检查+修复的完整报告）
+  │     - 检查了什么、发现了什么、判断了什么、修复了什么、验证结果
+  │
+  └── 5. 退出（DONE.md出现）
+  │
+  ▼
+Python部分下一轮定时启动
+```
 
-**判定规则**：alert的 `alert_type` 在 `POLISH_TRIGGERABLE_ALERTS` 集合中 → 触发Polish Devin。
+**关键认知**：
+- **检查不是只检测不修复**——发现问题和修复问题是一个连续动作，不是两个角色
+- **判断由devin cli做，不由Python做**——Python不做"该不该修"的认知决策，devin cli自己判断
+- **Master Agent不在这个循环里**——Master Agent不需要事后审计每一轮，自愈循环自己运行
+- **C类检查在这里真正发生**——不再是写个标记等Master Agent来看，而是devin cli当场做AI判断
 
-**`POLISH_TRIGGERABLE_ALERTS`**（定义在 `continuation_config.py`）：
+### B.3 启动机制
+
+**Python部分**（`monitor_continuation.py` 的主循环）负责定时启动Monitor Exec Devin：
+
 ```python
-POLISH_TRIGGERABLE_ALERTS = {
-    "export_missing",
-    "session_registry_inconsistency",
-    "rounds_log_integrity",
-    "intermediate_product_uniqueness",
-    # 后续可扩展
-}
+# monitor_continuation.py 的主循环改动
+while True:
+    # A类 + B类检查（纯Python，不变）
+    run_ab_checks(db, batch_id)  # 写alert到DB
+
+    # ★ 新增：定时启动Monitor Exec Devin
+    if should_launch_monitor_exec(db, batch_id):
+        launch_monitor_exec(db, batch_id)
+
+    # 检查上一轮Monitor Exec Devin是否完成（DONE.md出现）
+    check_monitor_exec_completion(db, batch_id)
+
+    # 退出条件（不变）
+    if all_done(db, batch_id):
+        break
+
+    sleep(interval)
 ```
 
-### B.3 触发流程
+**`should_launch_monitor_exec(db, batch_id)` 的判断逻辑**：
+- 注册表中没有 `type=monitor_exec, status=running` 的记录（上一轮还没完成就不启动新的）
+- 距离上一轮Monitor Exec Devin完成已过 `MONITOR_EXEC_INTERVAL`（默认300秒）
+- 或者：有新的critical alert且上一轮已完成
+
+**不是由alert类型硬编码集合触发**——这是与之前Polish Devin设计的根本区别。Python不做"这个alert该不该修"的认知决策，只做"该不该启动一轮检查"的时序控制。修不修由devin cli自己判断。
+
+### B.4 Monitor Exec Devin的启动命令与工作目录
+
+**工作目录（cwd）**：在外部目录，不在worktree内——与Solver Devin相同的原因（避免worktree的AGENTS.md劫持devin cli行为）：
 
 ```
-Monitor Pipe发现alert (alert_type in POLISH_TRIGGERABLE_ALERTS)
-  │
-  ▼
-检查是否已有Polish Devin在处理同类型alert
-  │ (防止重复触发——同一alert_type最多1个Polish Devin并发)
-  ├── 已有 → 跳过，等现有的完成
-  └── 无 → 继续
-  │
-  ▼
-构造Polish Devin的prompt（见B.4）
-  │
-  ▼
-分配seq，创建注册表记录（type=polish, triggered_by_alert=alert_key）
-  │
-  ▼
-启动devin cli到tmux session:
-  devin -p --prompt-file {polish_prompt} --model glm-5-2-high \
-    --permission-mode dangerous --export {polish_export_path}; \
-    echo $? > {done_marker}; sleep 999999
-  │
-  ▼
-Polish Devin执行:
-  1. 读prompt中的alert详情和相关代码路径
-  2. 读git log --oneline -10了解最近修改
-  3. 定位bug → 修复 → compile验证
-  4. git add 具体路径 → git commit
-  5. 写POLISH_REPORT.md（修复了什么、怎么修的、验证结果）
-  6. 退出（DONE.md出现）
-  │
-  ▼
-Monitor Pipe下一轮检查发现Polish Devin的DONE.md
-  │
-  ▼
-写alert: polish_completed (severity=info, 含commit hash和POLISH_REPORT.md路径)
-  │
-  ▼
-Master Agent审:
-  1. 读Polish Devin的export（thinking过程）—— 看它怎么分析的
-  2. 读git diff —— 看它改了什么
-  3. 读POLISH_REPORT.md —— 看它的自述
-  4. 决定: 接受 / 回滚 / 手动修正
+/Volumes/data/p27-monitor-exec/{exec_seq}/
+  monitor_exec_prompt.txt     # 启动prompt
+  conversation.json           # --export的产出（完整thinking）
+  DONE.md                     # 退出标记
+  MONITOR_EXEC_REPORT.md      # 本轮检查+修复报告
+  tmux/tmux.log               # tmux日志
 ```
 
-### B.4 Polish Devin的Prompt构造
+**启动命令**（在 `monitor_continuation.py` 或新的 `monitor_exec_launcher.py` 中）：
 
-**核心原则**：prompt必须自包含——Polish Devin不需要读AGENTS.md（4216行），不需要了解整个系统架构，只需要知道这个alert、相关代码、打磨SOP。
+```bash
+work_dir="/Volumes/data/p27-monitor-exec/{exec_seq}"
+mkdir -p "$work_dir/tmux"
 
-**Prompt模板**（落盘到 `templates/polish_devin_prompt.md`）：
+devin -p \
+  --prompt-file "$work_dir/monitor_exec_prompt.txt" \
+  --model glm-5-2-high \
+  --respect-workspace-trust false \
+  --permission-mode dangerous \
+  --export "$work_dir/conversation.json"; \
+  echo $? > "$work_dir/DONE.md"; \
+  sleep 999999
+```
+
+**session命名**（进注册表，type=monitor_exec）：
+```
+p27-s{seq:04d}-monitor-exec-{exec_seq}
+例: p27-s0042-monitor-exec-7
+```
+
+### B.5 Monitor Exec Devin的Prompt构造
+
+**核心原则**：prompt自包含——Monitor Exec Devin不需要读worktree的AGENTS.md（4216行），只需要知道：
+1. 它是Monitor Pipe的执行devin，做检查+判断+修复
+2. 怎么运行检查脚本（获取系统状态）
+3. 系统的代码和规范在哪里（用绝对路径访问）
+4. 修复的约束（git规范、不能改什么）
+
+**Prompt模板**（落盘到 `templates/monitor_exec_prompt.md`）：
 
 ```markdown
-# 打磨任务
+# Monitor Pipe执行devin任务
 
-你是POC-2.7续传系统的代码修复devin。你的任务是修复一个具体的bug。
+你是POC-2.7续传系统的Monitor Pipe执行devin。你的任务是**检查系统状态 + 做AI智能性判断 + 修复发现的问题**。
+
+## 你的工作循环
+
+1. **检查**——运行检查脚本获取系统状态和所有未处理alert
+2. **判断**——逐个读alert和产出文件，做AI智能性判断（C类检查）
+3. **修复**——发现代码bug就修，发现数据问题就处理，发现基础设施问题就记录
+4. **报告**——写MONITOR_EXEC_REPORT.md
+5. **退出**
+
+## 第一步：运行检查脚本
+
+```bash
+cd /Users/user/glm5.2-math-worktree
+bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-full
+```
+
+读输出中的7项检查结果 + 所有未处理alert + 行动清单。
+
+## 第二步：做AI智能性判断（C类检查）
+
+对检查脚本输出中标记 `needs_ai_review` 的条目，逐个做AI判断：
+
+- **C1 proof_quality**：读proof.md，判断数学正确性
+- **C2 proof_hallucination**：判断proof是否有幻觉（编造定理/编造结果）
+- **C3 answer_leak**：判断是否答案泄漏（prompt中泄露了答案）
+- **C4 handover_quality**：读HANDOVER.md，判断交接文档质量
+- **C5 continuation_direction**：读export，判断续传方向是否正确（是在上一轮基础上继续还是从头重复）
+
+这些是Python做不了的判断，必须由你（AI）来做。
+
+## 第三步：修复发现的问题
+
+根据检查和判断的结果，分类处理：
+
+### 代码bug（如export_missing/rounds_log_integrity/intermediate_product_uniqueness）
+1. 读相关代码（用绝对路径）：
+   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/src/continuation_launcher.py
+   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/src/monitor_continuation.py
+   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/monitoring/continuation_control.py
+2. 定位根因（不是症状）
+3. 修复
+4. 验证：`python -m py_compile <修改的文件>`
+5. git commit（见下方git规范）
+
+### 数据问题（如proof_missing但题没做出来）
+- 这是模型能力问题，不是代码bug——不修代码
+- 在MONITOR_EXEC_REPORT.md中记录："X道题proof_missing，判定为模型能力问题，建议不重试"
+
+### 基础设施问题（如rate_limit/failed_connection）
+- 不修——等恢复
+- 在MONITOR_EXEC_REPORT.md中记录
+
+### 需要重跑的题
+- 改DB中run的status为prepared，重新入Redis队列
+- 命令：`cd analysis-devin-failure-system && .venv/bin/python3 -c "..."` （具体见续传规范）
+
+### 需要重启的服务
+- launcher挂了：`cd analysis-devin-failure-system && .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5`
+- monitor挂了：同上（start命令会同时启动launcher和monitor）
 
 ## 严格约束
 
-1. **只修这个bug**——不要重构、不要改架构、不要"顺便"修其他问题
-2. **不能spawn subagent**——你自己完成所有工作
-3. **不能push代码**——只commit到本地
-4. **不能修改以下文件**——它们是规范，不是代码bug：
-   - AGENTS.md
-   - specs/*.md
-   - MonitorPipe.md
-   - AnalysisSystemDesign.md
-   - .devin/rules/*.md
-5. **git操作规范**：
+1. **不能spawn subagent**——你自己完成所有工作
+2. **不能push代码**——只commit到本地
+3. **不能修改以下文件**——它们是规范，不是bug：
+   - /Users/user/glm5.2-math-worktree/AGENTS.md
+   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/*.md
+   - /Users/user/glm5.2-math-worktree/MonitorPipe.md
+   - /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md
+   - /Users/user/glm5.2-math-worktree/.devin/rules/*.md
+4. **git操作规范**：
    - 禁止 `git add -A` / `git add .` / `git add -u`
    - 只 `git add <具体路径>`
-   - commit message格式：`修复<alert_type>: <一句话描述>`
+   - git命令用 `-C /Users/user/glm5.2-math-worktree` 指定repo
+   - commit message格式：`修复<alert_type或问题简述>: <一句话描述>`
    - commit message末尾加：
      ```
      Generated with [Devin](https://devin.ai)
 
      Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
      ```
-6. **修完必须验证**——运行 `python -m py_compile <修改的文件>` 确认无语法错误
-7. **写POLISH_REPORT.md**——在work_dir中写一份修复报告（见下方格式）
+5. **修完必须验证**——`python -m py_compile <修改的文件>` 确认无语法错误
+6. **写MONITOR_EXEC_REPORT.md**——在work_dir中写本轮报告（见下方格式）
+7. **只修本轮发现的问题**——不要重构、不要改架构、不要"顺便"修其他问题
+
+## 系统规范参考（如需要）
+
+以下文档帮助你理解系统，用绝对路径读取：
+- /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md —— 错题分析系统设计总索引
+- /Users/user/glm5.2-math-worktree/MonitorPipe.md —— Monitor Pipe设计范式
+- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— 检查规范（A/B/C类定义）
+- /Users/user/glm5.2-math-worktree/续传规范文档.md —— 续传机制标准规范
 
 ## 最近的代码修改（git log --oneline -10）
 
 {git_log_recent}
 
-## 你要修的bug
-
-**alert类型**: {alert_type}
-**alert详情**: {alert_details}
-**相关代码文件**: {relevant_code_paths}
-**相关代码片段**:
-
-{relevant_code_snippets}
-
-## 修复步骤
-
-1. 读相关代码文件，理解当前逻辑
-2. 定位bug的根因（不是症状）
-3. 修复bug
-4. 运行 `python -m py_compile <修改的文件>` 验证语法
-5. `git add <具体路径>` + `git commit`
-6. 写POLISH_REPORT.md
-
-## POLISH_REPORT.md格式
+## MONITOR_EXEC_REPORT.md格式
 
 ```markdown
-# Polish Report
+# Monitor Exec Report #{exec_seq}
 
-**alert**: {alert_key}
-**alert_type**: {alert_type}
-**commit**: {commit_hash}
+**时间**: {timestamp}
+**检查批次**: p27-full
 
-## 问题根因
+## 检查结果摘要
 
-（bug的根本原因，不是症状）
+- A类alert: X个
+- B类alert: Y个
+- C类AI判断: Z项（其中W项有问题）
 
-## 修复方案
+## C类AI判断详情
 
-（怎么修的，为什么这么修）
+### C1 proof_quality
+- problem_id X: 判定PASS/FAIL，原因...
+- problem_id Y: 判定PASS/FAIL，原因...
 
-## 验证
+### C5 continuation_direction
+- problem_id Z: 判定方向正确/方向错误，原因...
 
-- [ ] py_compile通过
-- [ ] git commit成功
+## 修复操作
 
-## 可能的副作用
+### 修复1: {alert_type或问题简述}
+- 根因: ...
+- 修复: ...
+- commit: {hash}
+- 验证: py_compile通过
 
-（这次修改可能影响什么，如果不确定就写"不确定"）
+### 修复2: ...
+
+## 未修复的问题（及原因）
+
+- {问题}: {为什么不修——模型能力问题/基础设施问题/需要用户决策}
+
+## 下一轮建议
+
+- {如果有的话}
 ```
 ```
 
-**Prompt构造逻辑**（在 `monitor_continuation.py` 或新的 `polish_launcher.py` 中）：
+**Prompt构造逻辑**（在 `monitor_continuation.py` 或 `monitor_exec_launcher.py` 中）：
 
 ```python
-def build_polish_prompt(alert, db):
-    # 1. 从alert的details获取相关代码路径
-    relevant_paths = identify_relevant_code(alert["alert_type"], alert["details"])
-    # 2. 读取相关代码片段（每个文件最多200行，避免prompt过大）
-    snippets = {p: read_code_snippet(p, max_lines=200) for p in relevant_paths}
-    # 3. 获取最近git log
+def build_monitor_exec_prompt(exec_seq, db):
     git_log = subprocess.run(
         ["git", "log", "--oneline", "-10"],
-        capture_output=True, text=True, cwd=PROJECT_ROOT
+        capture_output=True, text=True,
+        cwd="/Users/user/glm5.2-math-worktree"
     ).stdout
-    # 4. 填充模板
-    return render_template("templates/polish_devin_prompt.md", {
-        "alert_type": alert["alert_type"],
-        "alert_details": json.dumps(alert["details"], ensure_ascii=False, indent=2),
-        "relevant_code_paths": "\n".join(relevant_paths),
-        "relevant_code_snippets": "\n\n".join(
-            f"### {p}\n```\n{s}\n```" for p, s in snippets.items()
-        ),
+    return render_template("templates/monitor_exec_prompt.md", {
+        "exec_seq": exec_seq,
         "git_log_recent": git_log,
     })
 ```
 
-**`identify_relevant_code(alert_type, details)`** 的映射规则：
+**注意**：prompt不注入alert详情——Monitor Exec Devin自己运行检查脚本获取alert，自己做判断。Python不做任何认知层面的预筛选。
 
-| alert_type | 相关代码 |
-|---|---|
-| `export_missing` | `src/continuation_launcher.py`（kill逻辑、DONE.md检测） |
-| `session_registry_inconsistency` | `src/continuation_launcher.py` + `monitoring/continuation_control.py`（注册表同步） |
-| `rounds_log_integrity` | `src/continuation_launcher.py`（`make_round_log_entry`、所有写rounds_log的地方） |
-| `intermediate_product_uniqueness` | `src/continuation_launcher.py`（路径计算逻辑） |
+### B.6 export保留与session管理
 
-### B.5 Polish Devin的export保留
-
-Polish Devin的export路径：
+Monitor Exec Devin的export路径：
 
 ```
-/Volumes/data/p27-polish/{alert_key}/conversation.json
-/Volumes/data/p27-polish/{alert_key}/DONE.md
-/Volumes/data/p27-polish/{alert_key}/POLISH_REPORT.md
-/Volumes/data/p27-polish/{alert_key}/tmux/tmux.log
+/Volumes/data/p27-monitor-exec/{exec_seq}/conversation.json
+/Volumes/data/p27-monitor-exec/{exec_seq}/DONE.md
+/Volumes/data/p27-monitor-exec/{exec_seq}/MONITOR_EXEC_REPORT.md
+/Volumes/data/p27-monitor-exec/{exec_seq}/tmux/tmux.log
 ```
 
-**保留铁律**：与Solver Devin相同——等DONE.md出现才处理，绝不主动kill无DONE.md的session。
+**保留铁律**：与Solver Devin相同——等DONE.md出现才处理，绝不主动kill无DONE.md的session（见§A.5）。
 
-**与Solver Devin的隔离**：
-- 工作目录隔离：Polish Devin在 `/Volumes/data/p27-polish/{alert_key}/`，Solver在 `/Volumes/data/p27-trajectories/{run_key}/`
-- tmux session命名隔离：`p27-s{seq}-polish-*` vs `p27-s{seq}-solve-*`
-- 并发槽隔离：Polish Devin不占Solver的并发槽（有独立的 `polish_concurrency` 配置，默认1）
+**与Solver/Handover Devin的隔离**：
+- 工作目录隔离：Monitor Exec Devin在 `/Volumes/data/p27-monitor-exec/{exec_seq}/`，Solver在 `/Volumes/data/.../p27-continuation/{run_key}/`
+- tmux session命名隔离：`p27-s{seq}-monitor-exec-*` vs `p27-s{seq}-solve-*` vs `p27-s{seq}-handover-*`
+- 并发槽隔离：Monitor Exec Devin不占Solver的并发槽（有独立的 `monitor_exec_concurrency` 配置，默认1）
 
-### B.6 Polish Devin的并发控制
+**session注册表记录**（type=monitor_exec）：
+```python
+{
+    "_key": "p27-s0042",
+    "seq": 42,
+    "session_name": "p27-s0042-monitor-exec-7",
+    "type": "monitor_exec",
+    "exec_seq": 7,                    # 第几轮Monitor Exec
+    "batch_id": "p27-full",
+    "started_at": "...",
+    "done_md": False,
+    "export_path": "/Volumes/data/p27-monitor-exec/7/conversation.json",
+    "work_dir": "/Volumes/data/p27-monitor-exec/7/",
+    "status": "running",              # running | done | stuck | cleaned
+    "report_path": "/Volumes/data/p27-monitor-exec/7/MONITOR_EXEC_REPORT.md",
+}
+```
 
-**默认并发=1**：同一时间最多1个Polish Devin在跑。理由：
-- Polish Devin会commit代码，多个并发修改可能冲突
-- Polish Devin的修复需要Master Agent事后审计，并发多了审计不过来
+### B.7 并发控制
 
-**防重复触发**：Monitor Pipe每轮检查时，先查注册表是否已有 `type=polish, status=running, triggered_by_alert_type=X` 的记录。有则跳过，无则触发。
+**默认并发=1**：同一时间最多1个Monitor Exec Devin在跑。理由：
+- Monitor Exec Devin会commit代码，多个并发修改可能git冲突
+- Monitor Exec Devin每轮做完整检查+修复，并发了会重复检查同样的问题
+- 一轮检查+修复通常几分钟到十几分钟，串行足够
+
+**防重复启动**：Python部分启动前查注册表，已有 `type=monitor_exec, status=running` 就不启动新的。
 
 **配置**（`continuation_config.py`）：
 ```python
-POLISH_CONCURRENCY = 1
-POLISH_TRIGGERABLE_ALERTS = {
-    "export_missing",
-    "session_registry_inconsistency",
-    "rounds_log_integrity",
-    "intermediate_product_uniqueness",
-}
-POLISH_EXPORT_BASE = Path("/Volumes/data/p27-polish")
-POLISH_MAX_RUNTIME_SECONDS = 600  # Polish Devin最多跑10分钟
+MONITOR_EXEC_CONCURRENCY = 1
+MONITOR_EXEC_INTERVAL = 300          # 两轮之间的最小间隔（秒）
+MONITOR_EXEC_EXPORT_BASE = Path("/Volumes/data/p27-monitor-exec")
+MONITOR_EXEC_MAX_RUNTIME_SECONDS = 900  # 一轮最多15分钟
 ```
 
-### B.7 Master Agent的审计职责
+### B.8 Master Agent的职责（精简后）
 
-Polish Devin完成后，Master Agent必须审计：
+Master Agent**退出检查+修复的日常循环**，只在以下情况介入：
 
-1. **读export的thinking**——Polish Devin是怎么分析bug的？逻辑对不对？
-2. **读git diff**——实际改了什么？是不是只改了该改的？
-3. **读POLISH_REPORT.md**——自述的根因和修复方案对不对？
-4. **决定**：
-   - **接受**：修复正确，继续运行系统
-   - **回滚**：`git revert <commit>`，修复错误，重新触发或手动修
-   - **手动修正**：Polish Devin方向对但不完整，Master Agent在它的基础上继续修
+1. **用户主动询问**——用户问"系统怎么样了"，Master Agent运行检查脚本汇报
+2. **自愈循环长时间无法解决**——Monitor Exec Devin连续多轮修不好同一个问题，Master Agent介入手动处理
+3. **需要push代码**——Monitor Exec Devin只commit，push需Master Agent在用户授意下做
+4. **需要修改规范**——Monitor Exec Devin不能改AGENTS.md/spec，规范变更走Master Agent + 用户
+5. **stuck session清理**——无DONE.md的session只有Master Agent在用户授意下才能kill（见§A.5）
 
-**审计的触发**：Monitor Pipe写 `polish_completed` alert后，Master Agent在下次循环监控时通过检查脚本看到这个alert，执行审计。
+**Master Agent不再做的事**：
+- 不再每轮运行检查脚本看行动清单——Monitor Exec Devin在做
+- 不再做C类AI判断——Monitor Exec Devin在做
+- 不再修代码bug——Monitor Exec Devin在做
+- 不再事后审计每个修复——自愈循环自己验证（下一轮检查会发现上一轮修的对不对）
 
-**审计的SOP**（加到 `monitor_check_continuation.sh` 的行动清单）：
-```
-   9. 有polish_completed alert时——读Polish Devin的export和git diff，决定接受/回滚/手动修正
-```
-
+**这个改变解决的核心问题**：Master Agent在长程打磨中上下文增长导致遗忘约定——现在打磨工作不在Master Agent的session里，而在Monitor Exec Devin的独立devin cli实例里，每个实例的prompt自包含，不受Master Agent session压缩影响。
 ---
 
 ## §C. 实施Checklist
@@ -573,53 +692,54 @@ Polish Devin完成后，Master Agent必须审计：
 - [ ] 模拟stop --force：验证done的清理、stuck的保留
 - [ ] `sessions --consistency-check`：验证能发现注册表/tmux不一致
 
-### C.2 阶段2：打磨devin架构（阶段1完成后做）
+### C.2 阶段2：Monitor Pipe执行devin架构（阶段1完成后做）
 
 #### C.2.1 配置与模板
 
-- [ ] `continuation_config.py`：新增 `POLISH_CONCURRENCY`/`POLISH_TRIGGERABLE_ALERTS`/`POLISH_EXPORT_BASE`/`POLISH_MAX_RUNTIME_SECONDS`
-- [ ] 新建 `templates/polish_devin_prompt.md`：Polish Devin的prompt模板（见B.4）
-- [ ] `continuation_db_schema.py`：`p27_sessions` 的type字段支持 `polish`（已在schema中，确认即可）
+- [ ] `continuation_config.py`：新增 `MONITOR_EXEC_CONCURRENCY`/`MONITOR_EXEC_INTERVAL`/`MONITOR_EXEC_EXPORT_BASE`/`MONITOR_EXEC_MAX_RUNTIME_SECONDS`
+- [ ] 新建 `templates/monitor_exec_prompt.md`：Monitor Exec Devin的prompt模板（见B.5）
+- [ ] `continuation_db_schema.py`：`p27_sessions` 的type字段支持 `monitor_exec`（已在schema中，确认即可）
 
-#### C.2.2 Polish Devin启动器
+#### C.2.2 Monitor Exec Devin启动器
 
-- [ ] 新建 `src/polish_launcher.py`：
-  - `should_trigger_polish(alert, db) -> bool`：判断是否触发（alert_type在POLISH_TRIGGERABLE_ALERTS中 + 无同类型Polish Devin在跑）
-  - `build_polish_prompt(alert, db) -> str`：构造prompt（见B.4的构造逻辑）
-  - `identify_relevant_code(alert_type, details) -> list[Path]`：alert_type到代码路径的映射
-  - `launch_polish(alert, db) -> session_name`：分配seq + 创建注册表记录 + 启动devin cli到tmux
-  - `check_polish_completion(db) -> list[completed_polish]`：检查哪些Polish Devin的DONE.md出现了
-- [ ] `polish_launcher.py`：复用 `launch_solve` 的DONE.md机制和tmux log机制
+- [ ] 新建 `src/monitor_exec_launcher.py`：
+  - `should_launch_monitor_exec(db, batch_id) -> bool`：判断是否启动新一轮（无running的monitor_exec + 距上次完成已过interval）
+  - `build_monitor_exec_prompt(exec_seq, db) -> str`：构造prompt（见B.5的构造逻辑）
+  - `launch_monitor_exec(db, batch_id) -> session_name`：分配seq + 创建注册表记录 + 启动devin cli到tmux
+  - `check_monitor_exec_completion(db, batch_id) -> list[completed]`：检查哪些Monitor Exec Devin的DONE.md出现了
+- [ ] `monitor_exec_launcher.py`：复用 `launch_solve` 的DONE.md机制和tmux log机制
 
 #### C.2.3 Monitor Pipe集成
 
-- [ ] `monitor_continuation.py`：主循环中加入Polish Devin触发逻辑——每轮检查完A/B/C类后，扫描new alert中是否有 `POLISH_TRIGGERABLE_ALERTS`，有则调 `launch_polish`
-- [ ] `monitor_continuation.py`：每轮检查Polish Devin的DONE.md，出现的写 `polish_completed` alert
-- [ ] `monitor_continuation.py`：Polish Devin超时（`POLISH_MAX_RUNTIME_SECONDS`）标记stuck，不kill
-- [ ] `p27_monitor_spec.md`：新增 §4 Polish Devin触发规范
-- [ ] `monitor_check_continuation.sh`：行动清单加入第9项"有polish_completed alert时审计"
+- [ ] `monitor_continuation.py`：主循环中加入Monitor Exec Devin启动逻辑——每轮A/B类检查后，调 `should_launch_monitor_exec`，True则调 `launch_monitor_exec`
+- [ ] `monitor_continuation.py`：每轮检查Monitor Exec Devin的DONE.md，出现的写 `monitor_exec_completed` alert（含MONITOR_EXEC_REPORT.md路径）
+- [ ] `monitor_continuation.py`：Monitor Exec Devin超时（`MONITOR_EXEC_MAX_RUNTIME_SECONDS`）标记stuck，不kill
+- [ ] `monitor_continuation.py`：C类检查的 `flag_for_ai_review()` 改为只做抽样标记（Monitor Exec Devin会读这些标记做真正的AI判断），不再只写标记等Master Agent
+- [ ] `p27_monitor_spec.md`：新增 §4 Monitor Exec Devin规范（引用本spec §B）
+- [ ] `monitor_check_continuation.sh`：行动清单精简——去掉"AI_REVIEW抽样结果需Master Agent检查"（现在Monitor Exec Devin做），改为"有monitor_exec_completed alert时可选读REPORT了解本轮修复"
 
-#### C.2.4 Master Agent审计支持
+#### C.2.4 export与report查看支持
 
-- [ ] `monitor_check_continuation.sh`：第2项alerts输出中，`polish_completed` 类型的alert显示commit hash和POLISH_REPORT.md路径
-- [ ] `continuation_control.py`：新增 `audit-polish <session_key>` 命令——一键展示Polish Devin的export thinking + git diff + POLISH_REPORT.md
+- [ ] `monitor_check_continuation.sh`：第2项alerts输出中，`monitor_exec_completed` 类型的alert显示MONITOR_EXEC_REPORT.md路径和commit hash（如有）
+- [ ] `continuation_control.py`：新增 `view-exec <session_key>` 命令——一键展示Monitor Exec Devin的MONITOR_EXEC_REPORT.md + git log -3（最近修复）
 
 #### C.2.5 验证
 
-- [ ] 手动构造一个 `export_missing` alert，触发Polish Devin，验证完整流程
-- [ ] 验证Polish Devin的export被完整保留（DONE.md机制）
-- [ ] 验证Polish Devin不能修改AGENTS.md/spec文件（prompt约束 + 事后审计）
-- [ ] 验证防重复触发（同类型alert不会启动第二个Polish Devin）
-- [ ] 验证Master Agent的审计命令 `audit-polish` 输出正确
+- [ ] 手动启动一轮Monitor Exec Devin，验证完整流程（检查→判断→修复→报告→退出）
+- [ ] 验证Monitor Exec Devin的export被完整保留（DONE.md机制）
+- [ ] 验证Monitor Exec Devin不能修改AGENTS.md/spec文件（prompt约束）
+- [ ] 验证防重复启动（上一轮running时不启动新的）
+- [ ] 验证C类AI判断真正发生（proof.md被读取并判断，不是只写标记）
+- [ ] 验证Master Agent不介入时系统自愈（构造一个代码bug，Monitor Exec Devin自己修）
 
 ### C.3 阶段3：文档同步（阶段1和2完成后做）
 
-- [ ] `AnalysisSystemDesign.md`：§2文档体系加入本spec
-- [ ] `AnalysisSystemDesign.md`：§4代码资产索引加入 `session_registry.py`/`polish_launcher.py`
-- [ ] `MonitorPipe.md`：新增 §7 "Polish Devin闭环"（如果认定为范式演进）
-- [ ] `AGENTS.md`：POC-2.7章节更新——加入session管理和Polish Devin的简要说明
-- [ ] `docs/architecture.md`：加入session注册表和Polish Devin架构
-- [ ] `docs/framework-checklist.md`：加入session管理和Polish Devin的检查项
+- [ ] `AnalysisSystemDesign.md`：§2文档体系加入本spec；§5设计原则更新——Monitor Pipe执行层包含Python+devin cli两部分
+- [ ] `AnalysisSystemDesign.md`：§4代码资产索引加入 `session_registry.py`/`monitor_exec_launcher.py`/`templates/monitor_exec_prompt.md`
+- [ ] `MonitorPipe.md`：§2.2修正——去掉"Monitor Pipe不是devin cli实例"的错误澄清，改为执行层两层架构定义（Python A/B类 + devin cli C类+修复）；新增Monitor Exec Devin工作循环说明
+- [ ] `AGENTS.md`：POC-2.7章节更新——加入session管理和Monitor Exec Devin的简要说明；Master Agent职责精简
+- [ ] `docs/architecture.md`：加入session注册表和Monitor Exec Devin架构
+- [ ] `docs/framework-checklist.md`：加入session管理和Monitor Exec Devin的检查项
 
 ---
 
@@ -650,17 +770,17 @@ Polish Devin完成后，Master Agent必须审计：
 
 | 反模式 | 发生commit | 根因 | 本规范的对策 |
 |---|---|---|---|
-| **无proof.md被判定completed** | 5cbf027 | `is_completed`在有message输出但无proof.md时返回True | B.4：Polish Devin可修此类bug（alert_type=proof_missing不触发Polish Devin，但rounds_log_integrity会触发检查） |
+| **无proof.md被判定completed** | 5cbf027 | `is_completed`在有message输出但无proof.md时返回True | B.5：Monitor Exec Devin做C类检查时可发现此类问题并修复（检查脚本的B8 rounds_log_integrity会触发alert） |
 | **中间产物路径互相覆盖** | 06cb5c7 | `generate_handover`路径计算错误，所有题共用同一文件 | A.3：注册表记录export_path，B9检查唯一性（已有，本规范强化） |
-| **rounds_log字段名不匹配** | 06cb5c7 | 写入用"export"读取用"export_path" | B.4：Polish Devin可修此类bug（alert_type=rounds_log_integrity触发） |
+| **rounds_log字段名不匹配** | 06cb5c7 | 写入用"export"读取用"export_path" | B.5：Monitor Exec Devin读alert后修此类bug（rounds_log_integrity触发） |
 
 ### D.4 上下文漂移类
 
 | 反模式 | 发生commit | 根因 | 本规范的对策 |
 |---|---|---|---|
-| **alert从未被resolve，堆积2327个** | 003e990 | 没有自动resolve机制，每次monitor轮次都创建新alert | B.3：Polish Devin完成后自动写polish_completed alert，Master Agent审计后resolve原alert |
+| **alert从未被resolve，堆积2327个** | 003e990 | 没有自动resolve机制，每次monitor轮次都创建新alert | B.2：Monitor Exec Devin每轮处理alert，修复后resolve原alert；未修复的保留供下一轮 |
 | **检查脚本输出13235行** | 003e990 | pane捕获200行 + alert全量输出 | A.6：`sessions`命令有状态过滤，不全量输出 |
-| **Master Agent遗忘打磨约定** | 30个commit的修复过程 | 约定散落在AGENTS.md/dev-docs/commit message | B.4：Polish Devin的prompt自包含SOP，不依赖Master Agent记忆 |
+| **Master Agent遗忘打磨约定** | 30个commit的修复过程 | 约定散落在AGENTS.md/dev-docs/commit message | B.5：Monitor Exec Devin的prompt自包含SOP，不依赖Master Agent记忆；打磨工作不在Master Agent session里 |
 
 ---
 
@@ -673,23 +793,25 @@ Polish Devin完成后，Master Agent必须审计：
 - 已有ArangoDB连接，加一个collection成本为零
 - 注册表可以查询历史（"上周创建过多少session"），文件不行
 
-### E.2 为什么Polish Devin并发=1
+### E.2 为什么Monitor Exec Devin并发=1
 
-- Polish Devin会commit代码，多个并发修改可能git冲突
-- Polish Devin的修复需要Master Agent事后审计，并发多了审计不过来
-- 代码bug不像数学题那样需要大规模并行——一个一个修更安全
+- Monitor Exec Devin会commit代码，多个并发修改可能git冲突
+- 每轮做完整检查+修复，并发了会重复检查同样的问题
+- 一轮通常几分钟到十几分钟，串行足够
+- 不需要Master Agent事后审计每一轮——自愈循环自己验证（下一轮检查会发现上一轮修的对不对）
 
-### E.3 为什么Polish Devin不能修改AGENTS.md/spec
+### E.3 为什么Monitor Exec Devin不能修改AGENTS.md/spec
 
 - AGENTS.md和spec是规范，修改规范需要用户参与讨论
-- Polish Devin只修代码bug，不修规范——规范变更走Master Agent + 用户
-- 如果bug的根因确实是规范有问题，Polish Devin在POLISH_REPORT.md中提出，Master Agent决定是否启动规范变更流程
+- Monitor Exec Devin只修代码bug，不修规范——规范变更走Master Agent + 用户
+- 如果bug的根因确实是规范有问题，Monitor Exec Devin在MONITOR_EXEC_REPORT.md中提出，Master Agent决定是否启动规范变更流程
 
-### E.4 为什么不把Polish Devin做成subagent
+### E.4 为什么不把Monitor Exec Devin做成subagent
 
 - devin cli非交互模式本身不支持subagent
-- subagent的输出不直接保留——Polish Devin的export是完整thinking，可审计
-- subagent由Master Agent的session承载，session压缩后subagent上下文丢失——Polish Devin是独立devin cli实例，不受Master Agent session影响
+- subagent的输出不直接保留——Monitor Exec Devin的export是完整thinking，可审计
+- subagent由Master Agent的session承载，session压缩后subagent上下文丢失——Monitor Exec Devin是独立devin cli实例，不受Master Agent session影响
+- 这正是解决"Master Agent上下文漂移"的关键：打磨工作在独立devin cli里，不在Master Agent session里
 
 ### E.5 为什么stuck session不自动kill
 
@@ -704,11 +826,11 @@ Polish Devin完成后，Master Agent必须审计：
 
 | 现有规范 | 本规范的关系 |
 |---|---|
-| `p27_monitor_spec.md` | 本规范是其演进——后者定义"检查什么"，本规范定义"检查发现问题后怎么自动修复"和"session怎么管" |
-| `MonitorPipe.md` | 本规范的§B可能成为MonitorPipe.md的新章节"Polish Devin闭环"——如果认定为跨项目范式 |
-| `续传规范文档.md` | 无直接关系——续传规范定义HANDOFF.md结构，本规范定义session管理和Polish Devin |
-| `AnalysisSystemDesign.md` | 本规范加入其§2文档体系索引 |
-| `.devin/rules/code-doc-sync.md` | 本规范的Polish Devin也需遵守——改代码后同步文档（但Polish Devin不能改AGENTS.md/spec，只能改docs/下的模块文档） |
+| `p27_monitor_spec.md` | 本规范是其演进——后者定义"检查什么"，本规范定义"Monitor Pipe执行devin怎么工作"和"session怎么管" |
+| `MonitorPipe.md` | 本规范的§B修正了MonitorPipe.md §2.2的错误澄清——Monitor Pipe执行层包含Python+devin cli两部分，不是纯Python |
+| `续传规范文档.md` | 无直接关系——续传规范定义HANDOFF.md结构，本规范定义session管理和Monitor Exec Devin |
+| `AnalysisSystemDesign.md` | 本规范加入其§2文档体系索引；其§5设计原则需更新 |
+| `.devin/rules/code-doc-sync.md` | Monitor Exec Devin也需遵守——改代码后同步文档（但不能改AGENTS.md/spec，只能改docs/下的模块文档） |
 
 ---
 
@@ -716,8 +838,10 @@ Polish Devin完成后，Master Agent必须审计：
 
 以下问题本规范暂不决定，留待实施时由用户确认：
 
-1. **Polish Devin的model**：用 `glm-5-2-high`（与Solver相同）还是用其他model？——默认与Solver相同，但Polish Devin是代码修复不是数学，可能其他model更合适
-2. **Polish Devin的permission_mode**：用 `dangerous`（与Solver相同）？——Polish Devin需要exec（py_compile）和git操作，需要dangerous
+1. **Monitor Exec Devin的model**：用 `glm-5-2-high`（与Solver相同）还是用其他model？——默认与Solver相同，但Monitor Exec Devin是代码修复+系统检查不是数学，可能其他model更合适
+2. **Monitor Exec Devin的permission_mode**：用 `dangerous`（与Solver相同）？——Monitor Exec Devin需要exec（py_compile/检查脚本）和git操作，需要dangerous
 3. **stuck session的自动清理阈值**：stuck超过多少个或多少时间后自动告警？——A11的标准（>5 warning, >10 critical）是初步值，需要运行中调整
-4. **Polish Devin能否修改docs/下的模块文档**：当前规范允许（code-doc-sync rule要求），但docs/的修改也可能有争议——实施时观察
-5. **Polish Devin的修复是否自动触发系统重启**：当前规范不自动重启（Polish Devin只commit，不重启launcher）——Master Agent审计后决定是否重启
+4. **Monitor Exec Devin能否修改docs/下的模块文档**：当前规范允许（code-doc-sync rule要求），但docs/的修改也可能有争议——实施时观察
+5. **Monitor Exec Devin的修复是否自动触发系统重启**：当前规范不自动重启（只commit，不重启launcher）——如果修复的bug需要重启才生效，Monitor Exec Devin在REPORT中建议，下一轮或Master Agent决定
+6. **Monitor Exec Devin的启动间隔**：默认300秒（5分钟）是否合适？——太频繁浪费API配额，太慢问题修复不及时，需要运行中调整
+7. **自愈循环的escalation机制**：Monitor Exec Devin连续多轮修不好同一个问题时，何时escalate给Master Agent？——需要定义"连续N轮同一alert未resolve"的阈值
