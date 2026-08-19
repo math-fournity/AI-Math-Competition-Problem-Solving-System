@@ -8,7 +8,7 @@
 
 ## 一、系统认知层——核心入口与全景
 
-### `docs/AnalysisSystem.md` — 新Session接手AI的完整加载指南
+### `docs/system/AnalysisSystem.md` — 新Session接手AI的完整加载指南
 
 新Session AI接手数学大师系统时的入口文档。讲"你在哪、系统是什么状态、要读什么、要做什么"——基本信息（工作目录/Git分支/Python环境/数据库）、项目一句话和三句话定义、当前系统状态（正在进行的核心工作、POC进度）、工作类型分类。
 
@@ -18,11 +18,11 @@
 - 了解当前POC状态——POC-2.7续传Pipe系统进展
 - 判断下一步要做什么——工作类型分类指引
 
-**依赖关系**：读完后通常需要加载 `docs/AnalysisSystemDesign.md`（设计总索引）或 `docs/AnalysisSystemOps.md`（运行操作手册），取决于要设计还是运行。
+**依赖关系**：读完后通常需要加载 `docs/system/AnalysisSystemDesign.md`（设计总索引）或 `docs/system/AnalysisSystemOps.md`（运行操作手册），取决于要设计还是运行。
 
-### `docs/AnalysisSystemDesign.md` — 错题分析系统设计总索引
+### `docs/system/AnalysisSystemDesign.md` — 错题分析系统设计总索引
 
-错题分析系统（`analysis-devin-failure-system/`）的设计总索引。快速入口（创建新Pipe/运行现有Pipe/停止系统）、架构决策、组件职责、设计原则。与 Ops 分工：Design=设计总索引/架构/决策，Ops=运行操作/SOP/检查清单。
+错题分析系统的设计总索引。快速入口（创建新Pipe/运行现有Pipe/停止系统）、架构决策、组件职责、设计原则。与 Ops 分工：Design=设计总索引/架构/决策，Ops=运行操作/SOP/检查清单。
 
 **覆盖问题场景**：
 - 创建新Pipe时——12项必查清单入口、11步操作指南入口
@@ -31,11 +31,11 @@
 - 理解架构决策时——4个Pipe的演进、组件解耦设计
 - 查找设计文档时——索引所有需要看的文档和代码资产
 
-**依赖关系**：创建新Pipe时另读 `analysis-devin-failure-system/docs/framework-checklist.md` + `docs/MonitorPipe.md` §6；涉及多轮续传时另读 `docs/续传规范文档.md`；运行操作细节另读 `docs/AnalysisSystemOps.md`。
+**依赖关系**：创建新Pipe时另读 `docs/architecture/framework-checklist.md` + `docs/patterns/MonitorPipe.md` §6；涉及多轮续传时另读 `docs/patterns/续传规范文档.md`；运行操作细节另读 `docs/system/AnalysisSystemOps.md`。
 
-### `docs/AnalysisSystemOps.md` — 错题分析系统运行操作手册
+### `docs/system/AnalysisSystemOps.md` — 错题分析系统运行操作手册
 
-错题分析系统（`analysis-devin-failure-system/`）的运行操作手册。SOP、检查清单、打磨记录。5组件架构详解（data_collector/feeder/analysis_launcher/result_collector/aggregator）、运行监控操作、问题排查SOP、历史打磨记录。从原 AGENTS.md 第3518-4216行外移（2026-08-19瘦身工程）。
+错题分析系统的运行操作手册。SOP、检查清单、打磨记录。5组件架构详解（data_collector/feeder/analysis_launcher/result_collector/aggregator）、运行监控操作、问题排查SOP、历史打磨记录。从原 AGENTS.md 第3518-4216行外移（2026-08-19瘦身工程）。
 
 **覆盖问题场景**：
 - 运行/监控/调试错题分析系统时
@@ -44,13 +44,13 @@
 - 排查运行问题时——rate limit/stall/zombie/session管理
 - 查阅历史打磨记录时——已知问题和修复历史
 
-**依赖关系**：涉及系统设计时另读 `docs/AnalysisSystemDesign.md`；涉及Monitor Pipe检查时另读 `analysis-devin-failure-system/specs/p27_monitor_spec.md`；涉及续传时另读 `docs/续传规范文档.md`。
+**依赖关系**：涉及系统设计时另读 `docs/system/AnalysisSystemDesign.md`；涉及Monitor Pipe检查时另读 `docs/specs/p27_monitor_spec.md`；涉及续传时另读 `docs/patterns/续传规范文档.md`。
 
 ---
 
 ## 二、设计范式层——跨项目元方法论
 
-### `docs/MonitorPipe.md` — Monitor Pipe设计范式
+### `docs/patterns/MonitorPipe.md` — Monitor Pipe设计范式
 
 跨项目的"连续工作系统Monitor Pipe+检查脚本"设计范式。定义如何写检查规范、如何实现Monitor Pipe、如何写检查脚本的三层架构（规范层/实现层/查询层）。不是某个具体系统的文档，是元范式。具体系统的检查规范是系统资产（如 `specs/p27_monitor_spec.md`）。
 
@@ -60,9 +60,9 @@
 - 编写检查脚本时——查询脚本设计模式
 - 理解Master AI在连续工作系统中的检查者角色时
 
-**依赖关系**：具体系统的检查规范是该系统的系统资产（如 `analysis-devin-failure-system/specs/p27_monitor_spec.md`）；本地版见 `analysis-devin-failure-system/docs/monitor-pipe-pattern.md`。
+**依赖关系**：具体系统的检查规范是该系统的系统资产（如 `docs/specs/p27_monitor_spec.md`）；本地版见 `docs/architecture/monitor-pipe-pattern.md`。
 
-### `docs/续传规范文档.md` — HANDOFF标准（交接文档续传方案）
+### `docs/patterns/续传规范文档.md` — HANDOFF标准（交接文档续传方案）
 
 定义交接文档（HANDOFF.md）的标准结构、提取规则、循环操作流程。八个必填章节、续传不是"拼接thinking"而是"交接研究"的核心认知、截断/完成判定标准、prompt模板。源自POC-2.6续传机制v1方案（机械拼接reasoning_content）的改进。
 
@@ -72,62 +72,50 @@
 - 判定AI是否被截断/是否完成时
 - 理解续传的核心认知转变时——从"拼接thinking"到"交接研究"
 
-**依赖关系**：续传实现代码在 `analysis-devin-failure-system/`（Pipe 4）；运行操作见 `docs/AnalysisSystemOps.md`。
+**依赖关系**：续传实现代码在 `src/continuation_*.py`（Pipe 4）；运行操作见 `docs/system/AnalysisSystemOps.md`。
 
 ---
 
-## 三、子系统——analysis-devin-failure-system/
+## 三、架构设计——docs/architecture/
 
-### `analysis-devin-failure-system/README.md` — 子系统快速导航
+### `docs/architecture/` — 架构设计文档（9个）
 
-批量并发devin cli实例运行框架的入口。4个Pipe（分析/审计/选题/续传）快速导航、创建新Pipe流程、运行现有Pipe命令速查、停止/调整并发操作、文档体系索引、架构概览、共享基础设施、设计原则。
+架构设计文档集。每个文档覆盖一个设计方面：
 
-**覆盖问题场景**：
-- 第一次进入子系统时——了解4个Pipe和整体架构
-- 创建新Pipe时——必读清单入口
-- 运行/停止/调整现有Pipe时——命令速查
-- 查找子系统内文档时——docs/specs/templates索引
-
-**依赖关系**：创建新Pipe时另读 `docs/framework-checklist.md`；运行操作细节另读根目录 `docs/AnalysisSystemOps.md`；Monitor Pipe设计另读根目录 `docs/MonitorPipe.md`。
-
-### `analysis-devin-failure-system/docs/` — 架构设计文档（8个）
-
-子系统本地架构设计文档集。每个文档覆盖一个设计方面：
-
-- **`framework-checklist.md`** — 新Pipe必读的12项必查清单。**覆盖场景**：创建新Pipe前。**依赖**：配合 `docs/MonitorPipe.md` §6 使用。
-- **`architecture.md`** — 4个Pipe的演进与组件职责。**覆盖场景**：理解系统整体架构时。**依赖**：设计总索引见根目录 `docs/AnalysisSystemDesign.md`。
+- **`framework-checklist.md`** — 新Pipe必读的12项必查清单。**覆盖场景**：创建新Pipe前。**依赖**：配合 `docs/patterns/MonitorPipe.md` §6 使用。
+- **`architecture.md`** — 4个Pipe的演进与组件职责。**覆盖场景**：理解系统整体架构时。**依赖**：设计总索引见根目录 `docs/system/AnalysisSystemDesign.md`。
 - **`graceful-shutdown.md`** — 优雅停止设计（信号处理、不kill devin实例）。**覆盖场景**：实现停止功能时。
 - **`dynamic-concurrency.md`** — 动态并发设计（运行期调整并发数）。**覆盖场景**：实现并发调整时。
-- **`monitor-pipe-pattern.md`** — Monitor Pipe设计范式（本地版）。**覆盖场景**：实现Monitor Pipe时。**依赖**：完整范式见根目录 `docs/MonitorPipe.md`。
-- **`operational-concerns.md`** — 运维关注点（rate limit/stall/zombie/多轮续传/断点续传）。**覆盖场景**：实现launcher核心逻辑时。**依赖**：运行操作SOP见根目录 `docs/AnalysisSystemOps.md`。
-- **`selfrun-workflow.md`** — selfrun工作流。**覆盖场景**：使用selfrun模式时。**依赖**：selfrun任务模板见 `templates/selfrun_subagent_task.md`。
+- **`monitor-pipe-pattern.md`** — Monitor Pipe设计范式（本地版）。**覆盖场景**：实现Monitor Pipe时。**依赖**：完整范式见根目录 `docs/patterns/MonitorPipe.md`。
+- **`operational-concerns.md`** — 运维关注点（rate limit/stall/zombie/多轮续传/断点续传）。**覆盖场景**：实现launcher核心逻辑时。**依赖**：运行操作SOP见根目录 `docs/system/AnalysisSystemOps.md`。
+- **`selfrun-workflow.md`** — selfrun工作流。**覆盖场景**：使用selfrun模式时。**依赖**：selfrun任务模板见 `docs/templates/selfrun_subagent_task.md`。
 - **`solver-trajectory-schema.md`** — trajectory数据schema。**覆盖场景**：处理trajectory数据时。
 - **`solver-harness-borrowing.md`** — 解题系统借鉴分析（7个值得借鉴的设计）。**覆盖场景**：从解题系统借鉴设计到错题分析系统时、理解多模块解耦/独立服务设计时。
 
-### `analysis-devin-failure-system/specs/` — 检查规范（系统资产，3个）
+### `docs/specs/` — 检查规范（系统资产，3个）
 
 POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行依据：
 
-- **`p27_monitor_spec.md`** — Pipe 4续传的检查规范（A类9项自动检查/B类9项续传质量/C类5项AI判断）。**覆盖场景**：实现Monitor Pipe检查逻辑时、查阅检查标准时。**依赖**：设计范式见根目录 `docs/MonitorPipe.md`。
+- **`p27_monitor_spec.md`** — Pipe 4续传的检查规范（A类9项自动检查/B类9项续传质量/C类5项AI判断）。**覆盖场景**：实现Monitor Pipe检查逻辑时、查阅检查标准时。**依赖**：设计范式见根目录 `docs/patterns/MonitorPipe.md`。
 - **`p27_session_management_and_polish_spec.md`** — Session编号化管理与打磨devin架构规范。**覆盖场景**：实现session编号化管理时、实现Monitor Exec Devin自动修复架构时。**依赖**：前置依赖 `p27_monitor_spec.md`。
 - **`p27_monitor_pipe_operations.md`** — Monitor Pipe操作规范（Monitor Exec Devin的认知资产入口）。**覆盖场景**：Monitor Exec Devin启动时加载、查找所有认知资产入口时。**依赖**：检查规范详情见 `p27_monitor_spec.md`、session管理见 `p27_session_management_and_polish_spec.md`。
 
-### `analysis-devin-failure-system/templates/` — 模板（4个）
+### `docs/templates/` — 模板（4个）
 
 各Pipe的AGENTS.md模板和selfrun任务模板：
 
 - **`analysis_agents_md.md`** — 分析Pipe的AGENTS.md模板（devin cli分析失败题的prompt）。**覆盖场景**：构造分析任务AGENTS.md时。
 - **`audit_agents_md.md`** — 审计Pipe的AGENTS.md模板。**覆盖场景**：构造审计任务AGENTS.md时。
 - **`selection_agents_md.md`** — 选题Pipe的AGENTS.md模板。**覆盖场景**：构造选题任务AGENTS.md时。
-- **`selfrun_subagent_task.md`** — selfrun模式subagent任务执行规范（v3）。**覆盖场景**：使用selfrun模式替代devin cli载体时。**依赖**：selfrun工作流见 `docs/selfrun-workflow.md`。
+- **`selfrun_subagent_task.md`** — selfrun模式subagent任务执行规范（v3）。**覆盖场景**：使用selfrun模式替代devin cli载体时。**依赖**：selfrun工作流见 `docs/architecture/selfrun-workflow.md`。
 
 ---
 
-## 四、开发工作包管理——AnalysisSystem开发/
+## 四、开发工作包管理——dev/
 
-### `AnalysisSystem开发/README.md` — 目录说明（静态）
+### `dev/README.md` — 目录说明（静态）
 
-`AnalysisSystem开发/` 目录的结构说明+使用指南。目录结构图、文件类型说明、README与INDEX的关系、编号规则（需求点编号/工作包编号）、新AI接手时的阅读顺序、维护规则。静态文档，很少改。
+`dev/` 目录的结构说明+使用指南。目录结构图、文件类型说明、README与INDEX的关系、编号规则（需求点编号/工作包编号）、新AI接手时的阅读顺序、维护规则。静态文档，很少改。
 
 **覆盖问题场景**：
 - 第一次进入开发工作包目录时——了解这里有什么、怎么导航
@@ -137,7 +125,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 **依赖关系**：读完后读 `INDEX.md` 了解当前进度；读 `CheckList.md` 了解全部需求点。
 
-### `AnalysisSystem开发/INDEX.md` — 工作包跟踪表（动态）
+### `dev/INDEX.md` — 工作包跟踪表（动态）
 
 10个工作包（WP-01~WP-10）的清单+依赖图+执行顺序+当前系统状态。动态文档，经常改。包含WP状态（待执行/进行中/完成）、优先级（P0/P1/P2）、依赖关系图、执行顺序建议、当前系统状态快照、铁律提醒。
 
@@ -149,7 +137,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 **依赖关系**：执行某个WP时读对应的 `WP-XX-*.md`；了解需求点详情读 `CheckList.md`。
 
-### `AnalysisSystem开发/CheckList.md` — 需求点全集
+### `dev/CheckList.md` — 需求点全集
 
 错题分析系统全部功能需求点的分门别类清单。13门类127+个需求点，编号+状态标记。用途：开发前确认无遗漏、开发中WP和commit可引用编号、验收时逐项打勾、跨session新AI一眼看清全貌。状态标记：`[ ]`待做/`[~]`进行中/`[x]`已完成/`[!]`已知有问题/`[-]`决定不做。
 
@@ -161,7 +149,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 **依赖关系**：需求点详情读 `CheckPoints/<门类>/<编号>.md`（如存在）；Exec Devin必读子集见 `CheckList-ExecDevin.md`。
 
-### `AnalysisSystem开发/CheckList-ExecDevin.md` — Exec Devin必读子集
+### `dev/CheckList-ExecDevin.md` — Exec Devin必读子集
 
 从CheckList全集提取的Exec Devin必读需求点（约68个，第一档+第二档）。Monitor Exec Devin的执行依据。
 
@@ -169,9 +157,9 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 - Monitor Exec Devin启动时加载——知道自己要检查什么
 - 确认Exec Devin的必读需求点时
 
-**依赖关系**：完整需求点见 `CheckList.md`；检查规范见 `analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md`。
+**依赖关系**：完整需求点见 `CheckList.md`；检查规范见 `docs/specs/p27_monitor_pipe_operations.md`。
 
-### `AnalysisSystem开发/WP-01~WP-10` — 工作包实施计划（10个）
+### `dev/WP-01~WP-10` — 工作包实施计划（10个）
 
 10个工作包的实施计划文件。每个WP包含：目标、要读的文档、任务清单（带打勾）、验证标准、依赖关系。WP编号稳定不重排。
 
@@ -200,14 +188,14 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 2. `python3 -m venv .venv && source .venv/bin/activate`
 3. `pip install python-arango redis pyarrow pandas`
 4. `source .env`
-5. `cd analysis-devin-failure-system && python -m monitoring.continuation_control status --batch-id p27-full`
+5. `python -m monitoring.continuation_control status --batch-id p27-full`
 
 ### 目录结构
 
-见 `AnalysisSystem开发/README.md`
+见 `dev/README.md`
 
 ### git 历史
 
 本 repo 从数学大师 repo（`/Users/user/glm5.2-math-worktree/`）用 git filter-repo 拆分而来，
-保留了 `analysis-devin-failure-system/`、`AnalysisSystem开发/`、5 个设计文档、POC-2.7 数据、
+保留了 `src/`、`monitoring/`、`dev/`、5 个设计文档、POC-2.7 数据、
 conversation_mapper.py 的完整 commit 历史。

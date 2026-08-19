@@ -18,11 +18,11 @@
 
 | 文档 | 位置 | 用途 |
 |---|---|---|
-| AnalysisSystem.md | `docs/` | 新Session接手AI的完整加载指南 |
-| AnalysisSystemDesign.md | `docs/` | 错题分析系统设计总索引 |
-| AnalysisSystemOps.md | `docs/` | 错题分析系统运行操作手册 |
-| MonitorPipe.md | `docs/` | Monitor Pipe设计范式（跨项目元范式） |
-| 续传规范文档.md | `docs/` | HANDOFF标准（交接文档续传方案） |
+| AnalysisSystem.md | `docs/system/` | 新Session接手AI的完整加载指南 |
+| AnalysisSystemDesign.md | `docs/system/` | 错题分析系统设计总索引 |
+| AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
+| MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
+| 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
 
 详细定位和依赖关系见 `README.md` 引导地图。
 
@@ -30,7 +30,7 @@
 
 ## 硬约束
 
-1. **改代码必须同步更新第一级文档**——`docs/*.md` + `AnalysisSystemDesign.md` §4 + specs 实现细节
+1. **改代码必须同步更新第一级文档**——`docs/system/*.md` + `docs/architecture/*.md` + `docs/specs/*.md`
 2. **git 显式路径 add**——禁止 `git add -A` / `git add .` / `git add -u`
 3. **绝不 kill 无 DONE.md 的 session**
 4. **长时间命令用 tmux**——下载/编译/同步/daemon 必须在 tmux 中运行
@@ -48,6 +48,6 @@
 2. `python3 -m venv .venv && source .venv/bin/activate`
 3. `pip install python-arango redis pyarrow pandas`
 4. `source .env`
-5. `cd analysis-devin-failure-system && python -m monitoring.continuation_control status --batch-id p27-full`
+5. `python -m monitoring.continuation_control status --batch-id p27-full`
 
 启动前必须确认：`echo $ARANGO_DB` 输出 `xishujuzhen_math_glm52`。如果没设置，先 `source .env`。
