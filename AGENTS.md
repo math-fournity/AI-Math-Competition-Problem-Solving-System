@@ -1,5 +1,20 @@
 # AGENTS.md — 错题分析系统
 
+## ⚠️ Master Agent 检查工作指令（最前面，不可截断）
+
+**当你在做题系统工作中需要检查系统状态时**：
+
+1. 运行检查脚本：`./scripts/monitor_check_continuation.sh <batch_id>`
+2. 仔细阅读脚本输出的"AI后续检查清单"部分
+3. 全文加载 `checklist/MasterAgentCheck.md`
+4. 逐项处理清单中的每一项
+5. 每完成一项立即 commit（含 trace.csv 同步）
+6. 全部处理完后写执行结果记录
+
+**这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
+
+---
+
 > **强制声明**：本 repo 的 AI 工作引导地图在 `README.md`。AI 必须先用 read 工具完整加载 `README.md`，才能回答用户的问题或进行后续操作。README.md 描述了每个文档讲什么、覆盖哪些问题场景、和其他文档的关系。
 >
 > 本文件只放铁律 + 最小索引。文档详细定位见 `README.md` 引导地图。
