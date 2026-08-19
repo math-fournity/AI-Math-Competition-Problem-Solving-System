@@ -964,7 +964,20 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
                 # 检查这一轮是否真的完成（有proof.md）还是需要继续续传
                 if proof_found:
-                    # 真正完成
+                    # 真正完成——但先等待devin cli退出，确保export文件写入
+                    if not devin_exited:
+                        print(f"  [wait_export] {pid} R{round_num} — proof.md已生成，等待devin cli退出写export...")
+                        wait_start = time.time()
+                        while time.time() - wait_start < 60:  # 最多等60秒
+                            pane_text = tmux_pane_text(session_name)
+                            if "DEVIN_CLI_EXITED" in pane_text or not tmux_running(session_name):
+                                devin_exited = True
+                                break
+                            time.sleep(3)
+                        if not devin_exited:
+                            print(f"  [wait_export_timeout] {pid} R{round_num} — 60秒后devin cli仍未退出，强制kill")
+
+                    # 归档proof.md为round{N}_proof.md——防止后续round覆盖
                     archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
                     completed.append({"pid": pid, "round": round_num, "proof": str(archived_proof)})
                     to_remove.append(run_key)
