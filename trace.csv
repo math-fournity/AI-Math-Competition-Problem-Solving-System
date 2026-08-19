@@ -54,3 +54,5 @@ document,checklist/README.md,commit,f1ca691,changed-in,从CheckList.md精简为�
 document,docs/specs/p27_monitor_spec.md,checkpoint,MON-A1,verifies,p27规范验证A类检查项1,
 document,docs/specs/p27_monitor_spec.md,document,docs/specs/p27_monitor_spec.md#A类检查项,contains,,
 wp,WP-09,dev-doc,dev-docs/002-checklist-working-packages拆分.md,comes-from,WP-09的checklist索引在002方案中建立,
+wp,WP-TRACE,dev-doc,dev-docs/008-全repo全资产幂等关系终极trace.csv.md,comes-from,WP-TRACE来自008需求,
+wp,WP-TRACE,dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,comes-from,WP-TRACE来自009方案,
