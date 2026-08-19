@@ -1,0 +1,256 @@
+{
+  "omni_math_004100": {
+    "problem_id": "omni_math_004100",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004100/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=53613c, msg=0, tc=0, comp=25000",
+        "rc_chars": 53613
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004100/round2/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=51c, msg=732c, tc=0, comp=475",
+        "rc_chars": 1134,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004100/round2/exports/conversation.json"
+  },
+  "omni_math_004123": {
+    "problem_id": "omni_math_004123",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004123/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=54777c, msg=0, tc=0, comp=25000",
+        "rc_chars": 54777
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004123/round2/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=51c, msg=940c, tc=0, comp=634",
+        "rc_chars": 727,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004123/round2/exports/conversation.json"
+  },
+  "omni_math_004127": {
+    "problem_id": "omni_math_004127",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004127/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=66363c, msg=0, tc=0, comp=25000",
+        "rc_chars": 66363
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004127/round2/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=51c, msg=472c, tc=0, comp=310",
+        "rc_chars": 9700,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004127/round2/exports/conversation.json"
+  },
+  "omni_math_004105": {
+    "problem_id": "omni_math_004105",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004105/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=54471c, msg=0, tc=0, comp=25000",
+        "rc_chars": 97312
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004105/round2/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=51c, msg=909c, tc=0, comp=605",
+        "rc_chars": 41294,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004105/round2/exports/conversation.json"
+  },
+  "omni_math_004116": {
+    "problem_id": "omni_math_004116",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004116/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=67990c, msg=0, tc=0, comp=25000",
+        "rc_chars": 67990
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004116/round2/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=66274c, msg=0, tc=0, comp=25000",
+        "rc_chars": 66274,
+        "completed": false
+      },
+      {
+        "round": 3,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004116/round3/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=54c, msg=1425c, tc=0, comp=498",
+        "rc_chars": 49429,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004116/round3/exports/conversation.json"
+  },
+  "omni_math_004128": {
+    "problem_id": "omni_math_004128",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004128/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=62558c, msg=0, tc=0, comp=25000",
+        "rc_chars": 62558
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004128/round2/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=54222c, msg=0, tc=0, comp=25000",
+        "rc_chars": 54222,
+        "completed": false
+      },
+      {
+        "round": 3,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004128/round3/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=0c, msg=1029c, tc=0, comp=652",
+        "rc_chars": 419,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004128/round3/exports/conversation.json"
+  },
+  "omni_math_004133": {
+    "problem_id": "omni_math_004133",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004133/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=58824c, msg=0, tc=0, comp=25000",
+        "rc_chars": 58824
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004133/round2/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=751c, msg=803c, tc=0, comp=795",
+        "rc_chars": 128540,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004133/round2/exports/conversation.json"
+  },
+  "omni_math_004146": {
+    "problem_id": "omni_math_004146",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004146/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=60905c, msg=0, tc=0, comp=25000",
+        "rc_chars": 60905
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004146/round2/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=58419c, msg=0, tc=0, comp=25000",
+        "rc_chars": 58419,
+        "completed": false
+      },
+      {
+        "round": 3,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004146/round3/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=64975c, msg=0, tc=0, comp=25000",
+        "rc_chars": 64975,
+        "completed": false
+      },
+      {
+        "round": 4,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004146/round4/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=0c, msg=774c, tc=0, comp=436",
+        "rc_chars": 34513,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-omni_math_004146/round4/exports/conversation.json"
+  },
+  "mathnet_001631": {
+    "problem_id": "mathnet_001631",
+    "rounds": [
+      {
+        "round": 1,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round1/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=57659c, msg=0, tc=0, comp=25000",
+        "rc_chars": 149563
+      },
+      {
+        "round": 2,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round2/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=57100c, msg=0, tc=0, comp=25000",
+        "rc_chars": 57100,
+        "completed": false
+      },
+      {
+        "round": 3,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round3/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=57839c, msg=0, tc=0, comp=25000",
+        "rc_chars": 57839,
+        "completed": false
+      },
+      {
+        "round": 4,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round4/exports/conversation.json",
+        "truncated": true,
+        "reason": "rc=56364c, msg=0, tc=0, comp=25000",
+        "rc_chars": 121798,
+        "completed": false
+      },
+      {
+        "round": 5,
+        "export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round5/exports/conversation.json",
+        "truncated": false,
+        "reason": "completed: rc=596c, msg=1794c, tc=0, comp=875",
+        "rc_chars": 76947,
+        "completed": true
+      }
+    ],
+    "final_status": "COMPLETED",
+    "final_export": "/Users/user/glm5.2-math-worktree/Tell分类学研究过程文档/poc_assets/poc_2.7/poc_2.7/trajectories/p27-mathnet_001631/round5/exports/conversation.json"
+  }
+}
