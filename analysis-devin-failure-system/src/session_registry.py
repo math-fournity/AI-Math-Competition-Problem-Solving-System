@@ -216,6 +216,9 @@ def list_sessions(db, batch_id: str = None, status: str = None,
     """
     filters = []
     bind_vars = {}
+    # 排除session_counter文档（它也在这个集合中，但不是session记录）
+    filters.append(f"s._key != @counter_key")
+    bind_vars["counter_key"] = SESSION_COUNTER_KEY
     if batch_id:
         filters.append("s.batch_id == @batch_id")
         bind_vars["batch_id"] = batch_id

@@ -519,6 +519,89 @@ def cmd_set_concurrency(args):
 
 
 # ============================================================
+# sessions（编号化管理——见specs/p27_session_management_and_polish_spec.md §A.6）
+# ============================================================
+
+def cmd_sessions(args):
+    """查看/清理/检查session注册表"""
+    db = _connect_db()
+
+    if args.consistency_check:
+        print("=== Session一致性检查 ===\n")
+        cc = _consistency_check(db)
+        print(f"注册表中有 {cc['registered_count']} 个session，tmux中有 {cc['tmux_count']} 个session\n")
+
+        if cc["orphaned_in_registry"]:
+            print("注册表有但tmux无（已自然退出，需标记cleaned或检查崩溃）：")
+            for s in cc["orphaned_in_registry"]:
+                status_tag = "done" if s["done_md"] else "⚠️ stuck无DONE.md"
+                print(f"  {s['key']} ({s['session_name']}) status={s['status']} {status_tag}")
+            print()
+        else:
+            print("注册表有但tmux无：无\n")
+
+        if cc["unregistered_in_tmux"]:
+            print("tmux有但注册表无（孤儿session，需人工检查）：")
+            for name in cc["unregistered_in_tmux"]:
+                print(f"  {name}")
+            print()
+        else:
+            print("tmux有但注册表无：无\n")
+
+        if not cc["orphaned_in_registry"] and not cc["unregistered_in_tmux"]:
+            print("✅ 注册表和tmux一致")
+        return
+
+    if args.clean_done:
+        print("=== 批量清理done状态的session ===\n")
+        result = _clean_done_sessions(db)
+        print(f"  清理 {result['cleaned']} 个，失败 {result['failed']} 个")
+        for d in result["details"][:10]:
+            print(f"    {d}")
+        if len(result["details"]) > 10:
+            print(f"    ... 还有{len(result['details'])-10}个")
+        return
+
+    if args.clean:
+        print(f"=== 清理session {args.clean} ===\n")
+        s = _get_session(db, args.clean)
+        if not s:
+            print(f"  ❌ session {args.clean} 不存在")
+            return
+        print(f"  session: {s['session_name']}")
+        print(f"  status: {s['status']}")
+        print(f"  done_md: {s.get('done_md', False)}")
+        if s["status"] not in ("done", "stuck"):
+            print(f"  ❌ 状态为{s['status']}，不能清理（只有done/stuck可清理）")
+            return
+        if _clean_session(db, args.clean):
+            print(f"  ✅ 已清理")
+        else:
+            print(f"  ❌ 清理失败")
+        return
+
+    # 默认：列出session
+    print("=== Session注册表 ===\n")
+    sessions = _list_sessions(db,
+                              batch_id=args.batch_id,
+                              status=args.status,
+                              session_type=args.type,
+                              limit=args.limit or 50)
+    if not sessions:
+        print("  无session记录")
+        return
+
+    print(f"共 {len(sessions)} 个session（按seq降序）：\n")
+    print(f"{'key':<16} {'type':<14} {'status':<10} {'done':<5} {'session_name':<50} {'started_at'}")
+    print("-" * 120)
+    for s in sessions:
+        done = "✓" if s.get("done_md") else " "
+        name = s["session_name"][:50]
+        started = s.get("started_at", "")[:19]
+        print(f"{s['_key']:<16} {s['type']:<14} {s['status']:<10} {done:<5} {name:<50} {started}")
+
+
+# ============================================================
 # main
 # ============================================================
 
@@ -556,6 +639,17 @@ def main():
     p_setc.add_argument("--concurrency", type=int, required=True, help="新并发数")
     p_setc.add_argument("--poll-seconds", type=int, default=30, help="launcher的poll间隔（用于提示生效时间）")
     p_setc.set_defaults(func=cmd_set_concurrency)
+
+    # sessions（编号化管理）
+    p_sess = sub.add_parser("sessions", help="查看/清理/检查session注册表")
+    p_sess.add_argument("--batch-id", help="按批次过滤")
+    p_sess.add_argument("--status", choices=["running", "done", "stuck", "cleaned"], help="按状态过滤")
+    p_sess.add_argument("--type", choices=["solve", "handover", "monitor_exec"], help="按类型过滤")
+    p_sess.add_argument("--limit", type=int, default=50, help="最多返回多少条")
+    p_sess.add_argument("--clean", help="清理特定session（需用户授意，只清理done/stuck状态）")
+    p_sess.add_argument("--clean-done", action="store_true", help="批量清理所有done状态的session（安全操作）")
+    p_sess.add_argument("--consistency-check", action="store_true", help="注册表 vs tmux一致性检查")
+    p_sess.set_defaults(func=cmd_sessions)
 
     args = parser.parse_args()
     if not hasattr(args, "func"):
