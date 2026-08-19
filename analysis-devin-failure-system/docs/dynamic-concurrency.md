@@ -44,6 +44,8 @@ except Exception:
 
 **注意**：concurrency参数（命令行`--concurrency`传入）是启动时的初始值。主循环中每轮从DB刷新，`set-concurrency`命令修改DB字段后，launcher在下次poll时自动读取新值。
 
+**launcher重启不覆盖DB值**：launcher启动时先读DB中已有的concurrency，如果DB有值则用DB的（不覆盖），否则用启动参数初始化。这保证`set-concurrency`设置的值在launcher重启后仍然生效。
+
 修改并发：
 ```python
 db.collection("{name}_batches").update({"_key": batch_id, "concurrency": 20})

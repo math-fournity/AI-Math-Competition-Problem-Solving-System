@@ -576,6 +576,11 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         return
 
     # 更新batch状态
+    # 注意：不覆盖DB中已有的concurrency——动态并发要求set-concurrency设置的值
+    # 在launcher重启后仍然生效。如果DB已有concurrency则用DB的，否则用启动参数初始化。
+    existing_batch = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
+    if existing_batch and "concurrency" in existing_batch:
+        concurrency = existing_batch["concurrency"]
     update_batch(db, batch_id, {
         "status": "launching",
         "updated_at": utc_now(),
