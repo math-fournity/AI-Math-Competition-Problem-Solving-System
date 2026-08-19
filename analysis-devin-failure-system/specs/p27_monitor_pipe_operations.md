@@ -223,6 +223,7 @@ WORKLOG.md告诉Monitor Exec Devin：
 | 4 | **系统总索引** | `/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md` | 错题分析系统设计总索引——文档体系/规范/代码资产/设计原则/关键决策 |
 | 5 | **Monitor Pipe设计范式** | `/Users/user/glm5.2-math-worktree/MonitorPipe.md` | Monitor Pipe三层架构设计范式（跨项目） |
 | 6 | **续传规范** | `/Users/user/glm5.2-math-worktree/续传规范文档.md` | 续传机制标准规范——HANDOFF.md结构/截断判定/prompt模板 |
+| 7 | **Exec Devin必读需求点清单** | `/Users/user/glm5.2-math-worktree/AnalysisSystem开发/CheckList-ExecDevin.md` | 从系统全集127个需求点中提取的Exec Devin必读子集（约68点）——"我要检查什么、要遵守什么"的统一列表，含A类已知问题速查 |
 
 ### 2.2 按需读取资产（遇到相关问题时读）
 
@@ -278,6 +279,23 @@ WORKLOG.md告诉Monitor Exec Devin：
 | **A12. done_sessions_uncleaned** | done_session_uncleaned | info | >20个 | done状态但未清理的session（占tmux资源） |
 
 **详细检查标准**：见`p27_monitor_spec.md` §3.1（A1-A9）和`p27_session_management_and_polish_spec.md` §A.7（A10-A12）。
+
+#### 3.1.1 A类已知问题（截至2026-08-19，Monitor Exec Devin处理alert时必须知道）
+
+以下问题在当前系统运行中已出现但尚未修复。Monitor Exec Devin遇到相关alert时，应优先检查是否为这些已知问题，避免重复诊断已知的根因。
+
+| 编号 | 问题 | 涉及的alert | 根因状态 | Monitor Exec Devin的处理方式 |
+|---|---|---|---|---|
+| MON-A!01 | `expected_concurrency`不从DB读（用启动参数5），导致session_health误报 | A1 session_health | **根因已诊断，待修复**（WP-02 Bug-1）：`monitor_continuation.py`第831行`run_monitor_loop(batch_id, interval, expected_concurrency=5)`——expected_concurrency来自启动参数，不从DB动态读取 | 遇到session_health alert时，先检查DB中batch.concurrency的实际值——如果tmux session数与DB concurrency匹配但与5不匹配，判定为已知误报，在REPORT中记录"MON-A!01已知问题，待WP-02修复"，不重复诊断 |
+| MON-A!02 | alert的`_key`冲突（同轮同类型timestamp相同时重复） | 所有A/B类alert | **根因已诊断，待修复**（WP-02 Bug-2）：`monitor_continuation.py`第95-96行`alert_key = f"p27-alert-{ts}-{alert_type}"`——同一轮多个相同类型alert如果timestamp相同（毫秒级），_key重复 | 遇到`[HTTP 409][ERR 1210] unique constraint violated`的ERROR日志时，判定为已知问题，在REPORT中记录"MON-A!02已知问题，待WP-02修复"，不重复诊断 |
+| MON-A!03 | `rounds_log_export_missing`大量出现 | B8 rounds_log_export_missing | **根因未诊断**（WP-02 Bug-3）：round2的export文件不存在——可能是launcher启动round2时未传`--export`参数，或devin cli执行了但export失败 | **这是Monitor Exec Devin应该优先诊断的**——选3-5个有此alert的run，检查work_dir结构（round2目录是否存在/exports子目录是否存在/conversation.json是否存在），查launcher代码中round2的命令构造逻辑，定位根因后修复并在REPORT中记录 |
+| MON-A!04 | `export_missing`大量出现 | A6 export_missing | **根因未诊断**（WP-02 Bug-4）：completed run无export文件——可能是is_completed判定逻辑在无export时就标记completed，或export生成后被误删 | **同上，Monitor Exec Devin应优先诊断**——选2-3个有此alert的run，检查完整work_dir结构，查is_completed判定逻辑和export路径计算逻辑，定位根因后修复并在REPORT中记录。注意：可能与MON-A!03有关联（都是export问题） |
+| MON-A!05 | 850+ alert堆积，无自动resolve | 所有alert | **根因已知**：Monitor Exec Devin未实现（阶段2未完成），没有自动resolve机制 | 阶段2实现后本问题自动解决。当前Monitor Exec Devin每轮应主动resolve已处理的alert（修复了的代码bug→resolve对应alert；C类判定PASS的→resolve对应needs_ai_review标记），逐步消化堆积的alert |
+
+**Monitor Exec Devin处理已知问题的原则**：
+1. **根因已诊断待修复的**（MON-A!01/02）——不重复诊断，在REPORT中记录"已知问题待WP-02修复"，避免浪费本轮时间
+2. **根因未诊断的**（MON-A!03/04）——**优先诊断**，这是Monitor Exec Devin的核心价值所在
+3. **根因已知待阶段2解决的**（MON-A!05）——每轮主动resolve已处理的alert，逐步消化堆积
 
 ### 3.2 B类：续传质量检查（Python部分做，Monitor Exec Devin读结果）
 
@@ -421,7 +439,8 @@ WORKLOG.md告诉Monitor Exec Devin：
   ├── 3. 读p27_session_management_and_polish_spec.md —— 知道session管理和自己的工作规范
   ├── 4. 读AnalysisSystemDesign.md —— 系统总索引（文档体系/规范/代码资产/设计原则/关键决策）
   ├── 5. 读MonitorPipe.md —— Monitor Pipe三层架构设计范式
-  └── 6. 续传规范文档.md —— 续传机制标准规范（如本轮涉及续传问题）
+  ├── 6. 续传规范文档.md —— 续传机制标准规范（如本轮涉及续传问题）
+  └── 7. 读CheckList-ExecDevin.md —— "我要检查什么、要遵守什么"的统一列表（含A类已知问题速查）
   │
   ▼
 第一步：检查系统状态
@@ -559,6 +578,16 @@ WORKLOG.md告诉Monitor Exec Devin：
   monitor_check_continuation.sh（第1项加入session注册表状态）
 - 7项端到端测试全部通过：allocate_seq/create/get/mark_stuck/list/update_tmux_alive/consistency/clean
 - A类检查从A1-A9扩展为A1-A12（A10 session_registry_consistency/A11 stuck_sessions/A12 done_uncleaned）
+
+### v5 · 2026-08-19 · A类已知问题+Exec Devin必读需求点清单
+
+- §3.1新增§3.1.1"A类已知问题"——5个已出现但未修复的问题（MON-A!01~05），含根因状态和Exec Devin的处理方式
+  · MON-A!01/02：根因已诊断待WP-02修复——Exec Devin不重复诊断，REPORT记录
+  · MON-A!03/04：根因未诊断——Exec Devin优先诊断（核心价值）
+  · MON-A!05：alert堆积——Exec Devin每轮主动resolve已处理alert
+- §2.1必读资产从7份扩展为8份（加入CheckList-ExecDevin.md——从系统全集127个需求点提取的Exec Devin必读子集约68点）
+- §5工作流程加载认知资产步骤加入第7项"读CheckList-ExecDevin.md"
+- 解决的问题：Exec Devin的信息散落在6个文档中，没有统一视角的"我要检查什么"清单；A类已知问题不在任何现有文档中（在WP-02和INDEX里，Exec Devin不会读）
 
 ### 迭代规则
 
