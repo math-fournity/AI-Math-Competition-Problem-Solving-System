@@ -51,6 +51,17 @@ CONTINUATION_EVENTS_COLLECTION = "p27_continuation_events"
 CONTINUATION_RESULTS_COLLECTION = "p27_continuation_results"
 MONITOR_ALERTS_COLLECTION = "p27_monitor_alerts"
 
+# === Session编号化管理（见specs/p27_session_management_and_polish_spec.md §A）===
+# 所有devin cli实例（solve/handover/monitor_exec）的tmux session注册到这个集合
+SESSIONS_COLLECTION = "p27_sessions"
+# 全局序号计数器——存在一个单独的文档中，allocate_seq原子递增
+SESSION_COUNTER_KEY = "p27_session_counter"
+# Monitor Exec Devin的配置（见specs/p27_session_management_and_polish_spec.md §B.7）
+MONITOR_EXEC_CONCURRENCY = 1
+MONITOR_EXEC_INTERVAL = 300          # 两轮之间的最小间隔（秒）
+MONITOR_EXEC_EXPORT_BASE = D_TRAJ_DIR / "p27-monitor-exec"
+MONITOR_EXEC_MAX_RUNTIME_SECONDS = 900  # 一轮最多15分钟
+
 # === devin cli配置 ===
 DEVIN_MODEL = "glm-5-2"
 DEVIN_PERMISSION_MODE = "dangerous"

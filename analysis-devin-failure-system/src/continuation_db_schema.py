@@ -16,6 +16,8 @@ from .continuation_config import (
     CONTINUATION_RUNS_COLLECTION,
     CONTINUATION_EVENTS_COLLECTION,
     CONTINUATION_RESULTS_COLLECTION,
+    SESSIONS_COLLECTION,
+    SESSION_COUNTER_KEY,
 )
 
 
@@ -33,10 +35,18 @@ def ensure_schema(db):
         CONTINUATION_RUNS_COLLECTION,
         CONTINUATION_EVENTS_COLLECTION,
         CONTINUATION_RESULTS_COLLECTION,
+        SESSIONS_COLLECTION,
     ]
     for col_name in all_collections:
         if not db.has_collection(col_name):
             db.create_collection(col_name)
+
+    # === session_counter文档初始化 ===
+    # 存在SESSIONS_COLLECTION中，_key=SESSION_COUNTER_KEY
+    # allocate_seq通过update递增seq字段（原子操作）
+    sessions_col = db.collection(SESSIONS_COLLECTION)
+    if not sessions_col.has(SESSION_COUNTER_KEY):
+        sessions_col.insert({"_key": SESSION_COUNTER_KEY, "seq": 0})
 
     # === 索引 ===
     runs = db.collection(CONTINUATION_RUNS_COLLECTION)
@@ -71,6 +81,19 @@ def ensure_schema(db):
     ]:
         try:
             results.add_index({"type": "persistent", "fields": fields, "unique": unique, "name": name})
+        except Exception:
+            pass
+
+    # === p27_sessions索引 ===
+    for name, fields, unique in [
+        ("p27_session_idx_seq", ["seq"], True),            # 序号唯一
+        ("p27_session_idx_session_name", ["session_name"], True),  # session名唯一
+        ("p27_session_idx_status", ["status"], False),     # 按状态查询
+        ("p27_session_idx_batch_type", ["batch_id", "type"], False),  # 按批次+类型查询
+        ("p27_session_idx_triggered_by_alert", ["triggered_by_alert"], False),  # polish/monitor_exec按触发alert查询
+    ]:
+        try:
+            sessions_col.add_index({"type": "persistent", "fields": fields, "unique": unique, "name": name})
         except Exception:
             pass
 
