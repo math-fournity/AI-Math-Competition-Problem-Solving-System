@@ -1,0 +1,102 @@
+taxonomy,view_file,asset_path,asset_type,asset_title
+历史,dev-docs/README.md,dev-docs/001-目录结构扁平化重组方案.md,document,目录结构扁平化重组方案
+历史,dev-docs/README.md,dev-docs/002-checklist-working-packages拆分.md,document,checklist/working-packages拆分
+历史,dev-docs/README.md,dev-docs/003-README三层架构与分类法设计.md,document,README三层架构与分类法设计
+工作流,working-packages/README.md,checklist/ExecDevin.md,document,Exec Devin工作循环
+工作流,working-packages/README.md,working-packages/INDEX.md,document,工作包跟踪表（动态）
+工作流,working-packages/README.md,working-packages/README.md,document,工作包目录说明
+工作流,working-packages/README.md,working-packages/WP-01-阶段1真实运行验证.md,document,WP-01阶段1真实运行验证
+工作流,working-packages/README.md,working-packages/WP-02-已知bug修复.md,document,WP-02已知bug修复
+工作流,working-packages/README.md,working-packages/WP-03-阶段2配置与模板.md,document,WP-03阶段2配置与模板
+工作流,working-packages/README.md,working-packages/WP-04-阶段2MonitorExecDevin启动器.md,document,WP-04阶段2MonitorExecDevin启动器
+工作流,working-packages/README.md,working-packages/WP-05-阶段2MonitorPipe集成.md,document,WP-05阶段2MonitorPipe集成
+工作流,working-packages/README.md,working-packages/WP-06-阶段2export与report查看支持.md,document,WP-06阶段2export与report查看支持
+工作流,working-packages/README.md,working-packages/WP-07-阶段2端到端验证.md,document,WP-07阶段2端到端验证
+工作流,working-packages/README.md,working-packages/WP-08-阶段3文档同步.md,document,WP-08阶段3文档同步
+工作流,working-packages/README.md,working-packages/WP-09-POC-2.7并发1运行和监控.md,document,WP-09 POC-2.7并发1运行和监控
+工作流,working-packages/README.md,working-packages/WP-10-系统审计.md,document,WP-10系统审计
+源码,src/README.md,docs/architecture/architecture.md,document,4个Pipe的演进与组件职责
+源码,src/README.md,docs/architecture/solver-trajectory-schema.md,document,trajectory数据schema
+源码,src/README.md,monitoring/analysis_control.py,code,分析控制（Pipe 1/2控制命令）
+源码,src/README.md,monitoring/audit_redis_queue.py,code,审计Redis队列（Pipe 2）
+源码,src/README.md,monitoring/audit_trace.py,code,审计追踪
+源码,src/README.md,monitoring/continuation_control.py,code,续传控制（Pipe 4控制命令）
+源码,src/README.md,monitoring/graceful_shutdown.py,code,优雅停止
+源码,src/README.md,monitoring/monitor_pipe.py,code,Monitor Pipe监控入口
+源码,src/README.md,monitoring/query_failures.py,code,失败查询
+源码,src/README.md,monitoring/query_progress.py,code,进度查询
+源码,src/README.md,monitoring/recover_from_crash.py,code,崩溃恢复
+源码,src/README.md,monitoring/redis_queue.py,code,Redis队列（Pipe 1/2）
+源码,src/README.md,monitoring/reporter.py,code,报告生成
+源码,src/README.md,monitoring/retry_infrastructure.py,code,重试基础设施
+源码,src/README.md,monitoring/runtime_health_check.py,code,运行时健康检查
+源码,src/README.md,monitoring/shared_logger.py,code,共享日志
+源码,src/README.md,monitoring/verify_completeness.py,code,完整性验证
+源码,src/README.md,monitoring/verify_result_integrity.py,code,结果完整性验证
+源码,src/README.md,run_audit_pipeline.py,code,Pipe 2审计运行入口
+源码,src/README.md,run_continuation_pipeline.py,code,Pipe 4续传运行入口
+源码,src/README.md,run_pipeline.py,code,Pipe 1/2运行入口
+源码,src/README.md,run_selection_pipeline.py,code,Pipe 3选题运行入口
+源码,src/README.md,src/aggregator.py,code,聚合器（Pipe 1）
+源码,src/README.md,src/analysis_launcher.py,code,分析启动器（Pipe 1）
+源码,src/README.md,src/audit_aggregator.py,code,审计聚合器（Pipe 2）
+源码,src/README.md,src/audit_collector.py,code,审计收集器（Pipe 2）
+源码,src/README.md,src/audit_launcher.py,code,审计启动器（Pipe 2）
+源码,src/README.md,src/audit_result_collector.py,code,审计结果收集器（Pipe 2）
+源码,src/README.md,src/config.py,code,配置常量（PROJECT_ROOT/模板路径/输出路径）
+源码,src/README.md,src/continuation_collector.py,code,续传收集器（Pipe 4）
+源码,src/README.md,src/continuation_config.py,code,续传配置常量
+源码,src/README.md,src/continuation_db_schema.py,code,续传ArangoDB schema
+源码,src/README.md,src/continuation_feeder.py,code,续传喂料器（Pipe 4）
+源码,src/README.md,src/continuation_launcher.py,code,续传启动器（Pipe 4）
+源码,src/README.md,src/continuation_redis_queue.py,code,续传Redis队列（Pipe 4）
+源码,src/README.md,src/continuation_result_collector.py,code,续传结果收集器（Pipe 4）
+源码,src/README.md,src/data_collector.py,code,数据采集器（Pipe 1）
+源码,src/README.md,src/db_schema.py,code,ArangoDB schema（collection定义）
+源码,src/README.md,src/feeder.py,code,喂料器（Pipe 1）
+源码,src/README.md,src/monitor_continuation.py,code,续传监控（Pipe 4）
+源码,src/README.md,src/monitor_pipe.py,code,Monitor Pipe通用实现
+源码,src/README.md,src/monitor_selection.py,code,选题监控（Pipe 3）
+源码,src/README.md,src/result_collector.py,code,结果收集器（Pipe 1）
+源码,src/README.md,src/selection_collector.py,code,选题收集器（Pipe 3）
+源码,src/README.md,src/selection_launcher.py,code,选题启动器（Pipe 3）
+源码,src/README.md,src/selection_result_collector.py,code,选题结果收集器（Pipe 3）
+源码,src/README.md,src/selfrun_driver.py,code,selfrun驱动器
+源码,src/README.md,src/selfrun_intake.py,code,selfrun接入
+源码,src/README.md,src/session_registry.py,code,Session注册表
+源码,src/README.md,src/solver_launcher.py,code,解题启动器
+系统认知,docs/system/README.md,AGENTS.md,document,项目级硬约束+最小索引
+系统认知,docs/system/README.md,docs/system/AnalysisSystem.md,document,新Session接手AI的完整加载指南
+系统认知,docs/system/README.md,docs/system/AnalysisSystemDesign.md,document,错题分析系统设计总索引
+系统认知,docs/system/README.md,docs/system/AnalysisSystemOps.md,document,错题分析系统运行操作手册
+设计决策,docs/architecture/README.md,dev-docs/001-目录结构扁平化重组方案.md,document,目录结构扁平化重组方案
+设计决策,docs/architecture/README.md,dev-docs/002-checklist-working-packages拆分.md,document,checklist/working-packages拆分
+设计决策,docs/architecture/README.md,dev-docs/003-README三层架构与分类法设计.md,document,README三层架构与分类法设计
+设计决策,docs/architecture/README.md,docs/architecture/architecture.md,document,4个Pipe的演进与组件职责
+设计决策,docs/architecture/README.md,docs/architecture/dynamic-concurrency.md,document,动态并发设计
+设计决策,docs/architecture/README.md,docs/architecture/framework-checklist.md,document,新Pipe必读的12项必查清单
+设计决策,docs/architecture/README.md,docs/architecture/graceful-shutdown.md,document,优雅停止设计
+设计决策,docs/architecture/README.md,docs/architecture/monitor-pipe-pattern.md,document,Monitor Pipe设计范式（本地版）
+设计决策,docs/architecture/README.md,docs/architecture/operational-concerns.md,document,运维关注点
+设计决策,docs/architecture/README.md,docs/architecture/selfrun-workflow.md,document,selfrun工作流
+设计决策,docs/architecture/README.md,docs/architecture/solver-harness-borrowing.md,document,解题系统借鉴分析
+设计决策,docs/architecture/README.md,docs/architecture/solver-trajectory-schema.md,document,trajectory数据schema
+设计决策,docs/architecture/README.md,docs/patterns/MonitorPipe.md,document,Monitor Pipe设计范式（跨项目）
+设计决策,docs/architecture/README.md,docs/patterns/续传规范文档.md,document,HANDOFF标准
+运行操作,docs/specs/README.md,docs/architecture/dynamic-concurrency.md,document,动态并发设计
+运行操作,docs/specs/README.md,docs/architecture/graceful-shutdown.md,document,优雅停止设计
+运行操作,docs/specs/README.md,docs/architecture/operational-concerns.md,document,运维关注点
+运行操作,docs/specs/README.md,docs/specs/p27_monitor_pipe_operations.md,document,Monitor Pipe操作规范
+运行操作,docs/specs/README.md,docs/specs/p27_monitor_spec.md,document,Pipe 4续传检查规范
+运行操作,docs/specs/README.md,docs/specs/p27_session_management_and_polish_spec.md,document,Session编号化管理与打磨规范
+运行操作,docs/specs/README.md,docs/system/AnalysisSystemOps.md,document,运行操作手册（SOP/检查清单/问题排查）
+运行操作,docs/specs/README.md,monitoring/analysis_control.py,code,分析控制（控制命令）
+运行操作,docs/specs/README.md,monitoring/continuation_control.py,code,续传控制（控制命令）
+运行操作,docs/specs/README.md,monitoring/graceful_shutdown.py,code,优雅停止
+运行操作,docs/specs/README.md,monitoring/runtime_health_check.py,code,运行时健康检查
+运行操作,docs/specs/README.md,scripts/continuation_watchdog.sh,script,看门狗
+运行操作,docs/specs/README.md,scripts/monitor_check.sh,script,Pipe 1/2检查脚本
+运行操作,docs/specs/README.md,scripts/monitor_check_continuation.sh,script,Pipe 4检查脚本
+运行操作,docs/specs/README.md,scripts/monitor_check_selection.sh,script,Pipe 3检查脚本
+需求,checklist/README.md,checklist/ExecDevin.md,document,Monitor Exec Devin必读子集
+需求,checklist/README.md,checklist/README.md,document,需求点清单索引

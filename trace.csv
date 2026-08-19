@@ -1,0 +1,23 @@
+source_type,source_id,target_type,target_id,relation,note,commit_id
+checkpoint,ENV-01,wp,WP-01,part-of,环境配置检查项属于WP-01阶段1真实运行验证,
+checkpoint,MON-A1,code,monitoring/analysis_control.py,implements,A类检查项1由analysis_control实现,
+checkpoint,MON-A1,document,docs/specs/p27_monitor_spec.md,specified-by,A类检查项由p27_monitor_spec规范定义,
+checkpoint,MON-A1,wp,WP-09,part-of,Monitor Pipe A类检查项1属于WP-09,
+checkpoint,MON-A2,wp,WP-09,part-of,Monitor Pipe A类检查项2属于WP-09,
+checkpoint,RUN-01,script,scripts/monitor_check.sh,implements,运行检查由monitor_check.sh实现,
+checkpoint,RUN-01,wp,WP-09,part-of,运行检查项1属于WP-09,
+code,monitoring/continuation_control.py,commit,a4f3a61,changed-in,路径常量更新,
+code,src/config.py,commit,a4f3a61,changed-in,PROJECT_ROOT从子系统改为根目录,
+dev-doc,dev-docs/001-目录结构扁平化重组方案.md,code,src/__init__.py,changes,PROJECT_ROOT常量更新,a4f3a61
+dev-doc,dev-docs/001-目录结构扁平化重组方案.md,code,src/config.py,changes,硬编码路径从子系统改为根目录,a4f3a61
+dev-doc,dev-docs/001-目录结构扁平化重组方案.md,document,README.md,produces,创建引导地图,a4f3a61
+dev-doc,dev-docs/001-目录结构扁平化重组方案.md,script,scripts/monitor_check.sh,changes,路径常量更新,a4f3a61
+dev-doc,dev-docs/002-checklist-working-packages拆分.md,document,checklist/README.md,produces,需求分类法看法文件,f1ca691
+dev-doc,dev-docs/002-checklist-working-packages拆分.md,document,working-packages/README.md,produces,工作流分类法看法文件,f1ca691
+dev-doc,dev-docs/002-checklist-working-packages拆分.md,script,scripts/generate_checkpoint.py,produces,生成单个checkpoint模板,f1ca691
+dev-doc,dev-docs/002-checklist-working-packages拆分.md,script,scripts/generate_checkpoints.py,changes,删除旧批量生成脚本,f1ca691
+dev-doc,dev-docs/003-README三层架构与分类法设计.md,document,README.md,changes,规划重构为分类法索引（尚未执行）,00a08d3
+document,README.md,commit,82ac6a8,changed-in,补充dev-docs引导条目,
+document,checklist/README.md,commit,f1ca691,changed-in,从CheckList.md精简为索引,
+document,docs/specs/p27_monitor_spec.md,checkpoint,MON-A1,verifies,p27规范验证A类检查项1,
+wp,WP-09,dev-doc,dev-docs/002-checklist-working-packages拆分.md,comes-from,WP-09的checklist索引在002方案中建立,
