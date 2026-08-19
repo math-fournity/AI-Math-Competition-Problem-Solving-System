@@ -706,3 +706,199 @@ else:
 6. **旧数据清理**：test-2/test-2b批次的DB记录使用旧schema（数字_key）。大规模运行前可以考虑清理这些旧记录，避免监控脚本查询时混入旧schema数据。清理方法：`FOR r IN analysis_runs FILTER IS_NUMBER(TO_NUMBER(r._key)) REMOVE r IN analysis_runs`。
 
 7. ~~**launcher跳过已completed题的逻辑 + 从pending队列取题**~~（已解决）：launcher现在从Redis pending队列dequeue取题（不再从prepared.json顺序加载）。feeder只入队status=prepared的run，已completed的题不会重复入队。retry_infrastructure重新入pending队列的题，launcher能从pending队列取到。
+
+---
+
+#### POC-2.6 续传机制经验沉淀（2026-08-18）
+
+**completion_tokens限制与续传机制**：glm-5-2单次API调用的completion_tokens上限是25000（thinking+content+tool_calls都算在内）。竞赛数学题的thinking spin可能需要超过25000 tokens，导致AI在thinking中被截断（reasoning_content有46-73K字符，但message=0、tool_calls=0），无法进入working阶段。**续传机制**：让AI在新的API调用中继续思考。每轮25000 completion_tokens推进一部分，多轮累积完成。续传脚本：`Tell分类学研究过程文档/poc_assets/poc_2.6/continue_solver.py`。
+
+**v1方案（机械拼接reasoning_content，已废弃）**：把AI之前完成的reasoning_content作为新prompt的上下文注入。只传reasoning_content（thinking），不传tool_calls/observation。**验证结果**：CC-101_bare和CC-101_vein成功（这两题Round 1只有1个agent step，全部是thinking，所以只传reasoning_content刚好够用）。**但CC-103_bare暴露了严重问题**：Round 1有6个agent step（web_search + 多轮thinking），完整内容221K字符（reasoning 137K + tool_calls 1.8K + observation 82K），v1方案只传了最后一个step的reasoning_content（66K，30%），丢失了前5步的全部上下文——AI做了什么web search、得到了什么结果、写了什么脚本全部丢失。Round 2的81K thinking全在计划写代码但从未写出，因为AI不知道自己之前已经搜索到了Dumitrescu-Jiang论文的Theorem 4。
+
+**v2方案（交接文档，当前使用）**：不是机械拼接thinking，是从完整探索历程中提取有效内容，整理成结构化的研究文档（HANDOFF.md），交给下一个AI继续。像数学家交接研究笔记——下一个AI读了就能直接接手。**验证结果**：CC-103_bare用交接文档续传，AI在2分钟内写出verify_area3.py（z3 SAT solver验证），7分钟内跑出关键结果（7×5网格UNSAT→A(3)≤3），而v1方案同样时间还在thinking中打转。对比效果极为显著。
+
+**交接文档（HANDOFF.md）的标准结构**：
+1. **题目**——原始问题
+2. **答案猜想**——当前最佳猜想及置信度
+3. **已确认的结论**——带推导概要的数学事实（不是原始thinking，是提炼后的结论）
+4. **已尝试的方向**——走了哪些路线、成功/失败/未完成
+5. **关键文献**——搜索到的论文、定理、已知结果
+6. **已有的中间产物**——脚本、计算结果、文件
+7. **当前卡在哪里**——截断时正在做什么、遇到了什么困难
+8. **建议的下一步**——从已有发现看该试什么
+
+**从每轮export中提取什么**：
+- thinking spin → 确认的数学结论、猜想、证明策略、关键计算结果、死胡同及原因（不提取：重复推理、元评论、已纠正的错误细节）
+- tool calls → web search的关键发现、写的脚本及运行结果、创建的文件（不提取：失败的搜索、无关结果）
+- observation → 论文定理、计算验证结果、搜索到的关键信息（不提取：无关的搜索结果全文）
+
+**循环操作流程**（检测截断→读取完整export→更新HANDOFF.md→启动下一轮→重复）：
+1. 检测：export是否被截断（rc>0, msg=0, tc=0, comp≥24000）
+2. 读取完整export：所有agent step的thinking + tool_calls + observation
+3. 更新HANDOFF.md：把本轮新发现加入交接文档（新确认的结论、新尝试的方向、新写的脚本及运行结果、新的卡点）
+4. 启动下一轮：用更新后的HANDOFF.md作为prompt，`devin -p --prompt-file roundN_handoff_prompt.txt`
+5. 重复：直到AI输出message（有working产出）或写出proof.md
+
+**v2方案与v1方案的关键区别**：v1是机械拼接reasoning_content（丢70%内容），v2是每轮都整理成结构化的交接文档（保留有效内容、去掉涂改和死胡同）。v2的交接文档整理目前是Master Agent手动做的——后续可自动化为脚本（让一个AI读export、提取有效内容、更新HANDOFF.md）。
+
+**基于cwd的devin进程管理**：当系统中有多个devin实例并行运行（如Grove harness系统在`/Volumes/data/math-agent-glm5.2-tmux-agents-dir/`下跑多个agent），需要精确识别哪些进程属于当前业务。方法：用`lsof -p <pid> | grep cwd`查进程的工作目录——每个run在独有的work_dir中启动，cwd就是进程身份标识。本脚本的进程cwd都在`poc_assets/poc_2.6/workdirs/p26-*`下，别的系统的进程cwd在别处，不会混淆。**不设超时限制**——devin自然运行到完成（输出message后自动退出）。需要中断时跟用户确认后用kill命令（基于cwd匹配杀进程），不要用超时自动杀。续传脚本的`find`命令查进程、`kill`命令杀进程，都基于cwd识别。
+
+#### POC-2.5批量续传实例（2026-08-18启动·跨session持续运行）
+
+**背景**：POC-2.6续传机制验证通过后，启动POC-2.5的16个run批量续传。这个批量运行会跨越多个session（每个run约13-45分钟，15个run串行总计可能需要数小时），后续session的AI需要能定位和管理这个运行。
+
+**如何定位正在运行的实例**：
+
+```bash
+# 1. 查当前正在跑的续传devin进程（基于cwd识别）
+cd /Users/user/glm5.2-math-worktree
+python3 "Tell分类学研究过程文档/poc_assets/poc_2.6/continue_solver.py" find
+
+# 2. 查批量脚本本身是否还在运行
+ps aux | grep "continue_solver.py batch" | grep -v grep
+
+# 3. 查tmux session（每个run的续传在独立tmux session中）
+tmux list-sessions 2>&1 | grep p26
+
+# 4. 查已完成run的export文件
+ls -la "Tell分类学研究过程文档/poc_assets/poc_2.6/trajectories/"*/round*/exports/conversation.json 2>/dev/null
+```
+
+**关键路径**：
+- 续传脚本：`Tell分类学研究过程文档/poc_assets/poc_2.6/continue_solver.py`
+- 续传数据目录：`Tell分类学研究过程文档/poc_assets/poc_2.6/`
+  - `trajectories/p26-<problem>-<condition>/roundN/exports/conversation.json`——每个run每轮的export
+  - `workdirs/p26-<problem>-<condition>/`——每个run的工作目录（AI写的脚本/proof.md在这里）
+  - `workdirs/p26-<problem>-<condition>/roundN_prompt.txt`——续传prompt（注入的reasoning_content）
+- POC-2.5第一轮原始数据：`Tell分类学研究过程文档/poc_assets/poc_2.5_round1/`
+
+**批量脚本运行参数**：
+```bash
+python3 continue_solver.py batch --max-rounds 5 --problems \
+  CC-101_vein CC-101_vein_hint CC-101_hint \
+  CC-103_bare CC-103_vein CC-103_vein_hint CC-103_hint \
+  CC-104_bare CC-104_vein CC-104_vein_hint CC-104_hint \
+  CC-105_bare CC-105_vein CC-105_vein_hint CC-105_hint
+```
+（CC-101_bare已在POC-2.6单题测试中完成，跳过）
+
+**续传策略**：
+- 13个有export的run（Round 1被截断但有reasoning_content）：从Round 2续传开始，注入Round 1的reasoning_content
+- 3个无export的run（CC-103-bare/CC-104-bare/CC-105-vein，Round 1有多轮tool call但未生成export）：从Round 1重新运行
+
+**如何中断**（需要跟用户确认后）：
+```bash
+# 杀当前正在跑的devin进程和批量脚本
+python3 "Tell分类学研究过程文档/poc_assets/poc_2.6/continue_solver.py" kill
+# 然后杀批量脚本本身
+ps aux | grep "continue_solver.py batch" | grep -v grep | awk '{print $2}' | xargs kill
+```
+
+**完成后如何分析**：16个run全部完成后，按398号§5.3判定逻辑分析因果效应。注意§2.5的澄清——vein条件混入了特化方法引导的混淆变量，分析时需区分"非特化策略的效果"和"特化方法引导的效果"。CC-101的初步观察显示vein可能误导（bare走Rado定理成功，vein走p-adic卡住），但需等全部run完成后做完整分析。
+
+**首批目标Tell家族**：局部-全局表示切换（Local Representation Switch）——已有CasePack v1（22道题，`poc_assets/poc_0/casepack_v1.md`，2026-08-17冻结：6正迁移+4假朋友+2边界从Pipe 3精筛，4 source trace+4变形+2组合保留v0）和383号TellCore v0候选C（7字段最小充分集）。
+
+**当前状态**：理论框架和POC方案设计已完成（396-412号），7项POC资产已准备（poc_assets/）。下一步是执行——**执行编排见413号**（`Tell分类学研究过程文档/413-v0-2026-08-17-非特化研究执行编排-*.md`），413号定义了六批先后顺序、并行关系、时间估算、关键检查点，以及自包含文档加载纪律（执行任何一步前必须全文加载对应的自包含方案文档+§8清单文档）。**第一步是Pipe 3扩展代码修改（412号§5.1-5.3），完成后立即启动Pipe 3规模化运行（~40小时·瓶颈），在等待期间并行做POC-9和selfrun继续。**
+
+**与解题侧脉络分析线的关系**：解题侧（391号P1-P3）和非特化研究（398-409号POC系列）是两条不同的线——解题侧验证"trace识别能否在真实轨迹上产出可用trace"（VMS-31核心+trace_auditor），非特化研究验证"Tell/Hint能否有效指导AI"。两者在P2/Grove闭环接入时汇合——trace→tell匹配需要TellCore，而TellCore由非特化研究产出。
+
+#### POC-2.7系统运行与检查（2026-08-18实现·Pipe 4+Monitor Pipe）
+
+**★ 错题分析系统总索引**：`AnalysisSystemDesign.md`（项目repo根目录）——任何AI涉足错题分析系统时从该文件开始，索引所有文档、规范、代码资产。
+
+**背景**：POC-2.7把续传机制应用到919道DIRECTION_ERROR题上，验证续传能否大规模解决截断问题。系统已实现为错题分析系统的Pipe 4（独立自包含模式）+ Monitor Pipe设计范式（详见`MonitorPipe.md`）。完整运行和检查指南见`POC-2.7/README.md`。
+
+**当前运行状态**（2026-08-18 14:13重启，异步handover架构）：▶️运行中——launcher+monitor运行中，concurrency=5, max_rounds=5, method=v2。通过标准COMPLETED≥50%。**架构改进**：handover生成已改为异步（start_handover+check_handover），不再阻塞主循环——多个handover可并行生成，完成后自动启动解题devin cli填满并发槽。
+
+**三层架构**：
+- **规范层**：`analysis-devin-failure-system/specs/p27_monitor_spec.md` (259行)——检查规范（A类自动检查9项/B类续传质量检查9项/C类AI review抽样5项）
+- **执行层**：`analysis-devin-failure-system/src/monitor_continuation.py` (915行)——Monitor Pipe守护进程，按规范执行18项检查，写alert到ArangoDB `p27_monitor_alerts`集合
+- **查询层**：`analysis-devin-failure-system/scripts/monitor_check_continuation.sh` (285行)——检查脚本，Master AI每次检查都调用，输出7项检查（含系统健康）+8步行动清单+循环监控指令
+
+**Pipe 4核心文件**（独立自包含，不修改现有Pipe 1/2/3的代码）：
+- `src/continuation_config.py`——配置常量（Redis前缀`p27:`/tmux前缀`p27-`/DB集合`p27_continuation_*`/INFRA_FAILURES/MODEL_FAILURES）
+- `src/continuation_db_schema.py`——ArangoDB集合定义+索引
+- `src/continuation_redis_queue.py`——Redis队列操作
+- `src/continuation_collector.py`——数据收集（从problem_list.json加载919道题+创建batch记录）
+- `src/continuation_feeder.py`——入Redis队列
+- `src/continuation_launcher.py`——**核心**，并发启动devin cli+stall/rate_limit/zombie检测+多轮续传+优雅停止+classify_failure(infra/model)
+- `src/continuation_result_collector.py`——结果收集+通过率判定
+- `monitoring/continuation_control.py`——**统一控制工具**（start/stop/status/health/set-concurrency+stop_watchdog）
+- `scripts/continuation_watchdog.sh`——watchdog脚本（每30秒检查服务存活+每5分钟一致性检查）
+- `run_continuation_pipeline.py`——端到端入口（collect→feed→launch→collect-results）
+
+**★ 如何启动全量续传**（推荐——自动启动launcher+monitor到tmux，带auto-restart）：
+```bash
+cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+.venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5 --max-rounds 5 --method v2
+```
+
+**★ 如何启动watchdog**（守护launcher+monitor，崩溃自动重启）：
+```bash
+cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+tmux new-session -d -s p27-watchdog "bash scripts/continuation_watchdog.sh --batch-id p27-full"
+```
+
+**如何查看状态**：
+```bash
+cd analysis-devin-failure-system
+.venv/bin/python3 -m monitoring.continuation_control status --batch-id p27-full
+```
+
+**如何健康检查**（4项检查：服务存活/并发量/DB进度/alert）：
+```bash
+cd analysis-devin-failure-system
+.venv/bin/python3 -m monitoring.continuation_control health --batch-id p27-full
+```
+
+**如何动态调整并发数**（launcher下次poll时自动生效，不影响running）：
+```bash
+cd analysis-devin-failure-system
+.venv/bin/python3 -m monitoring.continuation_control set-concurrency --batch-id p27-full --concurrency 10
+```
+
+**如何检查（Master AI每次检查都调用）**：
+```bash
+cd /Users/user/glm5.2-math-worktree
+bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-full
+```
+输出7项检查（Monitor pane/alerts/进程状态/进度/续传质量/通过率判定/**系统健康**）+ 8步行动清单 + **循环监控指令**。
+
+**★ 循环监控SOP**（Master AI的核心职责——反复执行直到所有题完成）：
+1. 运行检查脚本，阅读7项检查结果
+2. 按行动清单逐项处理（重启挂掉的服务、处理alert、重新入队失败的题）
+3. 等待60-120秒，让devin cli继续工作
+4. 再次运行检查脚本——如此循环，直到第4项进度显示所有题completed或failed
+5. 如果发现系统问题（代码bug/架构问题），修复代码后重启系统，然后继续循环监控
+6. **如果session被中断**，下一个session的AI只需运行检查脚本即可恢复全部上下文——脚本的输出会告诉你系统当前状态和需要做什么
+
+**系统健康判断标准**：
+- ✅ 健康 = launcher+monitor运行中 + devin cli活跃（pane有内容）+ 进度在推进
+- ⚠️ 需关注 = 有新alert + 失败率>15% + handover生成慢
+- ❌ 修复 = launcher/monitor挂了 + devin cli全卡住 + 进度停滞
+
+**如何查看和处理alerts**：
+```bash
+# 查看新alerts
+cd analysis-devin-failure-system && .venv/bin/python3 -m src.monitor_continuation --batch-id p27-full --check-alerts
+# 标记alert为已解决
+.venv/bin/python3 -m src.monitor_continuation --batch-id p27-full --resolve-alert <alert_key>
+```
+
+**alert分类**（详见`specs/p27_monitor_spec.md`）：
+- A类自动检查（9项）：session_health/queue_stalled/rate_limit/zombie_sessions/export_missing/failure_rate/launcher_dead/long_running
+- B类续传质量检查（7项）：proof_missing/proof_no_boxed/proof_too_small/handover_missing/handover_too_small/all_rounds_truncated/status_anomaly
+- C类AI review抽样（5项，需Master AI判断）：proof_quality/proof_hallucination/answer_leak/handover_quality/continuation_direction
+
+**通过标准**（415号§7.1）：919道题中COMPLETED≥50% → POC-2.7通过。
+
+**★ 如何停止系统**（推荐——自动处理watchdog+launcher+monitor）：
+```bash
+cd analysis-devin-failure-system
+# 优雅停止（不kill devin实例，等running自然完成）
+.venv/bin/python3 -m monitoring.continuation_control stop
+# 强制停止（kill所有session+清空Redis队列）
+.venv/bin/python3 -m monitoring.continuation_control stop --force
+```
+**注意**：stop命令的第一步是stop_watchdog()——launchctl unload+disable plist + kill tmux session，防止watchdog重启已停掉的服务。
+
