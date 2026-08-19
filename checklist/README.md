@@ -34,7 +34,7 @@
 
 | 门类代号 | 名称 | 需求点数 | 负责的 WP | 文件名前缀 |
 |---|---|---|---|---|
-| ENV | 环境与基础设施 | 6 | WP-01, WP-09 | `ENV-` |
+| ENV | 环境与基础设施 | 7 | WP-01, WP-09 | `ENV-` |
 | SESS | Session 编号化管理（阶段1） | 12 | WP-01 | `SESS-` |
 | LAUNCH | Launcher 启动与续传控制 | 10 | WP-01, WP-02 | `LAUNCH-` |
 | MON-A | Monitor Pipe A 类自动检查 | 12 | WP-02, WP-05 | `MON-A` |

@@ -1,5 +1,6 @@
 source_type,source_id,target_type,target_id,relation,note,commit_id
 checkpoint,ENV-01,wp,WP-01,part-of,环境配置检查项属于WP-01阶段1真实运行验证,
+checkpoint,ENV-07,document,checklist/ENV-07.md,specified-by,启动devin cli必须指定glm-5.2-high,
 checkpoint,MON-A1,code,monitoring/analysis_control.py,implements,A类检查项1由analysis_control实现,
 checkpoint,MON-A1,code,monitoring/analysis_control.py::check_status,implements,A类检查项1的状态检查由check_status实现,
 checkpoint,MON-A1,code,monitoring/analysis_control.py::run_analysis,implements,A类检查项1由run_analysis函数实现,
