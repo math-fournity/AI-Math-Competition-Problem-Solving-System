@@ -59,7 +59,7 @@ last_consistency_check=0
 while true; do
     # === 检查launcher ===
     ensure_service "launcher" "p27-launcher" \
-        "cd $ANALYSIS_DIR && while true; do $PY -m src.continuation_launcher --batch-id $BATCH_ID --concurrency 5 --max-rounds 5 --method v2 2>&1; echo '[auto-restart] launcher退出, 5秒后重启...'; sleep 5; done"
+        "cd $ANALYSIS_DIR && while true; do $PY -m src.continuation_launcher --batch-id $BATCH_ID --concurrency 1 --max-rounds 5 --method v2 2>&1; echo '[auto-restart] launcher退出, 5秒后重启...'; sleep 5; done"
 
     # === 检查monitor ===
     ensure_service "monitor" "monitor-p27" \
