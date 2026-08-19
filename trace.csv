@@ -1026,6 +1026,10 @@ code,monitoring/retry_infrastructure.py,code,monitoring/retry_infrastructure.py:
 code,monitoring/retry_infrastructure.py,code,monitoring/retry_infrastructure.py::retry_failed,contains,,
 code,monitoring/retry_infrastructure.py,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 code,monitoring/retry_infrastructure.py,runtime-asset,OUTPUT_BASE,generates,monitoring/retry_infrastructure.py引用运行资产OUTPUT_BASE,
+code,monitoring/runtime_health_check.py,checkpoint,MON-A1,implements,runtime_health_check维度A-E实现session_health/进程检查,
+code,monitoring/runtime_health_check.py,checkpoint,MON-A2,implements,runtime_health_check维度I实现批次进度检查,
+code,monitoring/runtime_health_check.py,checkpoint,MON-A6,implements,runtime_health_check维度H实现落盘完整性检查,
+code,monitoring/runtime_health_check.py,checkpoint,MON-A7,implements,runtime_health_check维度G实现devin退出健康检查,
 code,monitoring/runtime_health_check.py,code,monitoring/runtime_health_check.py::check_a_redis_atomicity,contains,,
 code,monitoring/runtime_health_check.py,code,monitoring/runtime_health_check.py::check_b_db_redis_consistency,contains,,
 code,monitoring/runtime_health_check.py,code,monitoring/runtime_health_check.py::check_c_duplicate_run,contains,,
@@ -1072,7 +1076,12 @@ code,run_audit_pipeline.py,commit,a4f3a61,changed-in,目录结构扁平化重组
 code,run_continuation_pipeline.py,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 code,run_pipeline.py,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 code,run_selection_pipeline.py,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
+code,scripts/monitor_check_continuation.sh,checkpoint,MON-A1,implements,monitor_check_continuation.sh检查1+3实现session_health检查,
+code,scripts/monitor_check_continuation.sh,checkpoint,MON-A8,implements,monitor_check_continuation.sh检查3实现launcher_dead检查,
+code,scripts/monitor_check_continuation.sh,checkpoint,MON-B1,implements,monitor_check_continuation.sh检查5实现proof_missing检查,
+code,scripts/monitor_check_continuation.sh,checkpoint,MON-B7,implements,monitor_check_continuation.sh检查6实现final_status分布检查,
 code,scripts/monitor_check_continuation.sh,wp,WP-11,implements,monitor_check_continuation.sh扩展由WP-11执行,
+code,scripts/monitor_check_selection.sh,wp,WP-09,implements,monitor_check_selection.sh是选题检查脚本关联WP-09运行监控,
 code,src/__init__.py,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 code,src/aggregator.py,code,src/aggregator.py::aggregate,contains,,
 code,src/aggregator.py,code,src/aggregator.py::main,contains,,
@@ -1728,9 +1737,14 @@ dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,script
 dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,script,scripts/trace.py,changes,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md提及scripts/trace.py,
 dev-doc,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,dev-doc,dev-docs/009-全repo全资产幂等关系终极trace.csv方案.md,comes-from,执行结果来自009方案,
 dev-doc,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,document,dev-docs/010-全repo全资产幂等关系终极trace.csv执行结果.md,produces,全repo全资产幂等关系终极trace.csv的执行结果记录,
+doc,AGENTS.md,wp,WP-12,implements,AGENTS.md最前面检查指令由WP-12添加,
+doc,checklist/ExecDevin.md,doc,docs/specs/p27_monitor_spec.md,specified-by,ExecDevin检查项由p27_monitor_spec定义,
 doc,checklist/MasterAgentCheck.md,doc,checklist/ExecDevin.md,comes-from,MasterAgentCheck从ExecDevin提取检查项重新组织,
 doc,checklist/MasterAgentCheck.md,doc,docs/specs/p27_monitor_spec.md,specified-by,MasterAgentCheck检查标准由p27_monitor_spec定义,
 doc,checklist/MasterAgentCheck.md,wp,WP-11,comes-from,MasterAgentCheck由WP-11创建,
+doc,docs/specs/p27_monitor_pipe_operations.md,checkpoint,MON-A1,specified-by,p27_monitor_pipe_operations定义MON-A类检查操作,
+doc,docs/specs/p27_monitor_pipe_operations.md,checkpoint,MON-B1,specified-by,p27_monitor_pipe_operations定义MON-B类检查操作,
+doc,docs/specs/p27_monitor_pipe_operations.md,checkpoint,MON-C1,specified-by,p27_monitor_pipe_operations定义MON-C类检查操作,
 document,.gitignore,commit,eb27fab,changed-in,目录重组：根文档移到docs/，POC-2.7数据移到data/，加.gitignore和.env.example,eb27fab
 document,AGENTS.md,commit,4b0bf33,changed-in,AGENTS.md加硬约束9（禁止绝对路径依赖）+目录重组方案文档,4b0bf33
 document,AGENTS.md,commit,8f66457,changed-in,创建README.md引导地图+AGENTS.md（read-sync skill）,8f66457
