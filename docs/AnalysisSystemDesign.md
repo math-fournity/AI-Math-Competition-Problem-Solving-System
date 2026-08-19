@@ -2,7 +2,7 @@
 
 > **用途**：任何AI涉足错题分析系统（`analysis-devin-failure-system/`）时，从本文件开始。本文件索引所有需要看的文档、要遵守的规范、要参考的代码资产。
 >
-> **位置**：项目repo根目录（`/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md`）
+> **位置**：项目repo根目录（`AnalysisSystemDesign.md`）
 
 ---
 

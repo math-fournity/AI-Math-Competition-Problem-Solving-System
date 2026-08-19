@@ -18,11 +18,12 @@
 """
 import logging
 import logging.handlers
+import os
 import sys
 from pathlib import Path
 
 # 日志目录
-LOG_BASE = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory/analysis-devin-failure/_logs")
+LOG_BASE = Path(os.environ.get("TRAJECTORY_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory")) / "analysis-devin-failure" / "_logs"
 LOG_BASE.mkdir(parents=True, exist_ok=True)
 
 # 日志参数

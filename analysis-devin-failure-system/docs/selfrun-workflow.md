@@ -101,7 +101,7 @@ subagent ×N 并发（分析AI）
 
 ```bash
 cd analysis-devin-failure-system   # 所有命令在此目录
-PY=/Users/user/glm5.2-math-worktree/.venv/bin/python
+PY=../../.venv/bin/python
 
 # 0. 如果audit僵尸服务还在跑（devin时代audit-launcher tmux），先停：
 #    python -m monitoring.analysis_control stop --kill-sessions

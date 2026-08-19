@@ -27,7 +27,7 @@
 - [ ] 启动系统：
 ```bash
 cd analysis-devin-failure-system
-/Users/user/glm5.2-math-worktree/.venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
+../.venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
 ```
 
 ### 2. 循环监控

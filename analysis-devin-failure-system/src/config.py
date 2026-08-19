@@ -5,16 +5,17 @@
 """
 
 from pathlib import Path
+import os
 
 # === 路径常量 ===
-# 项目根目录
-PROJECT_ROOT = Path("/Users/user/glm5.2-math-worktree")
+# 项目根目录（动态获取——config.py在src/下，三层parent回到repo根）
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # solver工作目录基址（devin cli的--work-dir）
-SOLVER_BASE = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-dir")
+SOLVER_BASE = Path(os.environ.get("SOLVER_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-dir"))
 
 # trajectory目录基址（AI解题过程数据）
-TRAJECTORY_BASE = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory")
+TRAJECTORY_BASE = Path(os.environ.get("TRAJECTORY_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory"))
 
 # 分析系统的工作目录基址（分析devin cli的工作目录）
 ANALYSIS_SOLVER_BASE = SOLVER_BASE / "analysis-devin-failure"
@@ -23,8 +24,8 @@ ANALYSIS_SOLVER_BASE = SOLVER_BASE / "analysis-devin-failure"
 ANALYSIS_TRAJECTORY_BASE = TRAJECTORY_BASE / "analysis-devin-failure"
 
 # 题库数据位置
-DATASET_BASE = Path("/Volumes/data/math-manify/raw_downloads")
-KNOWLEDGE_BASE = PROJECT_ROOT / "knowledge" / "problem_banks"
+DATASET_BASE = Path(os.environ.get("DATASET_BASE", "/Volumes/data/math-manify/raw_downloads"))
+KNOWLEDGE_BASE = Path(os.environ.get("KNOWLEDGE_BASE", "/Users/user/glm5.2-math-worktree/knowledge/problem_banks"))
 
 # 各题库的具体路径
 DATASET_PATHS = {

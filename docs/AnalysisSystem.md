@@ -10,7 +10,7 @@
 
 ## §1. 你在哪——基本信息
 
-- **工作目录**：`/Users/user/glm5.2-math-worktree/`
+- **工作目录**：`./`
 - **Git分支**：`glm5.2`
 - **origin**：`/Volumes/data/glm5.2-math-worktree`（fetch/push都指向它）
 - **Python环境**：`.venv/`（python3.14，独立venv，被gitignore）
@@ -53,19 +53,19 @@
 **检查系统当前是否在运行**：
 ```bash
 cd analysis-devin-failure-system
-/Users/user/glm5.2-math-worktree/.venv/bin/python3 -m monitoring.continuation_control status --batch-id p27-full
+./.venv/bin/python3 -m monitoring.continuation_control status --batch-id p27-full
 ```
 
 **检查session注册表**：
 ```bash
 cd analysis-devin-failure-system
-/Users/user/glm5.2-math-worktree/.venv/bin/python3 -m monitoring.continuation_control sessions
-/Users/user/glm5.2-math-worktree/.venv/bin/python3 -m monitoring.continuation_control sessions --consistency-check
+./.venv/bin/python3 -m monitoring.continuation_control sessions
+./.venv/bin/python3 -m monitoring.continuation_control sessions --consistency-check
 ```
 
 **检查进度**：
 ```bash
-cd /Users/user/glm5.2-math-worktree
+cd ../..
 bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-full
 ```
 

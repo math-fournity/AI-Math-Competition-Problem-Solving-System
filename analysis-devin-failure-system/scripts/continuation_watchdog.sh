@@ -14,7 +14,8 @@ set -e
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
-REPO=/Users/user/glm5.2-math-worktree
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(dirname "$(dirname "$SCRIPT_DIR")")"
 ANALYSIS_DIR=$REPO/analysis-devin-failure-system
 PY=$REPO/.venv/bin/python3
 export PYTHONPATH=$ANALYSIS_DIR

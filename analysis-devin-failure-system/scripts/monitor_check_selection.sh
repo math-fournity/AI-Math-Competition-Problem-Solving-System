@@ -9,8 +9,9 @@ set -uo pipefail
 
 BATCH_ID="${1:?用法: $0 <batch_id> [monitor_tmux_session]}"
 MONITOR_SESSION="${2:-monitor-sel}"
-PY="/Users/user/glm5.2-math-worktree/.venv/bin/python3"
-PROJ_ROOT="/Users/user/glm5.2-math-worktree"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJ_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+PY="$PROJ_ROOT/.venv/bin/python3"
 ANALYSIS_DIR="$PROJ_ROOT/analysis-devin-failure-system"
 
 echo "============================================"

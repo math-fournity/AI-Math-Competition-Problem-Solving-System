@@ -17,16 +17,17 @@ POC-2.7的续传Pipe（Pipe 4），接入错题分析系统框架。
 """
 
 from pathlib import Path
+import os
 
 # === 路径常量 ===
-PROJECT_ROOT = Path("/Users/user/glm5.2-math-worktree")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # D盘路径（原始做题数据）
-D_SOLVER_DIR = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-dir")
-D_TRAJ_DIR = Path("/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory")
+D_SOLVER_DIR = Path(os.environ.get("SOLVER_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-dir"))
+D_TRAJ_DIR = Path(os.environ.get("TRAJECTORY_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory"))
 
-# POC-2.7数据目录（与batch_continue_948.py共用）
-POC_2_7_DIR = PROJECT_ROOT / "Tell分类学研究过程文档" / "poc_assets" / "poc_2.7" / "poc_2.7"
+# POC-2.7数据目录
+POC_2_7_DIR = PROJECT_ROOT / "data" / "poc_2.7"
 PROBLEM_LIST_FILE = POC_2_7_DIR / "problem_list.json"
 RESULTS_FILE = POC_2_7_DIR / "results.json"
 
@@ -36,7 +37,7 @@ CONTINUATION_TRAJECTORY_BASE = D_TRAJ_DIR / "p27-continuation"
 
 # conversation_mapper.py（v2方案的面包屑地图生成器）
 MAPPER_SCRIPT = PROJECT_ROOT / "scripts" / "conversation_mapper.py"
-CONTINUE_SPEC = PROJECT_ROOT / "续传规范文档.md"
+CONTINUE_SPEC = PROJECT_ROOT / "docs" / "续传规范文档.md"
 
 # === ArangoDB配置（复用现有）===
 ARANGO_HOST = "http://localhost:8529"

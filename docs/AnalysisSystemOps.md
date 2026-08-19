@@ -256,7 +256,7 @@ python -m monitoring.retry_infrastructure --once
 ### 用法
 
 ```bash
-cd /Users/user/glm5.2-math-worktree
+cd ../..
 
 # 端到端（全部步骤）
 python analysis-devin-failure-system/run_pipeline.py --batch-id analysis-1 --limit 100 --concurrency 10
@@ -412,7 +412,7 @@ polymath_01687（置换多项式问题）：
 ### 运行前检查清单（未来session接手时执行）
 
 ```bash
-cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+cd ../../analysis-devin-failure-system
 
 # 1. 健康检查
 python -m monitoring.analysis_control health
@@ -515,7 +515,7 @@ python -m monitoring.analysis_control start --batch-id full-analysis --concurren
 #### 运行流程（每轮）
 
 ```bash
-cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+cd ../../analysis-devin-failure-system
 
 # 1. 选题——5题一组，优先选后期批次（无MITM，验证真实数据）
 #    写题号到 output/polish5_ids.txt
@@ -751,7 +751,7 @@ else:
 
 ```bash
 # 1. 查当前正在跑的续传devin进程（基于cwd识别）
-cd /Users/user/glm5.2-math-worktree
+cd ../..
 python3 "Tell分类学研究过程文档/poc_assets/poc_2.6/continue_solver.py" find
 
 # 2. 查批量脚本本身是否还在运行
@@ -829,13 +829,13 @@ ps aux | grep "continue_solver.py batch" | grep -v grep | awk '{print $2}' | xar
 
 **★ 如何启动全量续传**（推荐——自动启动launcher+monitor到tmux，带auto-restart）：
 ```bash
-cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+cd ../../analysis-devin-failure-system
 .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5 --max-rounds 5 --method v2
 ```
 
 **★ 如何启动watchdog**（守护launcher+monitor，崩溃自动重启）：
 ```bash
-cd /Users/user/glm5.2-math-worktree/analysis-devin-failure-system
+cd ../../analysis-devin-failure-system
 tmux new-session -d -s p27-watchdog "bash scripts/continuation_watchdog.sh --batch-id p27-full"
 ```
 
@@ -859,7 +859,7 @@ cd analysis-devin-failure-system
 
 **如何检查（Master AI每次检查都调用）**：
 ```bash
-cd /Users/user/glm5.2-math-worktree
+cd ../..
 bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-full
 ```
 输出7项检查（Monitor pane/alerts/进程状态/进度/续传质量/通过率判定/**系统健康**）+ 8步行动清单 + **循环监控指令**。

@@ -22,6 +22,7 @@ devin cli载体失效（2026-08-16）后的替代写入端。ZCode主会话/suba
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,7 +153,7 @@ def write_export(kind, exp_id, output_text, runtime_seconds=None):
                 "timestamp": _utc_now(),
                 "source": "user",
                 "message": f"(AGENTS.md prompt for {exp_id} — 见work_dir)",
-                "extra": {"prompt_file": str(Path('/Volumes/data/math-agent-glm5.2-tmux-agents-dir/analysis-devin-failure') / exp_id / 'AGENTS.md')},
+                "extra": {"prompt_file": str(Path(os.environ.get("SOLVER_BASE", "/Volumes/data/math-agent-glm5.2-tmux-agents-dir")) / "analysis-devin-failure" / exp_id / 'AGENTS.md')},
             },
             {
                 "step_id": 1,

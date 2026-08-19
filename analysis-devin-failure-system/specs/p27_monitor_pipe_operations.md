@@ -7,8 +7,8 @@
 **对应文档**：
 - 检查规范详情：`specs/p27_monitor_spec.md`（A/B/C类检查的详细标准）
 - session管理+Monitor Exec Devin架构：`specs/p27_session_management_and_polish_spec.md`
-- 系统总索引：`/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md`
-- Monitor Pipe设计范式：`/Users/user/glm5.2-math-worktree/MonitorPipe.md`
+- 系统总索引：`../../docs/AnalysisSystemDesign.md`
+- Monitor Pipe设计范式：`../../docs/MonitorPipe.md`
 
 ---
 
@@ -220,10 +220,10 @@ WORKLOG.md告诉Monitor Exec Devin：
 | 1 | **本文档** | `analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md` | 认知资产入口+检查项目完整清单+self检查 |
 | 2 | **检查规范详情** | `analysis-devin-failure-system/specs/p27_monitor_spec.md` | A/B/C类检查的详细标准（阈值/方法/通过条件） |
 | 3 | **session管理+Exec Devin架构** | `analysis-devin-failure-system/specs/p27_session_management_and_polish_spec.md` | session注册表/DONE.md铁律/Monitor Exec Devin工作循环/prompt构造 |
-| 4 | **系统总索引** | `/Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md` | 错题分析系统设计总索引——文档体系/规范/代码资产/设计原则/关键决策 |
-| 5 | **Monitor Pipe设计范式** | `/Users/user/glm5.2-math-worktree/MonitorPipe.md` | Monitor Pipe三层架构设计范式（跨项目） |
-| 6 | **续传规范** | `/Users/user/glm5.2-math-worktree/续传规范文档.md` | 续传机制标准规范——HANDOFF.md结构/截断判定/prompt模板 |
-| 7 | **Exec Devin必读需求点清单** | `/Users/user/glm5.2-math-worktree/AnalysisSystem开发/CheckList-ExecDevin.md` | 从系统全集127个需求点中提取的Exec Devin必读子集（约68点）——"我要检查什么、要遵守什么"的统一列表，含A类已知问题速查 |
+| 4 | **系统总索引** | `../../docs/AnalysisSystemDesign.md` | 错题分析系统设计总索引——文档体系/规范/代码资产/设计原则/关键决策 |
+| 5 | **Monitor Pipe设计范式** | `../../docs/MonitorPipe.md` | Monitor Pipe三层架构设计范式（跨项目） |
+| 6 | **续传规范** | `../../docs/续传规范文档.md` | 续传机制标准规范——HANDOFF.md结构/截断判定/prompt模板 |
+| 7 | **Exec Devin必读需求点清单** | `../../AnalysisSystem开发/CheckList-ExecDevin.md` | 从系统全集127个需求点中提取的Exec Devin必读子集（约68点）——"我要检查什么、要遵守什么"的统一列表，含A类已知问题速查 |
 
 ### 2.2 按需读取资产（遇到相关问题时读）
 

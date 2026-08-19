@@ -417,12 +417,12 @@ p27-s{seq:04d}-monitor-exec-{exec_seq}
 
 你是这个系统的管理者，需要像Master Agent一样了解系统全貌。用绝对路径读取以下文档：
 
-1. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md —— ★你的认知资产入口★（检查项目完整清单+self检查+工作流程）
-2. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— A/B/C类检查详细标准
-3. /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_session_management_and_polish_spec.md —— session管理+你的工作规范
-4. /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md —— 系统总索引（文档体系/规范/代码资产/设计原则/关键决策）
-5. /Users/user/glm5.2-math-worktree/MonitorPipe.md —— Monitor Pipe三层架构设计范式
-6. /Users/user/glm5.2-math-worktree/续传规范文档.md —— 续传机制标准规范
+1. ../../analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md —— ★你的认知资产入口★（检查项目完整清单+self检查+工作流程）
+2. ../../analysis-devin-failure-system/specs/p27_monitor_spec.md —— A/B/C类检查详细标准
+3. ../../analysis-devin-failure-system/specs/p27_session_management_and_polish_spec.md —— session管理+你的工作规范
+4. ../../docs/AnalysisSystemDesign.md —— 系统总索引（文档体系/规范/代码资产/设计原则/关键决策）
+5. ../../docs/MonitorPipe.md —— Monitor Pipe三层架构设计范式
+6. ../../docs/续传规范文档.md —— 续传机制标准规范
 
 按需读取（遇到相关问题时）：
 - analysis-devin-failure-system/docs/ 下的架构/优雅停止/运维关注点/框架检查清单等
@@ -440,7 +440,7 @@ p27-s{seq:04d}-monitor-exec-{exec_seq}
 ## 第一步：运行检查脚本
 
 ```bash
-cd /Users/user/glm5.2-math-worktree
+cd ../..
 bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-full
 ```
 
@@ -464,9 +464,9 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
 
 ### 代码bug（如export_missing/rounds_log_integrity/intermediate_product_uniqueness）
 1. 读相关代码（用绝对路径）：
-   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/src/continuation_launcher.py
-   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/src/monitor_continuation.py
-   - /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/monitoring/continuation_control.py
+   - ../../analysis-devin-failure-system/src/continuation_launcher.py
+   - ../../analysis-devin-failure-system/src/monitor_continuation.py
+   - ../../analysis-devin-failure-system/monitoring/continuation_control.py
 2. 定位根因（不是症状）
 3. 修复
 4. 验证：`python -m py_compile <修改的文件>`
@@ -498,15 +498,15 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
      - AnalysisSystemDesign.md §4 代码资产索引
      - analysis-devin-failure-system/specs/*.md 的§2/§3/§A/§B实现细节（检查项/检查标准/session管理/Exec Devin实现细节）
    - **第二级（架构级规范）——你不能改，只在REPORT和WORKLOG中记录建议**：
-     - /Users/user/glm5.2-math-worktree/AGENTS.md
-     - /Users/user/glm5.2-math-worktree/.devin/rules/*.md
-     - /Users/user/glm5.2-math-worktree/MonitorPipe.md 的三层架构定义和设计原则
-     - /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md 的§5设计原则和§6关键设计决策
+     - ../../AGENTS.md
+     - ../../.devin/rules/*.md
+     - ../../docs/MonitorPipe.md 的三层架构定义和设计原则
+     - ../../docs/AnalysisSystemDesign.md 的§5设计原则和§6关键设计决策
    - **判定标准**：改的是"是什么"（事实→第一级，自己改）还是"应该是什么"（设计决策→第二级，记录建议）
 4. **git操作规范**：
    - 禁止 `git add -A` / `git add .` / `git add -u`
    - 只 `git add <具体路径>`
-   - git命令用 `-C /Users/user/glm5.2-math-worktree` 指定repo
+   - git命令用 `-C ../..` 指定repo
    - commit message格式：`修复<alert_type或问题简述>: <一句话描述>`
    - commit message末尾加：
      ```
@@ -602,7 +602,7 @@ def build_monitor_exec_prompt(exec_seq, db):
     git_log = subprocess.run(
         ["git", "log", "--oneline", "-10"],
         capture_output=True, text=True,
-        cwd="/Users/user/glm5.2-math-worktree"
+        cwd="../.."
     ).stdout
     return render_template("templates/monitor_exec_prompt.md", {
         "exec_seq": exec_seq,
