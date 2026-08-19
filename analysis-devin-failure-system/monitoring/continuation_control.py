@@ -44,6 +44,15 @@ VENV_PYTHON = str(PROJECT_ROOT / ".venv" / "bin" / "python3")
 if not Path(VENV_PYTHON).exists():
     VENV_PYTHON = sys.executable
 
+# session_registry导入（编号化管理）
+sys.path.insert(0, str(ANALYSIS_ROOT))
+from src.session_registry import (
+    list_sessions as _list_sessions, clean_session as _clean_session,
+    clean_done_sessions as _clean_done_sessions, consistency_check as _consistency_check,
+    get_session as _get_session,
+)
+from src.continuation_db_schema import connect_db as _connect_db
+
 # tmux session命名
 LAUNCHER_SESSION = "p27-launcher"
 MONITOR_SESSION = "monitor-p27"
@@ -259,16 +268,43 @@ def cmd_stop(args):
     stop_watchdog()
 
     if args.force:
-        # 强制模式：kill所有服务+所有p27- session+清空队列
+        # 强制模式：停服务 + 分类处理devin cli session + 清空队列
         stop_service("launcher", LAUNCHER_SESSION, graceful=False)
         stop_service("monitor", MONITOR_SESSION, graceful=False)
 
-        # kill所有p27- devin session
-        p27_sessions = list_p27_sessions()
-        for s in p27_sessions:
-            subprocess.run(["tmux", "kill-session", "-t", s],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        print(f"  kill {len(p27_sessions)}个p27- devin session")
+        # ★ 分类处理devin cli session（见specs §A.5）★
+        # done状态的可以安全kill（export已落盘）
+        # stuck/running状态的不kill（devin cli可能正在写export）
+        try:
+            db = _connect_db()
+            # 清理done的
+            result = _clean_done_sessions(db)
+            if result["cleaned"] > 0:
+                print(f"  清理 {result['cleaned']}个done session（安全，export已落盘）")
+
+            # stuck和running的不kill——提示用户
+            stuck_sessions = _list_sessions(db, status="stuck", limit=100)
+            running_sessions = _list_sessions(db, status="running", limit=100)
+            if stuck_sessions:
+                print(f"  ⚠️ {len(stuck_sessions)}个stuck session未清理（需用户授意）")
+                for s in stuck_sessions[:5]:
+                    print(f"     {s['_key']} ({s['session_name']}) — 清理: continuation_control sessions --clean {s['_key']}")
+                if len(stuck_sessions) > 5:
+                    print(f"     ... 还有{len(stuck_sessions)-5}个")
+            if running_sessions:
+                print(f"  ⚠️ {len(running_sessions)}个running session未清理（devin cli可能正在写export）")
+                for s in running_sessions[:5]:
+                    print(f"     {s['_key']} ({s['session_name']}) — 等DONE.md出现后清理")
+                if len(running_sessions) > 5:
+                    print(f"     ... 还有{len(running_sessions)-5}个")
+        except Exception as e:
+            # 如果DB查询失败，回退到旧行为——kill所有p27- session
+            print(f"  ⚠️ DB查询失败({e})，回退到旧行为——kill所有p27- session")
+            p27_sessions = list_p27_sessions()
+            for s in p27_sessions:
+                subprocess.run(["tmux", "kill-session", "-t", s],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            print(f"  kill {len(p27_sessions)}个p27- devin session")
 
         # 清空Redis队列
         try:
@@ -280,6 +316,7 @@ def cmd_stop(args):
             print(f"  Redis清空失败: {e}")
 
         print("\n所有服务已强制停止。")
+        print("  注意：stuck/running session未kill——等DONE.md后用 sessions --clean 清理")
     else:
         # 优雅模式：发送SIGINT，不kill devin session
         stop_service("launcher", LAUNCHER_SESSION, graceful=True, timeout=15)

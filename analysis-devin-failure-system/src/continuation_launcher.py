@@ -1166,7 +1166,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 print(f"  [{detected_error}] {pid} R{round_num} — {elapsed_sec}s")
                 failed.append({"pid": pid, "round": round_num, "reason": detected_error})
                 to_remove.append(run_key)
-                tmux_kill(session_name)
+                # ★ 不kill——标记stuck，devin cli可能还在写export ★
+                # 只有done状态的session才安全kill（见specs §A.5）
+                session_key = info.get("session_key")
+                if session_key:
+                    _mark_stuck(db, session_key, f"{detected_error}({elapsed_sec}s)")
+                    print(f"  [stuck] {session_key} 标记stuck，不kill（等DONE.md或用户授意）")
+                # 不调用tmux_kill——session留在tmux里继续跑
 
                 if detected_error == "rate_limited":
                     # rate_limit自动暂停20分钟
@@ -1212,7 +1218,12 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 print(f"  [timeout] {pid} R{round_num} — {elapsed_sec}s")
                 failed.append({"pid": pid, "round": round_num, "reason": "timeout"})
                 to_remove.append(run_key)
-                tmux_kill(session_name)
+                # ★ 不kill——标记stuck，devin cli可能还在写export ★
+                session_key = info.get("session_key")
+                if session_key:
+                    _mark_stuck(db, session_key, f"timeout({elapsed_sec}s)")
+                    print(f"  [stuck] {session_key} 标记stuck，不kill（等DONE.md或用户授意）")
+                # 不调用tmux_kill
                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                 rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                 rounds_log.append(make_round_log_entry(
@@ -1240,7 +1251,12 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 print(f"  [stall] {pid} R{round_num} — idle {idle_sec}s")
                 failed.append({"pid": pid, "round": round_num, "reason": "stall"})
                 to_remove.append(run_key)
-                tmux_kill(session_name)
+                # ★ 不kill——标记stuck，devin cli可能还在写export ★
+                session_key = info.get("session_key")
+                if session_key:
+                    _mark_stuck(db, session_key, f"stall(idle {idle_sec}s)")
+                    print(f"  [stuck] {session_key} 标记stuck，不kill（等DONE.md或用户授意）")
+                # 不调用tmux_kill
                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                 rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                 rounds_log.append(make_round_log_entry(
