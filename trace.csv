@@ -24,6 +24,7 @@ dev-doc,dev-docs/002-checklist-working-packages拆分.md,script,scripts/generate
 dev-doc,dev-docs/002-checklist-working-packages拆分.md,script,scripts/generate_checkpoints.py,changes,删除旧批量生成脚本,f1ca691
 dev-doc,dev-docs/003-README三层架构与分类法设计.md,document,README.md,changes,规划重构为分类法索引（尚未执行）,00a08d3
 dev-doc,dev-docs/004-幂等追溯体系与工作包自包含设计.md,document,dev-docs/004-幂等追溯体系与工作包自包含设计.md,produces,定义幂等追溯体系与工作包自包含设计,
+dev-doc,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,document,dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md,produces,Master Agent接管Monitor Pipe检查工作的需求记录和分析,
 document,README.md,commit,82ac6a8,changed-in,补充dev-docs引导条目,
 document,checklist/README.md,commit,f1ca691,changed-in,从CheckList.md精简为索引,
 document,docs/specs/p27_monitor_spec.md,checkpoint,MON-A1,verifies,p27规范验证A类检查项1,
