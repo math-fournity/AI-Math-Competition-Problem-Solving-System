@@ -24,9 +24,10 @@ echo "============================================"
 
 # --- 检查1: Monitor Pipe的tmux pane输出（最近轮次+AI_REVIEW抽样）---
 echo ""
-echo "=== 1. Monitor Pipe pane输出（最近5轮）==="
+echo "=== 1. Monitor Pipe pane输出（最近3轮）==="
 if tmux has-session -t "$MONITOR_SESSION" 2>/dev/null; then
-    tmux capture-pane -t "$MONITOR_SESSION" -p -S -200 2>/dev/null | grep -E "监控轮次|ALERT|AI_REVIEW|status|progress|final_status|pass_rate" | tail -30
+    # 只取最近3轮的输出，避免历史alert堆积导致输出过长
+    tmux capture-pane -t "$MONITOR_SESSION" -p -S -100 2>/dev/null | grep -E "监控轮次|ALERT|AI_REVIEW|status|progress|final_status|pass_rate" | tail -20
 else
     echo "  [ERROR] tmux session '$MONITOR_SESSION' 不存在！Monitor Pipe可能已退出。"
 fi
@@ -37,11 +38,16 @@ echo "     - AI_REVIEW抽样的结果——需按specs/p27_monitor_spec.md §3.3
 echo "     - progress是否在推进？如果停滞，检查launcher日志"
 echo "     - pass_rate是否在增长？目标COMPLETED≥50%（415号§7.1）"
 
-# --- 检查2: alerts集合（新alert）---
+# --- 检查2: alerts集合（新alert，最多显示5条）---
 echo ""
-echo "=== 2. alerts集合（新alert）==="
+echo "=== 2. alerts集合（新alert，最多5条）==="
 cd "$ANALYSIS_DIR"
-$PY -m src.monitor_continuation --batch-id "$BATCH_ID" --check-alerts 2>&1
+ALERT_OUTPUT=$($PY -m src.monitor_continuation --batch-id "$BATCH_ID" --check-alerts 2>&1)
+ALERT_COUNT=$(echo "$ALERT_OUTPUT" | head -1 | grep -oE '[0-9]+' || echo "0")
+echo "$ALERT_OUTPUT" | head -40
+if [ "$ALERT_COUNT" -gt 5 ] 2>/dev/null; then
+    echo "  ... 还有$((ALERT_COUNT - 5))条alert未显示（用 --check-alerts 查看全部）"
+fi
 echo ""
 echo "  >> 需要检查（按specs/p27_monitor_spec.md §2分类处理）："
 echo "     [A类自动检查]"
