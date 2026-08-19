@@ -52,7 +52,7 @@
 
 ### `docs/patterns/MonitorPipe.md` — Monitor Pipe设计范式
 
-跨项目的"连续工作系统Monitor Pipe+检查脚本"设计范式。定义如何写检查规范、如何实现Monitor Pipe、如何写检查脚本的三层架构（规范层/实现层/查询层）。不是某个具体系统的文档，是元范式。具体系统的检查规范是系统资产（如 `specs/p27_monitor_spec.md`）。
+跨项目的"连续工作系统Monitor Pipe+检查脚本"设计范式。定义如何写检查规范、如何实现Monitor Pipe、如何写检查脚本的三层架构（规范层/实现层/查询层）。不是某个具体系统的文档，是元范式。具体系统的检查规范是系统资产（如 `docs/specs/p27_monitor_spec.md`）。
 
 **覆盖问题场景**：
 - 设计新系统的Monitor Pipe时——三层架构、A/B/C类检查定义
@@ -97,8 +97,8 @@
 POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行依据：
 
 - **`p27_monitor_spec.md`** — Pipe 4续传的检查规范（A类9项自动检查/B类9项续传质量/C类5项AI判断）。**覆盖场景**：实现Monitor Pipe检查逻辑时、查阅检查标准时。**依赖**：设计范式见根目录 `docs/patterns/MonitorPipe.md`。
-- **`p27_session_management_and_polish_spec.md`** — Session编号化管理与打磨devin架构规范。**覆盖场景**：实现session编号化管理时、实现Monitor Exec Devin自动修复架构时。**依赖**：前置依赖 `p27_monitor_spec.md`。
-- **`p27_monitor_pipe_operations.md`** — Monitor Pipe操作规范（Monitor Exec Devin的认知资产入口）。**覆盖场景**：Monitor Exec Devin启动时加载、查找所有认知资产入口时。**依赖**：检查规范详情见 `p27_monitor_spec.md`、session管理见 `p27_session_management_and_polish_spec.md`。
+- **`p27_session_management_and_polish_spec.md`** — Session编号化管理与打磨devin架构规范。**覆盖场景**：实现session编号化管理时、实现Monitor Exec Devin自动修复架构时。**依赖**：前置依赖 `docs/specs/p27_monitor_spec.md`。
+- **`p27_monitor_pipe_operations.md`** — Monitor Pipe操作规范（Monitor Exec Devin的认知资产入口）。**覆盖场景**：Monitor Exec Devin启动时加载、查找所有认知资产入口时。**依赖**：检查规范详情见 `docs/specs/p27_monitor_spec.md`、session管理见 `docs/specs/p27_session_management_and_polish_spec.md`。
 
 ### `docs/templates/` — 模板（4个）
 
