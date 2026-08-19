@@ -494,9 +494,10 @@ bash analysis-devin-failure-system/scripts/monitor_check_continuation.sh p27-ful
 ## 系统规范参考（如需要）
 
 以下文档帮助你理解系统，用绝对路径读取：
+- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_pipe_operations.md —— ★Monitor Pipe操作规范（你的认知资产入口，必读）★
+- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— 检查规范（A/B/C类详细标准）
 - /Users/user/glm5.2-math-worktree/AnalysisSystemDesign.md —— 错题分析系统设计总索引
 - /Users/user/glm5.2-math-worktree/MonitorPipe.md —— Monitor Pipe设计范式
-- /Users/user/glm5.2-math-worktree/analysis-devin-failure-system/specs/p27_monitor_spec.md —— 检查规范（A/B/C类定义）
 - /Users/user/glm5.2-math-worktree/续传规范文档.md —— 续传机制标准规范
 
 ## 最近的代码修改（git log --oneline -10）

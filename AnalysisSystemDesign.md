@@ -84,6 +84,7 @@ python pipe_control.py concurrency 50
 | selfrun-workflow.md | `analysis-devin-failure-system/docs/` | 使用selfrun模式时 |
 | solver-trajectory-schema.md | `analysis-devin-failure-system/docs/` | 处理trajectory数据时 |
 | p27_monitor_spec.md | `analysis-devin-failure-system/specs/` | Pipe 4的检查规范（A类9项/B类9项/C类5项） |
+| **p27_monitor_pipe_operations.md** | `analysis-devin-failure-system/specs/` | **Monitor Pipe操作规范（认知资产入口）**——Monitor Exec Devin启动时读这一份，包含认知资产加载清单+系统检查项目(A12/B9/C5)+self检查项目(S14)+可追溯性规范+完整工作流程。持续迭代文档 |
 | **p27_session_management_and_polish_spec.md** | `analysis-devin-failure-system/specs/` | **Session编号化管理+Monitor Pipe执行devin架构规范**——session注册表/DONE.md铁律/Monitor Exec Devin三位一体（检查+判断+修复）。`p27_monitor_spec.md`的演进：后者定义"检查什么"，本规范定义"Monitor Pipe执行devin怎么工作"和"session怎么管"。**修正了MonitorPipe.md §2.2的历史错误**——Monitor Pipe执行层恢复为Python(A/B类)+devin cli(C类+修复)两层架构，不再只是纯Python |
 | POC-2.7/README.md | `POC-2.7/` | POC-2.7完整运行和检查指南 |
 
