@@ -545,6 +545,21 @@ WORKLOG.md告诉Monitor Exec Devin：
 - §5工作流程第三步加入"同步修改第一级文档"和S16，第四步加入S15-S17
 - 解决的核心问题：改代码不改文档→下一轮认知过时→按过时认知工作→死循环
 
+### v4 · 2026-08-19 · Session编号化管理代码实现完成
+
+- §A的session编号化管理方案已落地为代码（阶段1 C.1.1-C.1.6全部完成）
+- 新增文件：src/session_registry.py（310行，16个函数）
+- 修改文件：continuation_config.py（新增SESSIONS_COLLECTION等常量）
+  continuation_db_schema.py（ensure_schema加入p27_sessions集合+索引+counter初始化）
+  continuation_launcher.py（tmux_session_name/launch_solve/start_handover接入编号化管理
+  + rate_limited/timeout/stall从tmux_kill改为mark_stuck）
+  continuation_control.py（stop --force分类处理 + 新增sessions子命令）
+  monitor_continuation.py（新增A10/A11/A12检查 + update_tmux_alive）
+  p27_monitor_spec.md（A类从9项扩展为12项）
+  monitor_check_continuation.sh（第1项加入session注册表状态）
+- 7项端到端测试全部通过：allocate_seq/create/get/mark_stuck/list/update_tmux_alive/consistency/clean
+- A类检查从A1-A9扩展为A1-A12（A10 session_registry_consistency/A11 stuck_sessions/A12 done_uncleaned）
+
 ### 迭代规则
 
 - **系统检查项目变更时**（新增/修改/删除A/B/C类检查项）→ 更新§3 + 更新`p27_monitor_spec.md`

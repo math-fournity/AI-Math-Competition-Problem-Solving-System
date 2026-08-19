@@ -45,12 +45,23 @@
 - `continuation_db_schema.py`——自己的ArangoDB集合+`connect_db()`
 - `continuation_redis_queue.py`——自己的Redis队列（`p27:`前缀）
 - `continuation_collector.py`/`continuation_feeder.py`/`continuation_launcher.py`/`continuation_result_collector.py`
-- `monitor_continuation.py`——自己的Monitor Pipe
+- `session_registry.py`——Session编号化管理（seq分配+注册表CRUD+一致性检查，见`specs/p27_session_management_and_polish_spec.md` §A）
+- `monitor_continuation.py`——自己的Monitor Pipe（A1-A12+B1-B9+C1-C5，含session管理检查A10-A12）
 - `specs/p27_monitor_spec.md`——自己的检查规范
+- `specs/p27_session_management_and_polish_spec.md`——Session管理+Monitor Exec Devin架构规范
+- `specs/p27_monitor_pipe_operations.md`——Monitor Pipe操作规范（认知资产入口）
 - `scripts/monitor_check_continuation.sh`——自己的检查脚本
 - `run_continuation_pipeline.py`——端到端入口
 
 **只共享**：`monitoring/shared_logger.py`和`monitoring/graceful_shutdown.py`
+
+**Session编号化管理**（2026-08-19新增）：
+- 所有devin cli实例（solve/handover/monitor_exec）的tmux session注册到`p27_sessions`集合
+- 全局seq单调递增（`p27_session_counter`文档），永不复用
+- 命名格式：`p27-s{seq:04d}-{type}-{suffix}-r{round}`
+- 状态流转：running → done（DONE.md出现）→ cleaned；running → stuck（超时/rate_limit不kill）
+- "绝不kill无DONE.md"铁律——rate_limited/timeout/stall标记stuck不kill
+- 详见`specs/p27_session_management_and_polish_spec.md` §A
 
 ## 3. 每个Pipe的4步架构
 
