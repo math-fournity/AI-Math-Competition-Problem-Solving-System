@@ -444,6 +444,11 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid):
     tmux_pipe_path = traj_dir / "tmux" / "tmux_pipe.log"
     tmux_log_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # DONE.md标记文件——devin cli退出后写入exit code，launcher通过文件存在性检测退出
+    done_marker = Path(export_path).parent / "DONE.md"
+    if done_marker.exists():
+        done_marker.unlink()  # 清理上一轮的DONE.md
+
     devin_cmd = (
         f"devin -p "
         f"--prompt-file {prompt_file} "
@@ -451,7 +456,7 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid):
         f"--respect-workspace-trust false "
         f"--permission-mode {DEVIN_PERMISSION_MODE} "
         f"--export {export_path}; "
-        f"echo DEVIN_CLI_EXITED code=$?; "
+        f"echo $? > {done_marker}; "
         f"sleep 999999"
     )
 
@@ -913,8 +918,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
             # 检查devin cli退出——只有退出后才处理完成/失败
             # 方式1: tmux session消失
-            # 方式2: pane中有DEVIN_CLI_EXITED标记（devin cli退出后tmux session不自动销毁）
-            devin_exited = "DEVIN_CLI_EXITED" in pane_text
+            # 方式2: DONE.md文件存在（devin cli退出后echo $? > DONE.md）
+            done_marker = Path(export_path).parent / "DONE.md"
+            devin_exited = done_marker.exists()
             if not tmux_running(session_name) or devin_exited:
                 # devin cli已退出——export已写入，现在可以安全处理
                 if proof_found:
