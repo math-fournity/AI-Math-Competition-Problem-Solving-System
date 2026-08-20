@@ -80,6 +80,38 @@ def _check_flow_snapshot():
     print()
 
 
+def _check_system_panorama(batch_id):
+    """步骤01例行：系统运行过程全景视图——023方案新增的"过程叙事"能力。
+
+    行为流水的 --stats 给统计聚合，--tail 给原始事件，但都不回答
+    "系统作为一个整体在如何运行"。本函数调用 system_panorama 脚本，
+    输出4层过程叙事（L1现状/L2流畅性/L3流程合规/L4趋势），让AI在
+    认知闭包背景下分析和推理系统运行是否正常。
+
+    与 _check_flow_snapshot 的关系：flow_snapshot 给统计聚合（数字），
+    system_panorama 给过程叙事（"系统在做什么"的可读描述）。两者互补。
+    """
+    print("--- 系统运行过程全景视图（023方案：过程叙事，AI分析推理的基础）---")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts.sop.system_panorama",
+             "--batch-id", batch_id, "--since", "1h"],
+            capture_output=True, text=True, timeout=60,
+            cwd=str(Path(__file__).parent.parent.parent),
+        )
+        if result.stdout:
+            print(result.stdout)
+        else:
+            print("  （无全景视图输出——系统可能刚启动/无行为流水）")
+        if result.stderr:
+            print(f"  ⚠️ system_panorama stderr: {result.stderr[:500]}")
+    except subprocess.TimeoutExpired:
+        print("  ⚠️ 全景视图生成超时（60秒）")
+    except Exception as e:
+        print(f"  ⚠️ 全景视图生成失败: {e}")
+    print()
+
+
 def check_01_system_health(batch_id):
     """步骤01：系统存活+进度+Session——运行 monitor_check_continuation.sh"""
     log.info(f"check_01_system_health: start batch={batch_id}")
@@ -109,6 +141,7 @@ def check_01_system_health(batch_id):
 
     _check_pending_gates()
     _check_flow_snapshot()
+    _check_system_panorama(batch_id)
 
 
 def check_02_data_integrity(batch_id):
@@ -742,10 +775,13 @@ def check_Z_meta_system_review(batch_id):
         src_01 = inspect.getsource(checks_mod.check_01_system_health)
         has_y = "_check_pending_gates" in src_01
         has_flow = "_check_flow_snapshot" in src_01
+        has_panorama = "_check_system_panorama" in src_01
         y_status = "✅" if has_y else "❌"
         flow_status = "✅" if has_flow else "❌"
+        panorama_status = "✅" if has_panorama else "❌"
         print(f"  {y_status} checks.py Y通道接线（check_01 调用 _check_pending_gates）")
         print(f"  {flow_status} checks.py 行为流水接线（check_01 调用 _check_flow_snapshot）")
+        print(f"  {panorama_status} checks.py 全景视图接线（check_01 调用 _check_system_panorama）")
     except Exception as e:
         print(f"  ⚠️ checks.py 接线检查失败: {e}")
     print()
