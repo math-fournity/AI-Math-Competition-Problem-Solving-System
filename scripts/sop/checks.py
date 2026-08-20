@@ -579,3 +579,53 @@ def check_Z_meta_system_review(batch_id):
     print("SOP 脚本目录：scripts/sop/")
     print("状态文件：scripts/sop/_state.json")
     print()
+
+
+def check_OP_operations_knowledge(batch_id):
+    """步骤OP：运营知识刷新——环境验证(ENV-01~07) + 运营知识已在上方文档注入。
+
+    AGENTS.md受16K限制只保留启动指令核心，运营知识（硬约束/外部索引/快速开始
+    /SOP机制）在SOP_OP文档里每轮由run.py反复注入。这里做轻量环境验证，确保
+    基础设施正常（系统无法运行时运营知识也无意义）。
+    """
+    log.info(f"check_OP_operations_knowledge: start batch={batch_id}")
+    import os
+    from pathlib import Path
+
+    print("--- 环境验证（ENV-01~07）---")
+    arango_db = os.environ.get("ARANGO_DB", "")
+    if arango_db == "xishujuzhen_math_glm52":
+        print(f"  ✅ ARANGO_DB={arango_db}")
+    else:
+        print(f"  ❌ ARANGO_DB='{arango_db}'（应=xishujuzhen_math_glm52）——先 source .env")
+
+    try:
+        from src.continuation_db_schema import connect_db
+        db = connect_db()
+        print(f"  ✅ ArangoDB连接成功（库={db.name}）")
+    except Exception as e:
+        print(f"  ❌ ArangoDB连接失败: {e}")
+
+    try:
+        from src.continuation_redis_queue import ping
+        if ping():
+            print("  ✅ Redis连接成功（ping=True）")
+        else:
+            print("  ❌ Redis ping返回False")
+    except Exception as e:
+        print(f"  ❌ Redis连接失败: {e}")
+
+    d = Path("/Volumes/data")
+    try:
+        if d.exists() and any(d.iterdir()):
+            print("  ✅ D盘已挂载")
+        else:
+            print("  ❌ D盘未挂载或为空")
+    except Exception as e:
+        print(f"  ❌ D盘检查失败: {e}")
+
+    print()
+    print("--- 运营知识已在上方SOP_OP文档注入 ---")
+    print("  （项目概况/硬约束10+4条/外部文档索引/快速开始/SOP文档与报表系统）")
+    print("  读一遍确认无变化。环境全✅=可继续循环；有❌=critical需先修复环境。")
+    print()

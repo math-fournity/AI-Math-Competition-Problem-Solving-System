@@ -1,6 +1,6 @@
 """dry_run.py — SOP 循环完整性验证（dry-run）
 
-模拟跑完完整的 7 步 SOP 循环，验证：
+模拟跑完完整的 8 步 SOP 循环，验证：
   1. 每一步的 SOP 文档都能被读取
   2. 顺序校验机制正常工作
   3. 状态推进正确（01→02→03→04→05→06→Z→01）
@@ -89,7 +89,7 @@ def test_doc_exists():
 
 def test_sequential_flow():
     """测试2：顺序执行 01→02→03→04→05→06→Z，验证状态推进"""
-    print("\n=== 测试2：顺序执行 7 步 ===")
+    print("\n=== 测试2：顺序执行 8 步 ===")
     reset_state()
     results = []
 
@@ -117,10 +117,10 @@ def test_sequential_flow():
         next_ok = (actual_next == expected_next)
 
         cycle_info = ""
-        if step == "Z":
+        if step == "OP":
             cycle_info = f" cycle={state_after['cycle']}"
             if state_after["cycle"] != 1:
-                print(f"  ❌ 步骤Z: cycle 应该是 1 但实际是 {state_after['cycle']}")
+                print(f"  ❌ 步骤OP: cycle 应该是 1 但实际是 {state_after['cycle']}")
                 log.error(f"test_sequential_flow: cycle mismatch at Z: {state_after['cycle']}")
                 results.append(False)
                 break
@@ -241,7 +241,7 @@ def main():
 
     tests = [
         ("文档存在性", test_doc_exists),
-        ("顺序执行7步", test_sequential_flow),
+        ("顺序执行8步", test_sequential_flow),
         ("顺序违规检测", test_order_violation),
         ("强制跳步", test_set_next),
         ("无效步骤编号", test_invalid_step),

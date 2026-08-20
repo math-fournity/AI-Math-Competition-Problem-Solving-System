@@ -2,7 +2,7 @@
 
 读写 _state.json，提供顺序校验。单脚本 run.py 共用此模块。
 
-循环结构（7步）：
+循环结构（8步）：
   01  系统存活+进度+Session
   02  数据完整性
   03  alert分类
@@ -10,6 +10,7 @@
   05  代码修复
   06  报告+WORKLOG+Self-check
   Z   元检查+整体检查
+  OP  运营知识刷新（每轮末尾注入）
   → 回到 01（新的一轮循环）
 
 状态文件：scripts/sop/_state.json
@@ -27,7 +28,7 @@ STATE_FILE = Path(__file__).parent / "_state.json"
 log = get_logger("state")
 
 # SOP 步骤定义——顺序即循环顺序
-SOP_STEPS = ["01", "02", "03", "04", "05", "06", "Z"]
+SOP_STEPS = ["01", "02", "03", "04", "05", "06", "Z", "OP"]
 
 # 编号→步骤名称映射（用于显示）
 SOP_NAMES = {
@@ -38,6 +39,7 @@ SOP_NAMES = {
     "05": "代码修复",
     "06": "报告+WORKLOG+Self-check",
     "Z": "元检查+整体检查",
+    "OP": "运营知识刷新",
 }
 
 # 编号→SOP文档名映射
@@ -49,6 +51,7 @@ SOP_DOCS = {
     "05": "SOP_05_code_repair.md",
     "06": "SOP_06_report_worklog_selfcheck.md",
     "Z": "SOP_Z_meta_system_review.md",
+    "OP": "SOP_OP_operations_knowledge.md",
 }
 
 
@@ -125,7 +128,7 @@ def advance(step_num):
     state = load_state()
     state["last"] = step_num
     state["next"] = get_next_step_num(step_num)
-    if step_num == "Z":
+    if step_num == "OP":  # OP是循环末尾（Z之后的运营知识刷新），完成后cycle+1回到01
         state["cycle"] = state.get("cycle", 0) + 1
         log.info(f"advance: step={step_num} → cycle {state['cycle']} completed, next={state['next']}")
     else:

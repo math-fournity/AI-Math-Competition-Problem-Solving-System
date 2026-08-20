@@ -41,6 +41,7 @@ STEP_CHECKS = {
     "05": checks.check_05_code_repair,
     "06": checks.check_06_report_worklog_selfcheck,
     "Z": checks.check_Z_meta_system_review,
+    "OP": checks.check_OP_operations_knowledge,
 }
 
 
