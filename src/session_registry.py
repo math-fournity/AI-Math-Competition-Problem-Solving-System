@@ -25,6 +25,9 @@ from typing import Optional
 
 from .continuation_config import SESSIONS_COLLECTION, SESSION_COUNTER_KEY
 
+from monitoring.shared_logger import get_logger, log_event
+logger = get_logger("session_registry")
+
 
 def _utc_now():
     return datetime.now(timezone.utc).isoformat()
@@ -94,6 +97,7 @@ def allocate_seq(db) -> int:
                 doc = col.get(SESSION_COUNTER_KEY)
             new_seq = doc.get("counter", 0) + 1
             col.update({"_key": SESSION_COUNTER_KEY, "counter": new_seq})
+            log_event(logger, "info", "allocate_seq", seq=new_seq)
             return new_seq
         except Exception:
             if attempt == 2:
@@ -174,6 +178,7 @@ def create_session_record(db, seq: int, session_name: str, session_type: str,
         doc["triggered_by_alert"] = extra["triggered_by_alert"]
 
     db.collection(SESSIONS_COLLECTION).insert(doc)
+    log_event(logger, "info", "create_session_record", seq=seq, session_name=session_name, session_type=session_type, batch_id=batch_id, **extra)
     return doc
 
 
@@ -189,6 +194,7 @@ def update_session_status(db, session_key: str, status: str, **fields):
     update = {"_key": session_key, "status": status}
     update.update(fields)
     db.collection(SESSIONS_COLLECTION).update(update)
+    log_event(logger, "info", "update_session_status", session_key=session_key, status=status, **fields)
 
 
 def get_session(db, session_key: str) -> Optional[dict]:
@@ -298,6 +304,7 @@ def update_tmux_alive_status(db):
         f"RETURN s"
     )
     cursor = db.aql.execute(aql, ttl=60)
+    updated = 0
     for s in cursor:
         alive = s["session_name"] in tmux_sessions
         if not alive:
@@ -315,10 +322,13 @@ def update_tmux_alive_status(db):
                     db, s["_key"], new_status, tmux_alive=False,
                     notes=(s.get("notes", "") + " | tmux session消失但无DONE.md").strip(" |")
                 )
+            updated += 1
         else:
             # tmux session还在——更新tmux_alive
             if s.get("tmux_alive") != True:
                 update_session_status(db, s["_key"], s["status"], tmux_alive=True)
+                updated += 1
+    log_event(logger, "debug", "update_tmux_alive", updated=updated)
 
 
 def check_done_md(db, session_key: str) -> bool:
@@ -345,6 +355,7 @@ def check_done_md(db, session_key: str) -> bool:
             tmux_alive=_tmux_has_session(s["session_name"]),
             exit_code=exit_code,
         )
+        log_event(logger, "info", "check_done_md", session_key=session_key, done_md=True, done_md_at=_utc_now())
         return True
     return False
 
@@ -365,6 +376,7 @@ def mark_stuck(db, session_key: str, reason: str = ""):
         db, session_key, "stuck",
         notes=notes,
     )
+    log_event(logger, "warning", "mark_stuck", session_key=session_key, reason=reason)
 
 
 def clean_session(db, session_key: str) -> bool:
@@ -375,9 +387,11 @@ def clean_session(db, session_key: str) -> bool:
     """
     s = get_session(db, session_key)
     if not s:
+        log_event(logger, "info", "clean_session", session_key=session_key, result=False)
         return False
     if s["status"] not in ("done", "stuck"):
         # running状态不能清理
+        log_event(logger, "info", "clean_session", session_key=session_key, result=False)
         return False
     # kill tmux session
     if _tmux_has_session(s["session_name"]):
@@ -388,6 +402,7 @@ def clean_session(db, session_key: str) -> bool:
         )
     # 标记为cleaned
     update_session_status(db, session_key, "cleaned", tmux_alive=False)
+    log_event(logger, "info", "clean_session", session_key=session_key, result=True)
     return True
 
 
@@ -408,6 +423,8 @@ def clean_done_sessions(db) -> dict:
         else:
             failed += 1
             details.append(f"failed {s['_key']} (status={s['status']})")
+    remaining = len(done_sessions) - cleaned
+    log_event(logger, "info", "clean_done_sessions", cleaned=cleaned, remaining=remaining)
     return {"cleaned": cleaned, "failed": failed, "details": details}
 
 
@@ -430,7 +447,7 @@ def consistency_check(db) -> dict:
     cursor = db.aql.execute(aql, bind_vars={"counter_key": SESSION_COUNTER_KEY}, ttl=60)
     registered_count = len(list(cursor))
 
-    return {
+    result = {
         "registered_count": registered_count,
         "tmux_count": len(tmux_sessions),
         "orphaned_in_registry": [
@@ -440,3 +457,9 @@ def consistency_check(db) -> dict:
         ],
         "unregistered_in_tmux": list(unregistered),
     }
+    log_event(logger, "info", "consistency_check",
+              registered_count=result["registered_count"],
+              tmux_count=result["tmux_count"],
+              orphaned_in_registry=len(result["orphaned_in_registry"]),
+              unregistered_in_tmux=len(result["unregistered_in_tmux"]))
+    return result

@@ -19,13 +19,14 @@ from src.continuation_config import (
     RESULTS_FILE, POC_2_7_DIR,
 )
 from src.continuation_db_schema import connect_db, insert_result
-from monitoring.shared_logger import get_logger
+from monitoring.shared_logger import get_logger, log_event
 
-logger = get_logger("continuation_collector")
+logger = get_logger("continuation_result_collector")
 
 
 def collect_batch_results(batch_id):
     """收集批次结果，生成汇总"""
+    log_event(logger, "info", "collect_results", batch_id=batch_id)
     db = connect_db()
 
     # 从DB取所有run
@@ -116,6 +117,8 @@ def collect_batch_results(batch_id):
             f.write(f"| {prefix} | {count} |\n")
 
     print(f"  汇总报告已保存: {report_path}")
+
+    log_event(logger, "info", "collect_results_done", batch_id=batch_id, total=total, completed=completed, pass_rate=pass_rate)
 
     return results
 

@@ -26,6 +26,9 @@ import json
 import time
 from typing import Any
 
+from monitoring.shared_logger import get_logger, log_event
+logger = get_logger("redis_queue")
+
 try:
     import redis
 except ImportError:
@@ -71,15 +74,18 @@ def ping() -> bool:
 # === v1单队列操作 ===
 
 def enqueue_pending(r, run_key: str, priority: int = 0) -> int:
+    log_event(logger, "debug", "enqueue_pending", run_key=run_key, priority=priority)
     return r.zadd(PENDING_KEY, {run_key: priority})
 
 
 def dequeue_pending(r, count: int = 1) -> list[tuple[str, int]]:
     results = r.zpopmin(PENDING_KEY, count)
+    log_event(logger, "debug", "dequeue_pending", count=len(results))
     return [(m, int(s)) for m, s in results]
 
 
 def add_running(r, run_key: str, metadata: dict[str, Any]) -> int:
+    log_event(logger, "debug", "add_running", run_key=run_key)
     return r.hset(RUNNING_KEY, run_key, json.dumps(metadata))
 
 
@@ -94,14 +100,17 @@ def get_all_running(r) -> dict[str, dict[str, Any]]:
 
 
 def remove_running(r, run_key: str) -> int:
+    log_event(logger, "debug", "remove_running", run_key=run_key)
     return r.hdel(RUNNING_KEY, run_key)
 
 
 def add_completed(r, result: dict[str, Any]) -> int:
+    log_event(logger, "info", "add_completed", run_key=result.get("run_key", ""))
     return r.lpush(COMPLETED_KEY, json.dumps(result))
 
 
 def add_failed(r, result: dict[str, Any]) -> int:
+    log_event(logger, "warning", "add_failed", run_key=result.get("run_key", ""))
     return r.lpush(FAILED_KEY, json.dumps(result))
 
 
@@ -137,6 +146,7 @@ def get_stats(r) -> dict[str, Any]:
 
 def clear_all(r):
     """清空所有队列（测试用）"""
+    log_event(logger, "warning", "clear_all")
     r.delete(PENDING_KEY, RUNNING_KEY, COMPLETED_KEY, FAILED_KEY, STATS_KEY,
              HANDOVER_PENDING_KEY, SOLVE_PENDING_KEY,
              HANDOVER_RUNNING_KEY, SOLVE_RUNNING_KEY,
@@ -148,11 +158,13 @@ def clear_all(r):
 
 def enqueue_handover(r, run_key: str, priority: int = 0) -> int:
     """加入待生成HANDOVER.md的队列"""
+    log_event(logger, "debug", "enqueue_handover", run_key=run_key, priority=priority)
     return r.zadd(HANDOVER_PENDING_KEY, {run_key: priority})
 
 
 def dequeue_handover(r, count: int = 1) -> list[tuple[str, int]]:
     results = r.zpopmin(HANDOVER_PENDING_KEY, count)
+    log_event(logger, "debug", "dequeue_handover", count=len(results))
     return [(m, int(s)) for m, s in results]
 
 
@@ -182,11 +194,13 @@ def handover_running_count(r) -> int:
 
 def enqueue_solve(r, run_key: str, priority: int = 0) -> int:
     """加入待解题的队列（已有HANDOVER.md）"""
+    log_event(logger, "debug", "enqueue_solve", run_key=run_key, priority=priority)
     return r.zadd(SOLVE_PENDING_KEY, {run_key: priority})
 
 
 def dequeue_solve(r, count: int = 1) -> list[tuple[str, int]]:
     results = r.zpopmin(SOLVE_PENDING_KEY, count)
+    log_event(logger, "debug", "dequeue_solve", count=len(results))
     return [(m, int(s)) for m, s in results]
 
 

@@ -130,3 +130,24 @@ for s in sessions:
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤03（alert分类）。
+
+### 3. 日志观察（数据完整性相关的日志事件）
+
+```
+# 查看 session 创建/状态变更日志
+python -m scripts.sop.log_search --event create_session_record --tail 30
+python -m scripts.sop.log_search --event update_session_status --tail 30
+python -m scripts.sop.log_search --event check_done_md --tail 30
+
+# 查看 DB 操作日志
+python -m scripts.sop.log_search --event insert_run --tail 20
+python -m scripts.sop.log_search --event update_run --tail 20
+
+# 查看 Redis 队列操作日志
+python -m scripts.sop.log_search --event enqueue_pending --tail 20
+python -m scripts.sop.log_search --event add_completed --tail 20
+python -m scripts.sop.log_search --event add_failed --tail 20
+
+# 查看某道题的完整生命周期
+python -m scripts.sop.log_search --problem-id <problem_id>
+```

@@ -20,6 +20,9 @@ from .continuation_config import (
     SESSION_COUNTER_KEY,
 )
 
+from monitoring.shared_logger import get_logger, log_event
+logger = get_logger("db_schema")
+
 
 def connect_db():
     """连接ArangoDB（复用现有连接配置）"""
@@ -37,6 +40,7 @@ def ensure_schema(db):
         CONTINUATION_RESULTS_COLLECTION,
         SESSIONS_COLLECTION,
     ]
+    log_event(logger, "info", "ensure_schema", collections=",".join(all_collections))
     for col_name in all_collections:
         if not db.has_collection(col_name):
             db.create_collection(col_name)
@@ -120,10 +124,12 @@ def update_batch(db, batch_id, update_fields):
 
 
 def insert_run(db, run_doc):
+    log_event(logger, "debug", "insert_run", run_key=run_doc.get("_key", ""))
     return db.collection(CONTINUATION_RUNS_COLLECTION).insert(run_doc)
 
 
 def update_run(db, key, update_fields):
+    log_event(logger, "debug", "update_run", run_key=key)
     update_fields["_key"] = key
     return db.collection(CONTINUATION_RUNS_COLLECTION).update(update_fields)
 
@@ -134,6 +140,7 @@ def get_run(db, key):
 
 def insert_event(db, batch_id, event_type, data, run_key=None):
     from datetime import datetime, timezone
+    log_event(logger, "debug", "insert_event", event_type=event_type, run_key=run_key or "")
     doc = {
         "batch_id": batch_id,
         "event_type": event_type,
@@ -146,6 +153,7 @@ def insert_event(db, batch_id, event_type, data, run_key=None):
 
 
 def insert_result(db, result_doc):
+    log_event(logger, "debug", "insert_result")
     return db.collection(CONTINUATION_RESULTS_COLLECTION).insert(result_doc)
 
 

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.continuation_config import CONTINUATION_RUNS_COLLECTION
 from src.continuation_db_schema import connect_db
 from src.continuation_redis_queue import get_redis, enqueue_pending, update_stats, pending_count, ping
-from monitoring.shared_logger import get_logger
+from monitoring.shared_logger import get_logger, log_event
 
 logger = get_logger("continuation_feeder")
 
@@ -35,8 +35,10 @@ def feed_batch(db, r, batch_id, batch_size=500):
     count = 0
     for key in keys:
         enqueue_pending(r, key, priority=0)
+        log_event(logger, "debug", "enqueue", run_key=key, batch_id=batch_id)
         count += 1
 
+    log_event(logger, "info", "feed_batch_done", batch_id=batch_id, count=count)
     return count
 
 

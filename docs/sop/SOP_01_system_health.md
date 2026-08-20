@@ -119,3 +119,34 @@ echo $ARANGO_DB    # 必须输出 xishujuzhen_math_glm52，如果为空先 sourc
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，最后一项自动触发步骤02（数据完整性）。
+
+### 7. 日志观察（检查日志中的异常）
+
+日志是检查点——通过日志可以观察系统运行过程中的所有事件。使用日志检索脚本：
+
+```
+# 查看最近的 ERROR 级别日志
+python -m scripts.sop.log_search --level ERROR --tail 20
+
+# 查看最近的问题题处理事件
+python -m scripts.sop.log_search --event infra_failure --tail 20
+python -m scripts.sop.log_search --event timeout --tail 20
+python -m scripts.sop.log_search --event stall --tail 20
+python -m scripts.sop.log_search --event dead_session --tail 20
+
+# 查看最近的 session 事件
+python -m scripts.sop.log_search --event mark_stuck --tail 20
+python -m scripts.sop.log_search --event consistency_check --tail 5
+
+# 查看某道题的全部事件
+python -m scripts.sop.log_search --problem-id <problem_id>
+
+# 按时间范围检索
+python -m scripts.sop.log_search --event launch_solve --since "2026-08-20 01:00" --until "2026-08-20 02:00"
+
+# 统计（不输出详情）
+python -m scripts.sop.log_search --event launch_solve --stats
+```
+
+日志文件位置：`log/`（项目本地，循环覆盖，最多500个文件/500MB）
+日志格式：`[时间戳] [级别] [模块] event=事件名 problem_id=xxx round=x session_key=xxx`

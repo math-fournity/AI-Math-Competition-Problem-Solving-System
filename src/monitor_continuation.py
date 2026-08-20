@@ -39,7 +39,7 @@ from src.session_registry import (
     list_sessions as _list_sessions,
     update_tmux_alive_status as _update_tmux_alive,
 )
-from monitoring.shared_logger import get_logger
+from monitoring.shared_logger import get_logger, log_event
 
 logger = get_logger("monitor_continuation")
 
@@ -844,6 +844,7 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
         check_count += 1
         now = _utc_now()
         print(f"\n--- 续传监控轮次 #{check_count} @ {now} ---")
+        log_event(logger, "info", "monitor_round_start", batch_id=batch_id, check_count=check_count)
 
         all_alerts = []
 
@@ -913,6 +914,8 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
         # 创建alerts
         for alert_type, severity, details in all_alerts:
             create_alert(db, alert_type, severity, details)
+        if all_alerts:
+            log_event(logger, "info", "alerts_created", batch_id=batch_id, count=len(all_alerts))
 
         # C类AI review抽样（每3轮）
         if check_count % AI_REVIEW_INTERVAL == 0:
@@ -957,6 +960,7 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
         # 检查退出条件
         if status_counts.get("prepared", 0) == 0 and status_counts.get("running", 0) == 0:
             print("  所有任务已完成，监控Pipe退出")
+            log_event(logger, "info", "monitor_all_done", batch_id=batch_id, check_count=check_count)
             break
 
         # 检查新alerts

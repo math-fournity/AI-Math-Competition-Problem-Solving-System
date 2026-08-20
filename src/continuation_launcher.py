@@ -52,7 +52,7 @@ from src.continuation_redis_queue import (
     add_running, remove_running, add_completed, add_failed,
     update_stats, get_stats, clear_all, pending_count,
 )
-from monitoring.shared_logger import get_logger
+from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
 
 logger = get_logger("continuation_launcher")
@@ -435,6 +435,7 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
         capture_output=True, timeout=10,
     )
 
+    log_event(logger, "info", "handover_started", problem_id=pid, round=round_num, session_name=tmux_sess, session_key=session_key, batch_id=batch_id or "p27-full")
     return {
         "session_name": tmux_sess,
         "session_key": session_key,  # 编号化管理的key（如p27-s0042）
@@ -533,6 +534,7 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
                               work_dir=str(work_dir),
                               tmux_log_path=str(tmux_log_path))
 
+    log_event(logger, "info", "session_created", problem_id=pid, round=round_num, session_type="solve", session_name=session_name, session_key=session_key, batch_id=batch_id or "p27-full")
     return session_name, session_key
 
 
@@ -559,6 +561,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     新增：多轮续传逻辑（每道题最多max_rounds轮）
     """
     logger.info(f"启动续传批次 batch={batch_id} concurrency={concurrency} method={method}")
+    log_event(logger, "info", "batch_start", batch_id=batch_id, concurrency=concurrency, method=method, max_rounds=max_rounds)
     print(f"=== 启动续传批次 batch={batch_id} concurrency={concurrency} method={method} ===")
 
     # 注册优雅退出——SIGTERM/SIGINT只设flag，不kill devin session
@@ -726,6 +729,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
             # 启动解题devin cli
             print(f"  [launch] {pid} R{round_num} ({method}, handover={'ok' if round_handover_success else 'v1_fallback'})")
+            log_event(logger, "info", "launch_solve", problem_id=pid, round=round_num, method=method, handover_ok=round_handover_success, batch_id=batch_id)
             session_name, session_key = launch_solve(h_run_key, work_dir, prompt_file, export_path, round_num, pid,
                                                       db=db, batch_id=batch_id)
 
@@ -1026,6 +1030,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         # dead_session
                         elapsed_sec = int(time.time() - info["started_at"])
                         print(f"  [dead_session] {pid} R{round_num} ({elapsed_sec}s)")
+                        log_event(logger, "warning", "dead_session", problem_id=pid, round=round_num, elapsed=elapsed_sec, batch_id=batch_id)
                         failed.append({"pid": pid, "round": round_num, "reason": "dead_session"})
                         to_remove.append(run_key)
                         tmux_kill(session_name)
@@ -1055,6 +1060,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if is_done:
                 elapsed = int(time.time() - info["started_at"])
                 print(f"  [done] {pid} R{round_num} — {done_reason} ({elapsed}s)")
+                log_event(logger, "info", "round_done", problem_id=pid, round=round_num, reason=done_reason, elapsed=elapsed, batch_id=batch_id)
 
                 # 检查这一轮是否真的完成（有proof.md）还是需要继续续传
                 if proof_found:
@@ -1095,6 +1101,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     if trunc and round_num < max_rounds:
                         # 截断——需要继续续传，重新入队
                         print(f"  [truncated] {pid} R{round_num} — {trunc_reason}, 将继续R{round_num+1}")
+                        log_event(logger, "info", "truncated", problem_id=pid, round=round_num, reason=trunc_reason, next_round=round_num+1, batch_id=batch_id)
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                         rounds_log.append(make_round_log_entry(
@@ -1117,6 +1124,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     elif trunc and round_num >= max_rounds:
                         # 截断且已达最大轮次——TRUNCATED_AT_MAX
                         print(f"  [truncated_max] {pid} R{round_num} — 达到max_rounds={max_rounds}")
+                        log_event(logger, "info", "truncated_max", problem_id=pid, round=round_num, max_rounds=max_rounds, batch_id=batch_id)
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                         rounds_log.append(make_round_log_entry(
@@ -1140,6 +1148,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         }, run_key=run_key)
                     else:
                         # 既没截断也没完成——异常状态
+                        log_event(logger, "warning", "unknown_status", problem_id=pid, round=round_num, batch_id=batch_id)
                         print(f"  [unknown] {pid} R{round_num} — 既没截断也没完成")
                         failed.append({"pid": pid, "round": round_num, "reason": "unknown_state"})
                         to_remove.append(run_key)
@@ -1179,6 +1188,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if detected_error:
                 elapsed_sec = int(time.time() - info["started_at"])
                 print(f"  [{detected_error}] {pid} R{round_num} — {elapsed_sec}s")
+                log_event(logger, "warning", "infra_failure", problem_id=pid, round=round_num, error=detected_error, elapsed=elapsed_sec, batch_id=batch_id)
                 failed.append({"pid": pid, "round": round_num, "reason": detected_error})
                 to_remove.append(run_key)
                 # ★ 不kill——标记stuck，devin cli可能还在写export ★
@@ -1231,6 +1241,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if elapsed > max_runtime:
                 elapsed_sec = int(elapsed)
                 print(f"  [timeout] {pid} R{round_num} — {elapsed_sec}s")
+                log_event(logger, "warning", "timeout", problem_id=pid, round=round_num, elapsed=elapsed_sec, batch_id=batch_id)
                 failed.append({"pid": pid, "round": round_num, "reason": "timeout"})
                 to_remove.append(run_key)
                 # ★ 不kill——标记stuck，devin cli可能还在写export ★
@@ -1264,6 +1275,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if idle > stall_seconds:
                 idle_sec = int(idle)
                 print(f"  [stall] {pid} R{round_num} — idle {idle_sec}s")
+                log_event(logger, "warning", "stall", problem_id=pid, round=round_num, idle=idle_sec, batch_id=batch_id)
                 failed.append({"pid": pid, "round": round_num, "reason": "stall"})
                 to_remove.append(run_key)
                 # ★ 不kill——标记stuck，devin cli可能还在写export ★

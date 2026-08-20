@@ -29,7 +29,7 @@ from src.continuation_config import (
     CONTINUATION_RUNS_COLLECTION,
 )
 from src.continuation_db_schema import connect_db, ensure_schema, insert_run, update_run, insert_batch
-from monitoring.shared_logger import get_logger
+from monitoring.shared_logger import get_logger, log_event
 
 logger = get_logger("continuation_collector")
 
@@ -134,6 +134,7 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
         # 验证seed_export存在
         if not seed_export or not os.path.exists(seed_export):
             print(f"  [skip] {pid}: seed_export不存在")
+            log_event(logger, "info", "skip_run", problem_id=pid, reason="seed_export不存在")
             skipped += 1
             continue
 
@@ -141,6 +142,7 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
         problem_text = extract_problem_text(p)
         if not problem_text:
             print(f"  [skip] {pid}: 无法提取题目文本")
+            log_event(logger, "info", "skip_run", problem_id=pid, reason="无法提取题目文本")
             skipped += 1
             continue
 
@@ -151,6 +153,7 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
         existing = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
         if existing and existing.get("final_status") == "COMPLETED":
             print(f"  [skip] {pid}: 已完成（断点续传）")
+            log_event(logger, "info", "skip_run", problem_id=pid, reason="已完成")
             skipped += 1
             continue
 
@@ -195,11 +198,14 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
             insert_run(db, run_doc)
 
         prepared += 1
+        log_event(logger, "info", "prepare_run", problem_id=pid, run_key=run_key, batch_id=batch_id)
 
     print(f"\n=== 收集完成 ===")
     print(f"  prepared: {prepared}")
     print(f"  skipped: {skipped}")
     print(f"  batch_id: {batch_id}")
+
+    log_event(logger, "info", "collect_done", batch_id=batch_id, prepared=prepared, skipped=skipped)
 
     return prepared
 
