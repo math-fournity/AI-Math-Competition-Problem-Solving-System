@@ -150,3 +150,23 @@ python -m scripts.sop.log_search --event launch_solve --stats
 
 日志文件位置：`log/`（项目本地，循环覆盖，最多500个文件/500MB）
 日志格式：`[时间戳] [级别] [模块] event=事件名 problem_id=xxx round=x session_key=xxx`
+
+### 8. devin cli model 参数检查（CHECKPOINT）
+
+每次启动 devin cli 解题时，日志中会记录 `event=devin_cli_launch model=xxx`。
+**model 参数必须是 `devin models list` 中的有效值**。
+
+当前配置：
+- `src/continuation_config.py`: `DEVIN_MODEL = "glm-5-2"`（GLM-5.2 High, 200K context, Free）✅
+- `src/config.py`: `DEVIN_MODEL = "glm-5-2"`（Pipe 1/2/3 用，已修正）✅
+
+检查日志中的 model 参数：
+```
+# 查看所有 devin cli 启动事件和其 model 参数
+python -m scripts.sop.log_search --event devin_cli_launch --tail 30
+
+# 统计使用了哪些 model
+python -m scripts.sop.log_search --event devin_cli_launch --stats
+```
+
+如果发现 model 参数为空或值无效（不在 `devin models list` 中），这是 critical 问题——devin cli 会启动失败或使用错误模型。

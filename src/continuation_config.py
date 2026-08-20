@@ -64,6 +64,9 @@ MONITOR_EXEC_EXPORT_BASE = D_TRAJ_DIR / "p27-monitor-exec"
 MONITOR_EXEC_MAX_RUNTIME_SECONDS = 900  # 一轮最多15分钟
 
 # === devin cli配置 ===
+# model名必须是 devin models list 中的有效值
+# GLM-5.2系列：glm-5-2(High/Free) / glm-5-2-max / glm-5-2-1m / glm-5-2-none
+# 注意：不是 glm-5.2-high（点号+high后缀无效），正确名是 glm-5-2
 DEVIN_MODEL = "glm-5-2"
 DEVIN_PERMISSION_MODE = "dangerous"
 

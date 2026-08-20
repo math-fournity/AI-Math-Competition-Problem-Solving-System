@@ -60,7 +60,9 @@ ANALYSIS_EVENTS_COLLECTION = "analysis_events"    # 事件流
 ANALYSIS_RESULTS_COLLECTION = "analysis_results"  # 最终分析结果
 
 # === devin cli配置 ===
-DEVIN_MODEL = "glm-5.2-high"
+# model名必须是 devin models list 中的有效值
+# GLM-5.2系列：glm-5-2(High/Free) / glm-5-2-max / glm-5-2-1m / glm-5-2-none
+DEVIN_MODEL = "glm-5-2"  # GLM-5.2 High, 200K context, Free
 DEVIN_PERMISSION_MODE = "dangerous"
 DEVIN_PROMPT = (
     "请执行以下分析任务：对比标准解答和AI的解题过程，判定AI为什么失败。"

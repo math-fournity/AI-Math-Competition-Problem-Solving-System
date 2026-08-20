@@ -428,6 +428,7 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
         "--permission-mode", DEVIN_PERMISSION_MODE,
         "--export", str(handover_export),
     ]
+    log_event(logger, "info", "devin_cli_launch", problem_id=pid, round=round_num, session_type="handover", model=model, permission_mode=DEVIN_PERMISSION_MODE, batch_id=batch_id or "p27-full")
     tmux_cmd = " ".join(cmd)
     subprocess.run(
         ["tmux", "new-session", "-d", "-s", tmux_sess,
@@ -514,6 +515,7 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
         f"echo $? > {done_marker}; "
         f"sleep 999999"
     )
+    log_event(logger, "info", "devin_cli_launch", problem_id=pid, round=round_num, session_type="solve", model=DEVIN_MODEL, permission_mode=DEVIN_PERMISSION_MODE, batch_id=batch_id or "p27-full")
 
     full_cmd = f"cd {work_dir} && {devin_cmd} 2>&1 | tee {tmux_log_path}"
     subprocess.run(
