@@ -1,5 +1,10 @@
 # AnalysisSystem.md — 新Session接手AI的完整加载指南
 
+> ⚠️ **过时标记（2026-08-20）**：本文档描述的是删除 Pipe 1/2/3 前的 4 Pipe 架构系统。
+> 当前系统只有 Pipe 4 续传解题管线，Pipe 1/2/3（分析/审计/选题）已删除。
+> 新 Session 接手时应读 `AGENTS.md`（核心概念：解题管线）+ `docs/architecture/solve-pipeline.md`
+> + `docs/sop/SYSTEM_CLOSURE.md`（系统级认知闭包）。本文档保留作历史参考。
+
 > **这份文档是给你的**——你是新Session的AI，接手数学大师系统的开发、运行、维护、修正工作。
 >
 > **你被指定的路径**：用户会让你读这份文档，然后按这里的指示加载所需内容，继续工作。

@@ -8,7 +8,17 @@
 
 ## 一、系统认知层——核心入口与全景
 
-### `docs/system/AnalysisSystem.md` — 新Session接手AI的完整加载指南
+> ⚠️ **重要（2026-08-20）**：下方三个 `docs/system/AnalysisSystem*.md` 文档描述的是
+> 删除 Pipe 1/2/3 前的 4 Pipe 架构，已过时。**当前系统只有 Pipe 4 续传解题管线**。
+> 新 Session 接手时应优先读：
+> 1. `AGENTS.md` — 核心概念：解题管线 + 启动指令 + SOP 流程控制
+> 2. `docs/sop/SYSTEM_CLOSURE.md` — 系统级认知闭包（架构/生命周期/判定框架）
+> 3. `docs/architecture/solve-pipeline.md` — 解题管线概念详解
+> 4. `docs/sop/SOP_OP_operations_knowledge.md` — 运营知识（硬约束/外部索引/快速开始）
+>
+> 下方三个 AnalysisSystem*.md 保留作历史参考。
+
+### `docs/system/AnalysisSystem.md` — 新Session接手AI的完整加载指南（⚠️ 过时）
 
 新Session AI接手数学大师系统时的入口文档。讲"你在哪、系统是什么状态、要读什么、要做什么"——基本信息（工作目录/Git分支/Python环境/数据库）、项目一句话和三句话定义、当前系统状态（正在进行的核心工作、POC进度）、工作类型分类。
 
@@ -20,7 +30,7 @@
 
 **依赖关系**：读完后通常需要加载 `docs/system/AnalysisSystemDesign.md`（设计总索引）或 `docs/system/AnalysisSystemOps.md`（运行操作手册），取决于要设计还是运行。
 
-### `docs/system/AnalysisSystemDesign.md` — 错题分析系统设计总索引
+### `docs/system/AnalysisSystemDesign.md` — 错题分析系统设计总索引（⚠️ 过时）
 
 错题分析系统的设计总索引。快速入口（创建新Pipe/运行现有Pipe/停止系统）、架构决策、组件职责、设计原则。与 Ops 分工：Design=设计总索引/架构/决策，Ops=运行操作/SOP/检查清单。
 
@@ -33,7 +43,7 @@
 
 **依赖关系**：创建新Pipe时另读 `docs/architecture/framework-checklist.md` + `docs/patterns/MonitorPipe.md` §6；涉及多轮续传时另读 `docs/patterns/续传规范文档.md`；运行操作细节另读 `docs/system/AnalysisSystemOps.md`。
 
-### `docs/system/AnalysisSystemOps.md` — 错题分析系统运行操作手册
+### `docs/system/AnalysisSystemOps.md` — 错题分析系统运行操作手册（⚠️ 过时）
 
 错题分析系统的运行操作手册。SOP、检查清单、打磨记录。5组件架构详解（data_collector/feeder/analysis_launcher/result_collector/aggregator）、运行监控操作、问题排查SOP、历史打磨记录。从原 AGENTS.md 第3518-4216行外移（2026-08-19瘦身工程）。
 

@@ -1,5 +1,9 @@
 # AnalysisSystemDesign.md — 错题分析系统设计总索引
 
+> ⚠️ **过时标记（2026-08-20）**：本文档描述的是删除 Pipe 1/2/3 前的 4 Pipe 架构设计。
+> 当前系统只有 Pipe 4 续传解题管线。设计文档参见 `docs/architecture/solve-pipeline.md`
+> 和 `docs/architecture/dynamic-concurrency.md`。本文档保留作历史参考。
+
 > **用途**：任何AI涉足错题分析系统时，从本文件开始。本文件索引所有需要看的文档、要遵守的规范、要参考的代码资产。
 >
 > **位置**：项目repo根目录（`AnalysisSystemDesign.md`）

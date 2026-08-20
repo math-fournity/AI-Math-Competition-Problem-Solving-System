@@ -26,7 +26,6 @@ trigger: always_on
 | 文件 | 变量 | 当前值 | 用途 |
 |---|---|---|---|
 | `src/continuation_config.py` | `DEVIN_MODEL` | `glm-5-2` | Pipe 4 续传（continuation_launcher/start_handover/launch_solve） |
-| `src/config.py` | `DEVIN_MODEL` | `glm-5-2` | Pipe 1/2/3（analysis/audit/selection/solver launcher） |
 
 ## 启动代码中的检查点
 

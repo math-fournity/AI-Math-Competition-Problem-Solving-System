@@ -1,5 +1,9 @@
 # Selfrun 工作流 — ZCode 接替 devin cli 载体
 
+> ⚠️ **已废弃（2026-08-20）**：selfrun 代码（selfrun_driver.py / selfrun_intake.py）已删除。
+> 本工作流描述的 ZCode 接替 devin cli 载体方案不再适用。当前系统使用 devin cli
+> 直接作为解题载体（continuation_launcher 启动 devin cli）。本文档保留作历史参考。
+
 > **背景**：2026-08-16 devin cli 载体失效。devin cli 在本系统中只扮演"无工具、单轮、读 AGENTS.md、输出 XML"的分析/审计 AI 载体；采集、入队、DB 记录、收集、汇总全部是程序代码，不受影响。本工作流用 ZCode 主会话（编排）+ subagent（执行分析/审计）顶替载体角色，**现有组件零改动**。
 
 ## 架构

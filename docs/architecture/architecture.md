@@ -1,5 +1,9 @@
 # 架构设计——4个Pipe的演进与组件职责
 
+> ⚠️ **过时标记（2026-08-20）**：本文档描述的是 4 Pipe 架构。Pipe 1/2/3（分析/审计/选题）
+> 已删除，当前系统只有 Pipe 4 续传解题管线。当前架构参见 `docs/architecture/solve-pipeline.md`
+> 和 `docs/sop/SYSTEM_CLOSURE.md` §2。本文档保留作历史参考。
+
 ## 1. 系统概览
 
 错题分析系统是一个批量并发devin cli实例的运行框架，包含4个Pipe：
