@@ -1,4 +1,56 @@
-# AGENTS.md — 错题分析系统
+# AGENTS.md — 续传解题系统
+
+## 核心概念：解题管线（Solve Pipeline）
+
+**解题管线** = 一道题从第一次解题→续传→再解题→...→解出/放弃的完整生命周期。系统里只有这一条管线，Pipe 1/2/3（分析/审计/选题）已删除。
+
+**关键性质：管线内部顺序调用 devin cli。** 一道题任意时刻最多 1 个 devin cli 在为它工作（handover 或 solve，不会同时）。因此：
+
+> **系统并发数 = 同时在跑的解题管线条数 = 任意时刻 devin cli 实例数上限**
+
+设 concurrency=1 = 一次只有 1 道题在走管线 = 任意时刻最多 1 个 devin cli。并发数从 DB 动态读取（见下方"并发控制"）。
+
+### 解题管线在代码中的体现
+
+一道题走管线的完整流程，对应这些模块/脚本：
+
+```
+① 入题  continuation_collector.py    从 problem_list.json 加载题，创建 DB run 记录（status=prepared）
+② 入队  continuation_feeder.py       把 prepared 的 run 入 Redis pending 队列
+③ 启动  continuation_launcher.py     主循环：从队列取题→启动 devin cli→监控状态→判定终态
+   ├─ handover 阶段  start_handover()  devin cli 生成 round{N}_HANDOVER.md（占并发槽）
+   └─ solve 阶段     launch_solve()    devin cli 解题，写 proof.md（占并发槽）
+④ 监控  monitor_continuation.py      A/B 类自动检查（session健康/队列推进/rate_limit/zombie...）+ 生成 alert
+⑤ 收集  continuation_result_collector.py  收集终态 run 的产出
+⑥ 控制  monitoring/continuation_control.py  start/stop/status/set-concurrency/sessions 管理
+⑦ 看门狗 scripts/continuation_watchdog.sh  auto-restart launcher/monitor
+```
+
+**管线内部串行的代码依据**：`continuation_launcher.py:1172`——handover_pending 和 running 共享并发槽：
+```python
+while ... len(running) + len(handover_pending) < concurrency ...
+```
+handover 完成后才启动 solve，一道题不会同时跑两个 devin cli。
+
+### 终态判定
+
+| 终态 | 判定 | 代码位置 |
+|---|---|---|
+| 解出 | proof.md 存在且含 `\boxed` | `continuation_config.py:95` PROOF_COMPLETE_MARKER |
+| AI 放弃 | devin cli 输出放弃信号 | `continuation_launcher.py` 状态检查逻辑 |
+| 达到最大轮次 | current_round > max_rounds（默认5）| `continuation_launcher.py:1223` → TRUNCATED_AT_MAX |
+
+### 并发控制
+
+**并发数存在 DB 的 batch 记录里，launcher 每轮 poll 从 DB 读取**（`continuation_launcher.py:1041-1052`）。改并发不改代码：
+```
+python -m monitoring.continuation_control set-concurrency --batch-id p27-full --concurrency 1
+```
+launcher 下次 poll 自动生效（通常 15 秒内）。只影响后续新启动的管线，不影响正在跑的。启动时如果 DB 已有 concurrency 则用 DB 的，否则用 `--concurrency` 参数初始化（`continuation_launcher.py:964-969`）。
+
+详细概念文档：`docs/architecture/solve-pipeline.md`。动态并发设计：`docs/architecture/dynamic-concurrency.md`。
+
+---
 
 ## ⚠️ 启动指令（最前面，不可截断）
 
@@ -21,6 +73,7 @@
    python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
    ```
    确认 launcher/monitor/watchdog 三个 tmux session 都在运行。
+   **注意**：`--concurrency 5` 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 `set-concurrency`（见上方"并发控制"），不要重启 launcher。
 
 2. **启动 SOP 监控循环**：
    ```
@@ -116,7 +169,7 @@ SOP_01例程每轮自动查Y通道（有闸在等会打印论证依据闭包：�
 
 ## ⚠️ Master Agent SOP 流程控制机制
 
-**你是错题分析系统的 Monitor AI。系统运行时，你通过 8 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
+**你是续传解题系统的 Monitor AI。系统运行时，你通过 8 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
 
 ### 核心理念
 
