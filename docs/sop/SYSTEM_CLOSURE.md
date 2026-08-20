@@ -95,6 +95,23 @@ prompt_path/prev_export/proof_path。round-1 只有 export（5基础字段）。
   （NX不被feeder重置）
 - completed：proof有boxed+mtime本轮；proof文本已入库（双写）
 
+**Monitor A类检查14项的正常标准**（monitor_continuation每120s自动执行，alert写DB p27_monitor_alerts）：
+- A1 session_health: session数≈DB running≈设定并发（不匹配=launcher挂/孤儿）
+- A2 queue_stalled: pending在减少（15分钟无变化=critical）
+- A3 no_completions: completed在增加（15分钟无增加=warning）
+- A4 rate_limit: rate_limited<3个（≥3=critical）
+- A5 zombie_sessions: 无空pane僵尸session（≥2=warning）
+- A6 export_landing: completed的run都有export（缺失>10%=critical）
+- A7 failure_rate: 失败率<15%（>15%=warning）
+- A8 launcher_dead: launcher活着（消失但有任务=critical）
+- A9 stall_detection: 单轮<30分钟（超时=warning）
+- A10 session_registry: 注册表≈tmux实际（不一致=critical/warning）
+- A11 stuck_sessions: stuck<5（>5=warning，>10=critical）
+- A12 done_uncleaned: done未清理<20（>20=info）
+- A13 real_concurrency: 四源一致（见上方特征3，任何不一致=critical，016新增）
+- A14 launch_churn: churn_suspects为空（同题1小时≥5次=critical，016新增）
+> 时刻推理：拿到检查输出后逐项对照——哪项偏离正常标准=那个维度有问题。
+
 **异常信号**（看到就警觉）：
 - 016失控循环：churn_suspects非空 / session数暴涨 / 同题高频launch → 立即kill launcher+清队列
 - A13四源不一致：孤儿进程/注册表脱节 → `sessions --consistency-check` 清理

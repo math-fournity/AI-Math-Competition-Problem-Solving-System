@@ -47,6 +47,11 @@
 | S15 | 第一级文档同步 | 改了代码就改了对应文档（同一commit中）——git diff包含对应文档修改 | [ ] | |
 | S16 | 第二级规范建议记录 | 涉及第二级规范需更新时——在report.md中记录"建议同步更新X" | [ ] | |
 | S17 | 同步清单完整性 | 对照第一级文档清单——该改的都改了 | [ ] | |
+| S18 | sim发布门禁 | 改了调度逻辑后跑了run_sim solve3+chaos_016且全绿。只改文档/配置标[-] | [ ] | |
+| S19 | 行为流水必查 | 每轮SOP_01查了observability --stats，churn_suspects为空 | [ ] | |
+| S20 | 落盘论证 | Gate放行附了--reason；不放行在report门闸记录区填了原因 | [ ] | |
+| S21 | 成果双写 | completed的run的proof入库了continuation_results（双写） | [ ] | |
+| S22 | step_gate Y通道 | checks.py每轮查了Y通道；有Y时按闭包核对后放行/hold | [ ] | |
 
 ---
 

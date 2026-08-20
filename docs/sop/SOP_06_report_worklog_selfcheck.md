@@ -30,6 +30,11 @@
 | S15 | 第一级文档同步 | 改了代码就改了对应文档（同一commit） |
 | S16 | 第二级规范建议记录 | 如果发现规范问题，在REPORT中记录建议 |
 | S17 | 同步清单完整性 | trace.csv已同步 |
+| S18 | sim发布门禁 | 改了调度/判定逻辑后跑了`src.sim.run_sim --scenario solve3+chaos_016`且全绿（016 P0-1修复引入新死循环的教训）。只改文档/配置标[-] |
+| S19 | 行为流水必查 | 每轮SOP_01查了`observability --stats --since 1h`，churn_suspects为空（016根因：存量没变但流动病态） |
+| S20 | 落盘论证 | Gate放行附了`--reason`理由（落盘gate_release流水）；不放行在report门闸记录区填了原因（没有理由的放行=审计断点） |
+| S21 | 成果双写 | completed的run的proof入库了continuation_results（≤100KB双写，不依赖盘上单点——018教训） |
+| S22 | step_gate Y通道接线 | checks.py每轮查了Y通道（waiting_for非空的闸）；有Y时按论证依据闭包核对后放行/hold（016教训：拦不住失控循环） |
 
 ### 报告格式
 

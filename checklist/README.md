@@ -37,11 +37,11 @@
 | ENV | 环境与基础设施 | 7 | WP-01, WP-09 | `ENV-` |
 | SESS | Session 编号化管理（阶段1） | 12 | WP-01 | `SESS-` |
 | LAUNCH | Launcher 启动与续传控制 | 10 | WP-01, WP-02 | `LAUNCH-` |
-| MON-A | Monitor Pipe A 类自动检查 | 12 | WP-02, WP-05 | `MON-A` |
+| MON-A | Monitor Pipe A 类自动检查 | 14 | WP-02, WP-05 | `MON-A` |
 | MON-B | Monitor Pipe B 类续传质量检查 | 9 | WP-02, WP-05 | `MON-B` |
 | MON-C | Monitor Pipe C 类 AI 判断 | 5 | WP-05, WP-07 | `MON-C` |
 | EXEC | ~~Monitor Exec Devin~~（已废弃[-]） | 28 | ~~WP-03~07~~ | `EXEC-` |
-| SELF | Master Agent self-check | 17 | WP-13 | `SELF-` |
+| SELF | Master Agent self-check | 22 | WP-13 | `SELF-` |
 | CTRL | 控制命令与查看支持 | 9 | WP-01, WP-06 | `CTRL-` |
 | RUN | POC-2.7 运行与监控 | 8 | WP-09 | `RUN-` |
 | AUDIT | 系统审计 | 7 | WP-10 | `AUDIT-` |
@@ -49,7 +49,7 @@
 | HARD | 硬约束（贯穿全程） | 12 | 全部, WP-14 | `HARD-` |
 | DECISION | ~~待决策问题~~（已废弃[-]，多数关于Exec Devin） | 7 | — | `DEC-` |
 
-**合计**：14 个门类，136 个需求点。
+**合计**：14 个门类，143 个需求点。
 
 ---
 
