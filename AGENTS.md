@@ -186,6 +186,7 @@ SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _stat
 7. **DB-文件双向可追溯**——DB 中 run 记录指向工作目录，工作目录有产出文件
 8. **痕迹保留**——alert 写入 ArangoDB，全过程可审计
 9. **禁止绝对路径依赖**——整个系统未来各处不能有绝对路径的依赖，尤其是项目根目录。代码中用 `Path(__file__).resolve().parent...` 动态获取根目录，不硬编码 `/Users/user/...`；文档中用相对路径引用，不写绝对路径。环境变量（如 `SOLVER_BASE`、`TRAJECTORY_BASE`）是允许的绝对路径来源，但项目内部路径必须动态获取。
+10. **devin cli model 必须显式指定**——所有启动 devin cli 的代码必须显式传 `--model` 参数，值必须是 `devin models list` 中的有效名。当前用 `glm-5-2`（GLM-5.2 High, 200K, Free）。详见 `.devin/rules/devin-cli-model-must-be-specified.md`
 
 ---
 
