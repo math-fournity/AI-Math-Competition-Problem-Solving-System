@@ -29,6 +29,11 @@ continuation_collector → continuation_feeder → continuation_launcher → con
                          observability（行为流水黑匣子，log/flow/）
 ```
 
+支撑模块（不在主管线上但被各模块依赖）：
+- `continuation_config` — 全局配置常量（DB集合名/Redis key/模型/路径/门闸ID/判定阈值）
+- `continuation_db_schema` — DB连接+集合管理+AQL封装
+- `continuation_redis_queue` — Redis队列操作（pending/running/原子转移）
+
 数据流：collector 把失败题入 DB(prepared) → continuation_feeder 入 Redis pending →
 launcher 并发 dequeue 启动 devin cli → result_collector 汇总。本系统只有这一条
 管线（Pipe 1/2/3 分析/审计/选题已删除）。
@@ -228,12 +233,25 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 
 ## 7. 关键铁律索引
 
+> 完整14条见 `docs/sop/SOP_OP_operations_knowledge.md`"硬约束"段（10基础+016/017/018新增4条）。本索引列出全部14条。
+
+**10条基础硬约束**：
 1. 绝不 kill 无 DONE.md 的 session（dead_session是唯一例外：DONE.md已出现但无proof）
 2. git 显式路径 add（禁止 git add -A/. /-u）
-3. 改代码同步更新第一级文档（docs/system/architecture/specs/patterns）
-4. 成果文件双写（proof入库，不依赖盘上单点——018教训）
-5. 改调度逻辑后跑 sim 发布门禁（solve3+chaos_016——016 P0-1引入新死循环的教训）
-6. Gate 放行必须附 --reason 理由（落盘flow流水，没有理由=审计断点）
+3. 改代码同步更新第一级文档（docs/architecture/*.md + docs/specs/*.md + docs/sop/SYSTEM_CLOSURE.md）
+4. 长时间命令用 tmux（下载/编译/同步/daemon必须在tmux中运行）
+5. 禁止 inline 脚本（超过3行的逻辑必须写成文件，放到项目内脚本目录）
+6. 人话铁律（所有文档/回复/注释/commit message用人话写）
+7. DB-文件双向可追溯（DB中run记录指向工作目录，工作目录有产出文件）
+8. 痕迹保留（alert写入ArangoDB，全过程可审计）
+9. 禁止绝对路径依赖（代码用Path(__file__).resolve().parent动态获取根目录；环境变量是允许的绝对路径来源）
+10. devin cli model 必须显式指定（所有启动devin cli的代码必须显式传--model参数，当前用glm-5-2）
+
+**016/017/018新增4条**：
+11. 成果文件双写（proof入库continuation_results，不依赖盘上单点——018教训）
+12. 改调度逻辑后跑 sim 发布门禁（solve3+chaos_016——016 P0-1引入新死循环的教训）
+13. Gate 放行必须附 --reason 理由（落盘flow流水，没有理由=审计断点）
+14. 每轮 SOP_01 必查行为流水（observability --stats，016根因：存量没变但流动病态）
 
 ---
 
