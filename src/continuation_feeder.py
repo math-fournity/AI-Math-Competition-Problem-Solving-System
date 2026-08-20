@@ -34,9 +34,13 @@ def feed_batch(db, r, batch_id, batch_size=500):
 
     count = 0
     for key in keys:
-        enqueue_pending(r, key, priority=0)
-        log_event(logger, "debug", "enqueue", run_key=key, batch_id=batch_id)
-        count += 1
+        # 016事故P0-3修复：只统计"新入队"的（enqueue_pending已改为NX模式，
+        # 已存在的返回0且不覆盖score）。否则已入队的题也被计数，
+        # feed_batch永远返回非0，main的while True死循环。
+        added = enqueue_pending(r, key, priority=0)
+        if added:
+            log_event(logger, "debug", "enqueue", run_key=key, batch_id=batch_id)
+            count += 1
 
     log_event(logger, "info", "feed_batch_done", batch_id=batch_id, count=count)
     return count

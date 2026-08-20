@@ -227,6 +227,35 @@ continuation 进程 0 / p27 tmux session 0 / devin -p 进程 0
 
 这次事故里，`set-concurrency` 是无辜的——它按设计生效了；真正的雷是"**旧产物残留 + 文件即判的判定逻辑 + feeder 无幂等重喂**"三件事叠加，而"handover 不进事件流 + alert 积压 + watchdog 缺位"让系统失去了所有报警机会。**P0 三项不修，重启系统后同类循环随时复发。**
 
+---
+
+## 10. P0 修复记录（2026-08-20，事故当日完成）
+
+### 修复内容（commit 见 git log "016事故P0修复"）
+
+| P0项 | 修复 | 文件 |
+|---|---|---|
+| P0-1 同run_key防抖 | dequeue后双检查：①内存dict（running/handover_pending）②注册表活跃session（`find_active_session`，只认tmux还活着的）。命中则priority=9999重入队跳过 | `src/continuation_launcher.py` |
+| P0-2 产物归属校验 | `is_truncated`/`is_completed`增加`since_ts`参数（export和proof.md的mtime必须晚于本轮启动）；`check_handover`校验HANDOVER.md mtime晚于hinfo.started_at；主循环proof预检同样校验；round1分支改为**总是**从seed_export覆盖拷贝round1_export.json | `src/continuation_launcher.py` |
+| P0-3 feeder幂等 | `enqueue_pending`改NX模式（`zadd nx=True`，已存在不覆盖score——保住截断重入队的低优先级）；**顺带修复feeder死循环根因**：`feed_batch`只统计新入队数（原来统计处理数，导致`while True`永不退出——这正是事故中feeder高频循环写满15个1MB日志的原因） | `src/continuation_redis_queue.py` + `src/continuation_feeder.py` |
+
+### 验证
+
+- `python -m py_compile` 三个文件全部通过；
+- 单元测试 `scripts/test_016_p0_fixes.py`：**14/14 通过**（覆盖since_ts校验、check_handover旧文件拒绝、NX幂等、score保持、feeder计数、队首顺序）；
+- 真实Redis验证 NX 语义：首次zadd返回1、二次返回0、score保持不变；
+- 文档同步：`docs/architecture/operational-concerns.md` 新增 §6"失控循环防护"。
+
+### 修复后的行为变化
+
+- **失控循环三道闸**：旧产物不再被误判（判定层）→ 即使误判重入队也排队尾不霸占队首（队列层）→ 即使队首也拦住不重复启动（防抖层）；
+- feeder 跑完自然退出，不再死循环；
+- 重启系统前仍需先清理 §6 的脏数据（1765条孤儿session记录 + amo_bench不一致状态）。
+
+### 未修（P1/P2 留待后续）
+
+launcher重启恢复running dict（P1-4）、handover写DB事件流（P1-5）、launcher日志落盘（P1-6）、脏数据清理（P1-7）、watchdog缺位（P2-9）、`p27_sessions.type`字段统计口径（P2-10，注：注册表字段实际叫`type`不是`session_type`，§4.4的"全null"是取证脚本用错字段名，字段本身有值）、tmux_session双前缀（P2-11）。
+
 
 
 

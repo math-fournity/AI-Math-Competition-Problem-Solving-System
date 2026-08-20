@@ -36,6 +36,7 @@ from src.continuation_config import (
     RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS,
     INFRA_FAILURES, MAX_RETRIES,
     CONTINUATION_RUNS_COLLECTION, CONTINUATION_BATCHES_COLLECTION,
+    SESSIONS_COLLECTION,
     TMUX_PREFIX,
 )
 from src.continuation_db_schema import (
@@ -125,6 +126,37 @@ def tmux_kill(session_name):
                    capture_output=True, timeout=5)
 
 
+def find_active_session(db, run_key, pid):
+    """016事故P0-1修复：查注册表中该run的活跃session（tmux还活着的）。
+
+    防抖用——launcher重启后内存dict（running/handover_pending）清空，若孤儿
+    devin cli session还在跑，重复启动同题会产生并发超限+产物互踩。
+    只认tmux还活着的session（死了的已无devin cli在跑，不构成重复启动风险）。
+
+    注意：注册表run_key字段写入不一致——launch_solve写完整run_key（如
+    p27-full-amo_bench_00000006），start_handover写problem_id（如
+    amo_bench_00000006），两种都匹配（该不一致本身是P2遗留缺陷）。
+
+    返回活跃session_name，无则返回None。
+    """
+    try:
+        aql = (
+            f"FOR s IN {SESSIONS_COLLECTION} "
+            f"FILTER s.run_key == @rk OR s.run_key == @pid "
+            f"FILTER s.status IN ['running', 'stuck'] "
+            f"RETURN {{session_name: s.session_name}}"
+        )
+        cursor = db.aql.execute(aql, bind_vars={"rk": run_key, "pid": pid}, ttl=30)
+        for row in cursor:
+            name = row.get("session_name", "")
+            if name and tmux_running(name):
+                return name
+    except Exception as e:
+        # 查询失败不阻塞启动——防抖是兜底，不是硬依赖
+        logger.warning(f"find_active_session查询失败(忽略): {e}")
+    return None
+
+
 # =============================================================================
 # 截断检测与reasoning提取（复用batch_continue_948.py的逻辑）
 # =============================================================================
@@ -157,10 +189,17 @@ def make_round_log_entry(round_num, export_path, truncated, completed, reason,
     return entry
 
 
-def is_truncated(export_path):
-    """检测export是否被截断"""
+def is_truncated(export_path, since_ts=None):
+    """检测export是否被截断
+
+    016事故P0-2修复：增加since_ts（本轮启动时间戳）参数做产物归属校验——
+    文件mtime早于since_ts说明是历史残留旧产物（比如8月18日手工跑的），
+    不能用来判定本轮结果，直接视为"无有效export"。
+    """
     if not os.path.exists(export_path):
         return False, "no export file"
+    if since_ts is not None and os.path.getmtime(export_path) < since_ts:
+        return False, f"stale export (mtime早于本轮启动: {export_path})"
     with open(export_path) as f:
         d = json.load(f)
     steps = [s for s in d.get("steps", []) if s.get("source") == "agent"]
@@ -178,10 +217,18 @@ def is_truncated(export_path):
     return False, f"unknown: rc={rc}c, msg={msg}c, tc={tc}, comp={comp}"
 
 
-def is_completed(export_path, work_dir):
-    """检测export是否已完成——proof.md存在且有boxed答案"""
+def is_completed(export_path, work_dir, since_ts=None):
+    """检测export是否已完成——proof.md存在且有boxed答案
+
+    016事故P0-2修复：增加since_ts（本轮启动时间戳）参数做产物归属校验——
+    export和proof.md的mtime都必须晚于since_ts，否则是历史残留旧产物，
+    不能判定为本轮完成（旧proof.md残留曾导致误判）。
+    """
     # 检查export的agent step是否有message/tool_call输出
     if os.path.exists(export_path):
+        # 产物归属校验——旧残留export不算本轮产物
+        if since_ts is not None and os.path.getmtime(export_path) < since_ts:
+            return False, "stale export (mtime早于本轮启动)"
         with open(export_path) as f:
             d = json.load(f)
         steps = [s for s in d.get("steps", []) if s.get("source") == "agent"]
@@ -193,6 +240,9 @@ def is_completed(export_path, work_dir):
                 # 有输出——必须检查proof.md存在且有boxed答案
                 proof_path = Path(work_dir) / PROOF_FILE_NAME
                 if proof_path.exists():
+                    # 产物归属校验——旧残留proof.md不算本轮产物
+                    if since_ts is not None and proof_path.stat().st_mtime < since_ts:
+                        return False, "stale proof.md (mtime早于本轮启动)"
                     proof_text = proof_path.read_text()
                     if re.search(PROOF_COMPLETE_MARKER, proof_text):
                         return True, f"proof.md有boxed答案 ({len(proof_text)}c)"
@@ -461,6 +511,13 @@ def check_handover(hinfo, pid):
     # devin cli已退出——检查结果
     if not handover_path.exists():
         print(f"  [{pid}] Pipe A完成但HANDOVER.md未生成")
+        return ""  # 失败，需回退v1
+
+    # 016事故P0-2修复：产物归属校验——HANDOVER.md必须晚于本轮handover启动时间。
+    # 旧残留的HANDOVER.md（比如上一轮或历史手工运行的）会让这里秒判成功，
+    # 配合"devin cli启动即失败退出→tmux session消失"形成3秒失控循环。
+    if handover_path.stat().st_mtime < hinfo["started_at"]:
+        print(f"  [{pid}] HANDOVER.md是旧残留(mtime早于本轮启动)，视为失败")
         return ""  # 失败，需回退v1
 
     handover_size = handover_path.stat().st_size
@@ -793,6 +850,25 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 continue
 
             pid = run_doc.get("problem_id", run_key)
+
+            # === 016事故P0-1修复：同run_key防抖（拦住失控循环的最后一道闸） ===
+            # 检查1：内存dict——该题是否已被本进程跟踪（防同进程重复启动）
+            if run_key in running or run_key in handover_pending:
+                print(f"  [skip_duplicate] {pid} 已在内存跟踪中(running/handover_pending)，低优先级重入队")
+                log_event(logger, "warning", "duplicate_launch_blocked",
+                          problem_id=pid, run_key=run_key, source="memory", batch_id=batch_id)
+                enqueue_pending(r, run_key, priority=9999)
+                continue
+            # 检查2：注册表——该题是否有活跃孤儿session（防launcher重启后重复启动）
+            active_session = find_active_session(db, run_key, pid)
+            if active_session:
+                print(f"  [skip_orphan] {pid} 有活跃孤儿session {active_session}，低优先级重入队等其结束")
+                log_event(logger, "warning", "orphan_session_detected",
+                          problem_id=pid, run_key=run_key,
+                          session_name=active_session, batch_id=batch_id)
+                enqueue_pending(r, run_key, priority=9999)
+                continue
+
             work_dir = run_doc.get("work_dir", "")
             problem_text = run_doc.get("problem_text", "")
             seed_export = run_doc.get("seed_export", "")
@@ -824,12 +900,23 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             # 确定本轮的seed export和prev_export
             if current_round == 1:
                 round1_export = Path(work_dir) / "round1_export.json"
-                if not round1_export.exists():
-                    import shutil
+                # 016事故P0-2修复：总是从seed_export覆盖拷贝。
+                # 残留的旧round1_export.json（历史手工运行产物，如8月18日的）内容
+                # 未必是本题的原始失败export，用它判定round1截断/完成会误判。
+                # round1_export的语义就是seed_export的镜像，覆盖无损（原件在seed_export路径）。
+                import shutil
+                if seed_export and Path(seed_export).exists():
+                    shutil.copy(seed_export, round1_export)
+                elif not round1_export.exists():
                     shutil.copy(seed_export, round1_export)
 
                 trunc, trunc_reason = is_truncated(str(round1_export))
-                comp, comp_reason = is_completed(str(round1_export), work_dir)
+                # 016事故P0-2：产物归属校验——残留的旧proof.md（mtime早于刚拷贝的
+                # round1_export）不能判定round1已完成
+                comp, comp_reason = is_completed(
+                    str(round1_export), work_dir,
+                    since_ts=round1_export.stat().st_mtime,
+                )
                 if comp and not trunc:
                     update_run(db, run_key, {
                         "status": "completed",
@@ -1000,12 +1087,19 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             proof_found = False
 
             # 预检proof.md（只记录，不触发完成）
+            # 016事故P0-2：产物归属校验——只认本轮启动后写的proof.md，
+            # 旧残留proof.md（mtime早于info["started_at"]）不作为完成证据
             proof_path = Path(work_dir) / PROOF_FILE_NAME
             if proof_path.exists():
-                proof_text = proof_path.read_text()
-                if re.search(PROOF_COMPLETE_MARKER, proof_text):
-                    proof_found = True
-                    done_reason = f"proof.md有boxed ({len(proof_text)}c)"
+                if proof_path.stat().st_mtime >= info["started_at"]:
+                    proof_text = proof_path.read_text()
+                    if re.search(PROOF_COMPLETE_MARKER, proof_text):
+                        proof_found = True
+                        done_reason = f"proof.md有boxed ({len(proof_text)}c)"
+                else:
+                    print(f"  [{pid}] 忽略旧残留proof.md (mtime早于本轮启动)")
+                    log_event(logger, "warning", "stale_proof_ignored",
+                              problem_id=pid, round=round_num, batch_id=batch_id)
 
             # 检查devin cli退出——只有退出后才处理完成/失败
             # 方式1: tmux session消失
@@ -1023,7 +1117,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     logger.info(f"[{pid}] proof.md已归档为round{round_num}_proof.md")
                 else:
                     # devin cli退出但无proof.md——检查export判定完成/失败
-                    comp, comp_reason = is_completed(export_path, work_dir)
+                    # 016事故P0-2：since_ts校验——旧残留export不算本轮产物
+                    comp, comp_reason = is_completed(export_path, work_dir,
+                                                     since_ts=info["started_at"])
                     if comp:
                         is_done = True
                         done_reason = f"session ended: {comp_reason}"
@@ -1099,7 +1195,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     }, run_key=run_key)
                 else:
                     # 有输出但无proof.md——检查是否截断
-                    trunc, trunc_reason = is_truncated(export_path)
+                    # 016事故P0-2：since_ts校验——旧残留export不算本轮产物
+                    trunc, trunc_reason = is_truncated(export_path,
+                                                       since_ts=info["started_at"])
                     if trunc and round_num < max_rounds:
                         # 截断——需要继续续传，重新入队
                         print(f"  [truncated] {pid} R{round_num} — {trunc_reason}, 将继续R{round_num+1}")

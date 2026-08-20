@@ -74,8 +74,17 @@ def ping() -> bool:
 # === v1单队列操作 ===
 
 def enqueue_pending(r, run_key: str, priority: int = 0) -> int:
+    """入队（NX模式——只新增，不覆盖已有score）
+
+    016事故P0-3修复：原来zadd会覆盖已有member的score。截断重入队用
+    priority=round_num（低优先级）排队尾，但feeder无条件zadd priority=0
+    会把它重置回队首，导致同一道题反复被dequeue启动（失控循环）。
+    NX模式下已存在的member不更新score，保留截断重入队的低优先级语义。
+
+    返回1=新入队，0=已存在（score未变）。
+    """
     log_event(logger, "debug", "enqueue_pending", run_key=run_key, priority=priority)
-    return r.zadd(PENDING_KEY, {run_key: priority})
+    return r.zadd(PENDING_KEY, {run_key: priority}, nx=True)
 
 
 def dequeue_pending(r, count: int = 1) -> list[tuple[str, int]]:

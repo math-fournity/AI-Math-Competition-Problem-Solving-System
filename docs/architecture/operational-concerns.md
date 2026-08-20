@@ -260,6 +260,47 @@ python run_continuation_pipeline.py --batch-id p27-full --step feed
 python run_continuation_pipeline.py --batch-id p27-full --step launch
 ```
 
+## 6. 失控循环防护（016事故P0修复，2026-08-20新增）
+
+### 问题
+
+2026-08-20凌晨事故（详见 `dev-docs/016-动态并发设置失效与amo_bench失控循环事故调查报告.md`）：
+`amo_bench_00000006` 陷入"旧产物秒判→截断重入队→再启动"的失控循环，18分钟内启动
+上千个 handover session，真实并发远超设定值，浪费 API 配额。
+
+### 三个叠加根因与对应修复（`continuation_launcher.py` / `continuation_feeder.py` / `continuation_redis_queue.py`）
+
+1. **判定函数读文件即判，不校验产物归属**：
+   `is_truncated` / `is_completed` / `check_handover` 增加了 `since_ts`（本轮启动
+   时间戳）参数——export/proof.md/HANDOVER.md 的 mtime 早于 since_ts 视为历史
+   残留旧产物，不能判定本轮结果。主循环所有调用点都传了 `info["started_at"]`。
+   round1 分支改为总是从 seed_export 覆盖拷贝 round1_export.json（它的语义就是
+   seed 的镜像，覆盖无损），杜绝残留旧文件误判。
+
+2. **feeder 重置截断重入队的优先级**：
+   `enqueue_pending` 改为 NX 模式（`zadd nx=True`）——已存在的 member 不覆盖
+   score。截断重入队用 `priority=round_num` 排队尾，feeder 重喂 `priority=0`
+   不会再把它拉回队首。
+
+3. **feeder 死循环**：`feed_batch` 原来返回"处理数"而非"新入队数"，主循环
+   `while True` 永不退出。现在只统计 zadd 新增的（NX 返回 1 的），第二轮
+   返回 0 自然退出。
+
+### 同 run_key 防抖（最后一道闸）
+
+launcher dequeue 后先做两个检查，命中则低优先级（priority=9999）重入队跳过：
+
+- **内存检查**：run_key 已在 `running`/`handover_pending` dict 中（防同进程重复启动）；
+- **注册表检查**：`find_active_session` 查 `p27_sessions` 中该 run 的 session，
+  且 tmux 还活着（防 launcher 重启后对孤儿 session 的题重复启动）。
+
+### 单元测试
+
+`scripts/test_016_p0_fixes.py` —— 14 个断言覆盖 since_ts 校验/NX 幂等/
+feeder 计数/队首顺序，运行：`source .env && python -m scripts.test_016_p0_fixes`
+
+---
+
 ## 循环监控SOP（2026-08-18新增）
 
 **核心认知**：检查脚本的输出不仅是信息，更是对AI的行动指令。AI通过反复运行检查脚本，形成"检查→处理→等待→再检查"的循环，直到所有题完成。这个循环可以跨越多个session——session被中断后，下一个session的AI只需运行检查脚本即可恢复全部上下文。
