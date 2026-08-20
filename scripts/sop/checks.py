@@ -594,8 +594,43 @@ def check_05_code_repair(batch_id):
     print()
 
 
+def _check_prev_report_filled():
+    """步骤06例行：上一轮 report.md 填写校验（观察项-4）。
+
+    检查 D 盘报表目录中最近一份 report.md 是否还有 [ ] 待检查标记残留。
+    SOP 要求"不填写=检查没完成"，但 run.py 只生成空白模板不校验填写。
+    这里自动检查，有残留时醒目输出。
+    """
+    print("--- 上一轮 report.md 填写校验 ---")
+    try:
+        from scripts.sop.report import REPORT_BASE
+        if not REPORT_BASE.exists():
+            print("  （报表目录不存在——系统可能刚启动，无历史报表）")
+            print()
+            return
+        # 遍历所有 cycle/step/timestamp 目录，找最近的 report.md
+        report_files = list(REPORT_BASE.rglob("report.md"))
+        if not report_files:
+            print("  （无历史 report.md——系统可能刚启动）")
+            print()
+            return
+        latest = max(report_files, key=lambda f: f.stat().st_mtime)
+        content = latest.read_text(encoding="utf-8", errors="ignore")
+        unchecked = content.count("[ ]")
+        checked = content.count("[x]")
+        if unchecked > 0:
+            print(f"  ⚠️ 最近 report.md 有 {unchecked} 个 [ ] 未填写: {latest}")
+            print(f"     （已填写 [x]: {checked}）——上一轮检查可能未完成")
+        else:
+            print(f"  ✅ 最近 report.md 已全部填写（[x]: {checked}）: {latest}")
+        print()
+    except Exception as e:
+        print(f"  ⚠️ report.md 填写校验失败: {e}")
+        print()
+
+
 def check_06_report_worklog_selfcheck(batch_id):
-    """步骤06：报告+WORKLOG+Self-check——显示 WORKLOG 状态"""
+    """步骤06：报告+WORKLOG+Self-check——显示 WORKLOG 状态 + MONITOR_REPORT.md 检查"""
     log.info(f"check_06_report_worklog_selfcheck: start batch={batch_id}")
     repo_root = Path(__file__).parent.parent.parent
     worklog = repo_root / "WORKLOG.md"
@@ -607,6 +642,22 @@ def check_06_report_worklog_selfcheck(batch_id):
     else:
         print("（不存在，需创建）")
     print()
+
+    # MONITOR_REPORT.md 存在性+大小检查（观察项-2）
+    report_path = repo_root / "MONITOR_REPORT.md"
+    print("--- MONITOR_REPORT.md 检查 ---")
+    if report_path.exists():
+        size = report_path.stat().st_size
+        if size < 100:
+            print(f"  ⚠️ MONITOR_REPORT.md 过小 ({size}B)，可能未填写")
+        else:
+            print(f"  ✅ MONITOR_REPORT.md 存在 ({size}B)")
+    else:
+        print(f"  ❌ MONITOR_REPORT.md 不存在——SOP_06 要求写此文件")
+    print()
+
+    # 上一轮 report.md 填写校验（观察项-4）——检查是否有 [ ] 待检查标记残留
+    _check_prev_report_filled()
 
 
 def check_Z_meta_system_review(batch_id):

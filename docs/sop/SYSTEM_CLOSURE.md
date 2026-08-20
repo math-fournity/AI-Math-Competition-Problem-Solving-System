@@ -65,6 +65,9 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 | continuation_feeder | 把 prepared 入 Redis pending（NX幂等） | 死循环重喂（016：队列永远清不空） |
 | continuation_launcher | 并发引擎：dequeue→launch→judge→requeue/done | 失控循环（016：同题高频启动） |
 | continuation_result_collector | 收集终态 run 的产出，proof 入库双写 | 结果未归档=数据丢失风险 |
+| continuation_config | 全局配置常量（DB集合名/Redis key/模型/路径/门闸ID） | 配置漂移=各模块引用不一致 |
+| continuation_db_schema | DB连接+集合管理+AQL封装 | 连接失败=全系统不可用 |
+| continuation_redis_queue | Redis队列操作（pending/running/原子转移） | 队列原子性破坏=重复启动 |
 | monitor_continuation | 每120s检查写 alert（A类自动/B类质量） | 不写alert=检查失效 |
 | session_registry | session 编号化管理（p27-s{seq}） | 注册表脱节（A13：tmux vs DB vs Redis） |
 | step_gate | 9个语义动作可hold/step（DB信号单步跟踪） | — |

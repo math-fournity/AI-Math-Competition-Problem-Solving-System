@@ -96,7 +96,7 @@ def generate_snapshot(batch_id, step_num, cycle, timestamp):
 
     results_count = db.collection(CONTINUATION_RESULTS_COLLECTION).count()
     events_count = db.collection(CONTINUATION_EVENTS_COLLECTION).count()
-    sessions_count = db.collection(SESSIONS_COLLECTION).count() - 1
+    sessions_count = db.collection(SESSIONS_COLLECTION).count() - 1  # 减1：排除 session_counter 计数器文档
 
     completed = final_status_counts.get("COMPLETED", 0)
     completion_rate = completed / total if total > 0 else 0

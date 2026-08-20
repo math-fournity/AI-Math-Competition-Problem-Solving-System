@@ -19,6 +19,8 @@
 | failed | （从snapshot.json读取） |
 | 完成率 | （从snapshot.json读取） |
 | sessions总数 | （从snapshot.json读取） |
+| results集合数 | （从snapshot.json读取，应≥COMPLETED） |
+| events总数 | （从snapshot.json读取） |
 
 ---
 

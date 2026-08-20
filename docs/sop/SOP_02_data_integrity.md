@@ -91,41 +91,18 @@ round-1 只必查 export。R2 起的条目才是完整 7 字段：
 
 ### 2. 深度检查（你需要手动执行）
 
-#### 2a. DB 记录和文件状态一致性
+#### 2a-2c. 持久化深度检查脚本
 
-抽查几个 completed 的 run，确认：
-- DB 中 `final_status = "COMPLETED"` 的 run，`proof_path` 指向的文件确实存在
-- DB 中 `status = "running"` 的 run，对应的 tmux session 确实在运行
-- DB 中 `status = "prepared"` 的 run，work_dir 存在且 problem.txt 存在
+2a（DB记录和文件状态一致性）、2b（Redis队列和DB status一致性）、2c（session注册表数据完整性）已提取成持久化脚本，避免 inline 代码在上下文压缩后丢失：
 
-#### 2b. Redis 队列和 DB status 一致性
-
-```python
-from src.continuation_redis_queue import get_redis, pending_count, running_count
-r = get_redis()
-print(f"Redis pending: {pending_count(r)}")
-print(f"Redis running: {running_count(r)}")
+```
+python -m scripts.sop.deep_checks_02 --batch-id p27-full
 ```
 
-对比 DB 中 `status=prepared` 的数量和 Redis pending 数量——应该接近（prepared 的题被 feeder 入队后变成 pending）。
-
-#### 2c. session 注册表数据完整性
-
-```python
-from src.continuation_db_schema import connect_db
-from src.session_registry import list_sessions
-db = connect_db()
-sessions = list_sessions(db, status="running", limit=20)
-for s in sessions:
-    export_path = s.get("export_path", "")
-    work_dir = s.get("work_dir", "")
-    # 检查路径是否存在
-```
-
-检查项：
-- `running` 状态的 session，`export_path` 的父目录是否存在
-- `done` 状态的 session，`done_md` 是否为 True
-- `stuck` 状态的 session，notes 字段是否记录了原因
+脚本输出包含：
+- **2a**：抽查 COMPLETED run 的 proof_path 存在性 / running run 的 tmux session 活跃性 / prepared run 的 work_dir+problem.txt
+- **2b**：Redis pending/running 数 vs DB prepared 数，比例异常时告警
+- **2c**：running session 的 export_path 父目录 / done session 的 done_md / stuck session 的 notes 记录
 
 #### 2d. 事件流完整性
 
