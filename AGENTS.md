@@ -177,6 +177,8 @@ SOP 脚本目录：`scripts/sop/`（run + checks + report + sop_state + _set_nex
 | run + checks + sop_state + _set_next + dry_run + sop_log | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理+dry-run验证+日志） |
 | log/ | `log/` | SOP 日志目录（循环覆盖，最多500个文件，每个最大1MB，总上限500MB） |
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
+| 017-全流程模拟系统设计方案 | `dev-docs/` | 全流程模拟（src/sim/）：剧本演员替换devin命令，系统100%真代码真跑于隔离环境；7剧本+四源断言；首日捕获5个真bug |
+| 018-teardown误删生产目录事故报告 | `dev-docs/` | sim收尾teardown误删生产目录：损失/恢复/加固全记录；防再犯：清场默认值不指向生产、成果文件双写 |
 | README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
 | MasterAgentCheck.md | `checklist/` | Master Agent SOP 索引（内容已迁移到 docs/sop/） |
 | ExecDevin.md | `checklist/` | ~~历史参考~~（Exec Devin已废弃） |

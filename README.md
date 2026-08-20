@@ -64,7 +64,7 @@
 
 ### `docs/patterns/StepGate.md` — 步进门闸设计范式（DB信号单步跟踪）
 
-让 Master Agent 能够"卡住"自动化系统的关键动作、检查之前的工作、再放行的通用设计范式。核心三条：①DB信号变量（动作前wait proceed 0→1，代码自清零再执行，信号由Master Agent置1）；②`@gated`装饰器统一封装（注册/流水/等待/DB降级）；③定位用函数名+docstring不用行号（函数名=日志标志grep直达，docstring=自包含文档经inspect自动收集进DB注册表，永不漂移）。范围铁律：只对"改变系统状态的动作"设闸，只读判定靠行为流水——全部等放行吞吐归零。起源于016事故（失控循环跑了18分钟Master Agent拦不住）。**覆盖问题场景**：需要单步调试/审计自动化系统时、给新Pipe加门闸时、理解hold/step/auto模式时。**依赖关系**：首次实现在 `src/step_gate.py`（Pipe 4的8个门闸）；配套行为流水 `src/observability.py`（hold时"检查之前的工作"的数据来源）；操作文档在 `docs/sop/SOP_01_system_health.md` §8.5。
+让 Master Agent 能够"卡住"自动化系统的关键动作、检查之前的工作、再放行的通用设计范式。核心三条：①DB信号变量（动作前wait proceed 0→1，代码自清零再执行，信号由Master Agent置1）；②`@gated`装饰器统一封装（注册/流水/等待/DB降级）；③定位用函数名+docstring不用行号（函数名=日志标志grep直达，docstring=自包含文档经inspect自动收集进DB注册表，永不漂移）。范围铁律：只对**语义动作**设闸（有独立正确性标准、checklist写得出来的业务动作），底层I/O封装不设闸（多调用方标准不同），只读判定靠行为流水——全部等放行吞吐归零。起源于016事故（失控循环跑了18分钟Master Agent拦不住）。**覆盖问题场景**：需要单步调试/审计自动化系统时、给新Pipe加门闸时、理解hold/step/auto模式时。**依赖关系**：首次实现在 `src/step_gate.py`（9个语义动作闸=launcher 8+feeder 1；X/Y注意力模型——无Y不操心，checklist闭包经docstring反射传递，底层I/O封装不设闸）；配套行为流水 `src/observability.py`；操作文档在 `docs/sop/SOP_01_system_health.md` §8.5（SOP_01例程已接线Y通道）。
 
 ### `docs/patterns/续传规范文档.md` — HANDOFF标准（交接文档续传方案）
 
@@ -284,6 +284,8 @@ repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资�
 - `dev-docs/001-目录结构扁平化重组方案.md`——取消`analysis-devin-failure-system/`嵌套，代码提到根目录，文档统一归入`docs/`分层，`AnalysisSystem开发/`改名`dev/`
 - `dev-docs/002-checklist-working-packages拆分.md`——`dev/`拆解为`checklist/`（需求点清单，扁平化）和`working-packages/`（工作包管理），checklist成为研发核心驱动力
 - `dev-docs/003-README三层架构与分类法设计.md`——README.md从"文档描述"重构为"分类法索引"的三层架构设计（AGENTS.md→README.md→看法文件），定义7个分类法
+- `dev-docs/017-全流程模拟系统设计方案.md`——全流程模拟（src/sim/）：devin命令行层注入剧本演员fake_devin，launcher/feeder/门闸100%真代码真跑于隔离环境（独立DB/Redis前缀/文件根）。7剧本对应launcher全部分支。首日运行捕获5个真bug（含P0：截断→重入队引擎不可达，真实截断被误判dead_session）。用法：`.venv/bin/python -m src.sim.run_sim --scenario solve3`
+- `dev-docs/018-teardown误删生产目录事故报告.md`——sim收尾清理时teardown护栏不对称误删生产D盘目录的事故报告：124份proof永久丢失、5958 work_dir已重建、teardown护栏补全+proof入库加固。防再犯规则：清场默认值不指向生产、破坏性操作先预览、成果文件必须双写
 
 **依赖关系**：无前置依赖，可独立阅读。
 
