@@ -21,3 +21,24 @@
 - **stuck session清理**：14个stuck session（s0016~s0029）全部清理。这些是devin cli崩溃后tmux session消失但无DONE.md的遗留。run状态：2个dead_session、1个completed、5个prepared（handover阶段崩溃）。
 - **题源完成率差异**：deepmath 31.7% vs oda/polymath/omni/amo/mathnet 全0%。789个prepared中大部分是这些题源——还没跑到。需关注launcher是否在正确入队。
 - **报表系统首次运行**：SOP报表系统首次实际使用，每个step都生成了report.md+snapshot.json+snapshot_runs.json+check_output.txt。报表模板从文件复制工作正常。
+
+---
+
+## 第1轮 · 2026-08-20
+
+### 检查发现
+- **系统健康**：launcher+monitor运行正常，1个solve session在跑
+- **进度**：130/919(14%)，121 COMPLETED，1 running，788 prepared
+- **alert**：53个新alert（历史数据丢失+stuck session），已全部resolve
+- **AI判断**：0个待判断条目（monitor还没运行到ai_review抽样）
+
+### 修复操作
+- 清理stuck session p27-s0030
+- 批量resolve 53个新alert
+- set-concurrency将batch并发数从1调整为5
+
+### 思考
+- **并发数问题**：batch concurrency被设为1而非5。可能是之前运行时设的。已用set-concurrency调整。
+- **85个round1 export缺失**：全部是prepared run（没跑过），不是bug。check_02对prepared run也检查round1 export，过于严格。
+- **29个DB孤儿run**：属于其他batch（full-analysis-v2-r*），不影响p27-full。
+- **系统开始正常运转**：launcher在dequeue，1个solve session在跑。并发数调到5后应该会启动更多session。
