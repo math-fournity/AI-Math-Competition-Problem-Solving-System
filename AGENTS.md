@@ -1,8 +1,38 @@
 # AGENTS.md — 错题分析系统
 
-## ⚠️ Master Agent SOP 流程控制机制（最前面，不可截断）
+## ⚠️ 启动指令（最前面，不可截断）
 
-**你是错题分析系统的 Monitor AI。系统运行时，你通过 11 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
+**用户说以下任何短语时，你必须启动整个 src 下的解题系统并持续监控：**
+
+触发短语：`开启系统` / `启动系统` / `开启解题系统` / `启动解题系统` / `开始工作` / `开启监控` / `启动监控`
+
+**你要做的**：
+
+1. **启动解题系统**（如果尚未运行）：
+   ```
+   source .env
+   python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
+   ```
+   确认 launcher/monitor/watchdog 三个 tmux session 都在运行。
+
+2. **启动 SOP 监控循环**：
+   ```
+   python -m scripts.sop.run
+   ```
+   这会执行 SOP 循环的第一步（系统健康检查），打印 SOP 文档+检查结果+todo 指令。
+
+3. **持续循环**——用 `todo_write` 建 todo list，最后一项固定是"执行 `python -m scripts.sop.run`"。完成当前阶段所有 todo 后，执行最后一项自动触发下一阶段。7 步循环（01→02→03→04→05→06→Z→01...）持续运行，这就是 7x24 监控。
+
+4. **停止条件**——只有以下情况停止循环：
+   - 用户说"停止"/"停"/"结束"
+   - 检查脚本显示"所有任务已完成"（pending=0, running=0）
+   - 系统出现无法自动修复的严重故障需用户介入
+
+---
+
+## ⚠️ Master Agent SOP 流程控制机制
+
+**你是错题分析系统的 Monitor AI。系统运行时，你通过 7 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
 
 ### 核心理念
 
