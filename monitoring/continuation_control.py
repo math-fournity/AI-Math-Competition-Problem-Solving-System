@@ -227,7 +227,7 @@ def cmd_start(args):
 
     # 启动launcher（auto-restart）
     launcher_cmd = (
-        f"cd {ANALYSIS_ROOT} && {VENV_PYTHON} -m src.continuation_launcher "
+        f"cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.continuation_launcher "
         f"--batch-id {args.batch_id} "
         f"--concurrency {args.concurrency} "
         f"--max-rounds {args.max_rounds} "
@@ -238,7 +238,7 @@ def cmd_start(args):
     # 启动Monitor Pipe（auto-restart）
     time.sleep(2)
     monitor_cmd = (
-        f"cd {ANALYSIS_ROOT} && {VENV_PYTHON} -m src.monitor_continuation "
+        f"cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.monitor_continuation "
         f"--batch-id {args.batch_id} "
         f"--interval {args.monitor_interval} "
         f"--concurrency {args.concurrency}"
