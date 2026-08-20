@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.sop.sop_state import (
     STATE_FILE, SOP_STEPS, SOP_NAMES, SOP_DOCS,
     load_state, save_state, check_order, advance, set_next,
-    get_sop_doc_path, get_next_step_num,
+    get_sop_doc_path, get_next_step_num, get_system_closure_path,
 )
 from scripts.sop.sop_log import get_logger, get_log_dir_info
 
@@ -74,6 +74,16 @@ def test_doc_exists():
             log.error(f"test_doc_exists: MISSING {doc_path}")
         else:
             log.info(f"test_doc_exists: OK {doc_name}")
+    # 系统级认知闭包（L0）存在性检查——每次run.py前置注入，缺失=AI缺系统整体认知
+    sc_path = get_system_closure_path()
+    sc_exists = sc_path.exists()
+    status = "✅" if sc_exists else "❌"
+    print(f"  {status} 系统级认知闭包(L0): SYSTEM_CLOSURE.md {'存在' if sc_exists else '不存在!'}")
+    if not sc_exists:
+        all_exist = False
+        log.error(f"test_doc_exists: MISSING {sc_path}")
+    else:
+        log.info("test_doc_exists: OK SYSTEM_CLOSURE.md")
     return all_exist
 
 

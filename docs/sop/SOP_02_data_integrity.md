@@ -44,12 +44,7 @@ round-1 只必查 export。R2 起的条目才是完整 7 字段：
 
 **7个路径字段**：export / handover_path / map_path / prompt_path / prev_export / proof_path + work_dir（在run记录顶层）
 
-### DB 集合
-
-- `p27_continuation_runs` — 每道题的续传记录（含 rounds_log、status、final_status）
-- `p27_continuation_events` — 事件流（7种事件类型）
-- `p27_continuation_results` — 最终结果
-- `p27_sessions` — session 注册表（含 export_path、work_dir、status）
+> DB 集合全景见上方 SYSTEM_CLOSURE（L0）§5。本步骤检查 rounds_log 的字段完整性（下方）。
 
 ### 本步骤检查什么
 

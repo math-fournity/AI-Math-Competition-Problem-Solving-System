@@ -6,25 +6,8 @@
 
 只有步骤03分类为"代码bug"的 alert 和步骤04发现代码相关问题才需要修。数据问题（模型能力）和基础设施问题（rate_limit）不修代码。
 
-### 代码架构（最小必要认知）
-
-```
-src/
-  continuation_launcher.py    — 续传并发引擎（1484行，最大文件）
-  continuation_config.py      — 配置常量
-  continuation_db_schema.py   — DB集合定义
-  continuation_redis_queue.py — Redis队列操作
-  continuation_collector.py   — 数据收集
-  continuation_feeder.py      — 入Redis队列
-  continuation_result_collector.py — 结果汇总
-  monitor_continuation.py     — 监控Pipe（1013行）
-  session_registry.py         — Session编号化管理
-monitoring/
-  continuation_control.py     — 控制命令（start/stop/status/sessions）
-  runtime_health_check.py     — 10维度运行时健康检查
-scripts/
-  monitor_check_continuation.sh — 检查脚本（sop_01调用它）
-```
+> 各模块职责见上方 SYSTEM_CLOSURE（L0）§4。修复时按职责定位文件
+> （如"并发引擎"→continuation_launcher.py，"监控Pipe"→monitor_continuation.py）。
 
 ### 修复约束（硬性）
 

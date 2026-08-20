@@ -77,6 +77,22 @@ def get_sop_doc_content(step_num):
     return path.read_text(encoding="utf-8")
 
 
+# 系统级认知闭包（L0）——每次SOP执行前置注入，让AI时刻知道系统应怎样工作
+SYSTEM_CLOSURE_DOC = "SYSTEM_CLOSURE.md"
+
+
+def get_system_closure_path():
+    docs_dir = Path(__file__).parent.parent.parent / "docs" / "sop"
+    return docs_dir / SYSTEM_CLOSURE_DOC
+
+
+def get_system_closure_content():
+    path = get_system_closure_path()
+    if not path.exists():
+        return f"⚠️ 系统级认知闭包不存在: {path}"
+    return path.read_text(encoding="utf-8")
+
+
 def get_next_step_num(current_step):
     idx = SOP_STEPS.index(current_step)
     next_idx = (idx + 1) % len(SOP_STEPS)
@@ -144,6 +160,16 @@ def print_header(step_num):
     print(f"（轮次: 第{cycle + 1}轮 | 上次执行: {last_ts} | batch: {batch_id}）")
     print(f"（SOP文档: docs/sop/{doc_name}）")
     print(f"（下一步: 步骤 {next_step}（{next_name}））")
+    print()
+
+
+def print_system_closure():
+    """每次SOP执行前置注入系统级认知闭包（L0）——让AI时刻知道系统应怎样工作。
+    系统级知识（架构/数据流/生命周期/判定框架）全在这里，各步骤SOP(L1)只补充
+    该步骤特有增量，不重复系统级内容。"""
+    print("--- 系统级认知闭包（L0，每次注入）---")
+    print(get_system_closure_content())
+    print("--- 系统级认知闭包结束 ---")
     print()
 
 

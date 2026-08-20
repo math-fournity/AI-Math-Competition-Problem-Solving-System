@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.sop.sop_state import (
     load_state, check_order, advance,
-    print_header, print_sop_doc, print_todo_directive,
+    print_header, print_system_closure, print_sop_doc, print_todo_directive,
     SOP_STEPS, SOP_NAMES,
 )
 from scripts.sop import checks
@@ -71,10 +71,11 @@ def main():
     cycle = state.get("cycle", 0)
     log.info(f"main: executing step={step_num} ({SOP_NAMES[step_num]}) batch={batch_id} cycle={cycle}")
 
-    # 打印头部 + SOP 文档（这部分不捕获，直接输出）
+    # 打印头部 + 系统级认知闭包(L0) + SOP文档(L1)（这部分不捕获，直接输出）
     print_header(step_num)
+    print_system_closure()
     print_sop_doc(step_num)
-    log.info(f"main: printed SOP doc for step={step_num}")
+    log.info(f"main: printed system closure + SOP doc for step={step_num}")
 
     # 执行该步骤的自动化检查逻辑——捕获stdout用于报表
     check_fn = STEP_CHECKS.get(step_num)
