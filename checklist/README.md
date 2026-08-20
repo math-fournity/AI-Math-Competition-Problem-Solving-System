@@ -81,6 +81,7 @@
 - `checklist/ExecDevin.md`——Monitor Exec Devin 必读子集（约68个需求点）。**历史参考**——原来给独立 Monitor Pipe devin cli 用的，该角色已由 Master Agent 接管，但文件保留作为历史参考。
 - `working-packages/`——工作包实施计划，WP 中引用 checkpoint 编号
 - `docs/specs/`——检查规范详情，部分 checkpoint 的来源
+- `docs/system/AnalysisSystemDesign.md` §6——**关键设计决策记录**（已决策+理由）。注意：本目录的 `DEC-` 门类是"待决策问题"（spec §G），和设计决策记录（spec §E）不同——后者是已经做出的决策及其理由，汇总在 AnalysisSystemDesign.md §6。
 
 ---
 

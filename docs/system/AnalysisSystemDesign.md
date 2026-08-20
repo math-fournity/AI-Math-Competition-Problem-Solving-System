@@ -330,6 +330,50 @@ auto-restart用bash while循环包裹：`while true; do python launcher.py; echo
 - B8 `check_rounds_log_integrity`：检查rounds_log字段完整性 + export/handover/proof文件存在性 + round编号连续性
 - B9 `check_intermediate_product_uniqueness`：检查同一run不同round的export/handover/proof路径不重复 + 不同run的work_dir不重复
 
+### 6.9 为什么用DB注册表管理session（而不是文件）
+
+**来源**：`specs/p27_session_management_and_polish_spec.md` §E.1
+
+- tmux list-sessions只显示活着的session，死了的没痕迹——注册表是source of truth
+- 文件会和tmux实际状态不同步（launcher崩溃后文件残留）——DB的update有原子性
+- 已有ArangoDB连接，加一个collection成本为零
+- 注册表可以查询历史（"上周创建过多少session"），文件不行
+
+### 6.10 为什么Monitor Exec Devin并发=1
+
+**来源**：`specs/p27_session_management_and_polish_spec.md` §E.2
+
+- Monitor Exec Devin会commit代码，多个并发修改可能git冲突
+- 每轮做完整检查+修复，并发了会重复检查同样的问题
+- 一轮通常几分钟到十几分钟，串行足够
+- 不需要Master Agent事后审计每一轮——自愈循环自己验证（下一轮检查会发现上一轮修的对不对）
+
+### 6.11 为什么Monitor Exec Devin不能修改AGENTS.md/spec
+
+**来源**：`specs/p27_session_management_and_polish_spec.md` §E.3
+
+- AGENTS.md和spec是规范，修改规范需要用户参与讨论
+- Monitor Exec Devin只修代码bug，不修规范——规范变更走Master Agent + 用户
+- 如果bug的根因确实是规范有问题，Monitor Exec Devin在MONITOR_EXEC_REPORT.md中提出，Master Agent决定是否启动规范变更流程
+
+### 6.12 为什么不把Monitor Exec Devin做成subagent
+
+**来源**：`specs/p27_session_management_and_polish_spec.md` §E.4
+
+- devin cli非交互模式本身不支持subagent
+- subagent的输出不直接保留——Monitor Exec Devin的export是完整thinking，可审计
+- subagent由Master Agent的session承载，session压缩后subagent上下文丢失——Monitor Exec Devin是独立devin cli实例，不受Master Agent session影响
+- 这正是解决"Master Agent上下文漂移"的关键：打磨工作在独立devin cli里，不在Master Agent session里
+
+### 6.13 为什么stuck session不自动kill
+
+**来源**：`specs/p27_session_management_and_polish_spec.md` §E.5
+
+- 用户明确要求："必须等到DONE.md出现再kill，否则就一直留在那里，等到Master Agent在用户的授意之下再处理"
+- stuck的session可能自己恢复（rate_limit解除后devin cli继续）或自然退出（写完export后退出）
+- 自动kill会重蹈export丢失的覆辙——这是本规范要根治的问题
+- stuck不占并发槽，不影响系统吞吐——只是占tmux资源，tmux能承载几百个session
+
 ---
 
 ## 7. 解题系统参考
