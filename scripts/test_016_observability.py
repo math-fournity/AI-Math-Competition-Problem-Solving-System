@@ -160,11 +160,59 @@ def test_batch_concurrency():
           _batch_concurrency(FakeBatchDB({"status": "launching"}), "b", 5) == 5)
 
 
+class FakeAlertCol:
+    def __init__(self):
+        self.docs = []
+
+    def insert(self, doc):
+        # 模拟ArangoDB的_key unique约束
+        if any(d["_key"] == doc["_key"] for d in self.docs):
+            raise Exception("[HTTP 409] unique constraint violated")
+        self.docs.append(doc)
+
+
+class FakeAlertDB:
+    def __init__(self):
+        self.col = FakeAlertCol()
+
+    def collection(self, name):
+        return self.col
+
+
+def test_alert_key_unique():
+    print("\n=== 5. create_alert同毫秒同类型不撞key（MON-A!02修复） ===")
+    from src.monitor_continuation import create_alert
+    db = FakeAlertDB()
+    # 同一毫秒内连发3条同类型alert（A13场景）
+    keys = [create_alert(db, "real_concurrency_mismatch", "critical",
+                         {"summary": "test"})
+            for _ in range(3)]
+    check("3条同类型alert全部创建成功（无409丢失）",
+          all(k is not None for k in keys) and len(db.col.docs) == 3,
+          f"keys={keys}")
+    check("3个key互不相同", len(set(keys)) == 3)
+
+
+def test_classify_session():
+    print("\n=== 6. A13 session分类（solve/handover拆分） ===")
+    from src.monitor_continuation import _classify_p27_session
+    check("编号化handover识别",
+          _classify_p27_session("p27-s1476-handover-amo_bench_00000006-r1") == "handover")
+    check("编号化solve识别",
+          _classify_p27_session("p27-s0048-solve-p27-full-deepmath_103k_00004725-r2") == "solve")
+    check("旧格式handover(-h结尾)识别",
+          _classify_p27_session("p27-amo_bench_00000006-r1-h") == "handover")
+    check("旧格式solve识别",
+          _classify_p27_session("p27-amo_bench_00000006-r1") == "solve")
+
+
 if __name__ == "__main__":
     test_write_read()
     test_stats_churn()
     test_a14_churn_alert()
     test_batch_concurrency()
+    test_alert_key_unique()
+    test_classify_session()
     print(f"\n{'='*50}")
     print(f"结果: {PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)

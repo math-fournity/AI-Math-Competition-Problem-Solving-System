@@ -277,6 +277,25 @@ launcher重启恢复running dict（P1-4）、handover写DB事件流（P1-5）、
 测试：`scripts/test_016_observability.py`（21断言全过，含016事故场景模拟——
 同一题6次handover启动触发launch_churn critical告警）。
 
+---
+
+## 12. 勘误与代码级自查（用户质询"你确定考察了所有代码吗"后的补查）
+
+用户质询后补查全部相关代码，发现并修复了 **4 个问题**（含 1 个 P0 修复自身引入的 bug）：
+
+| # | 问题 | 性质 | 修复 |
+|---|---|---|---|
+| 1 | **skip重入队死循环**：P0-1防抖以priority=9999重入队后，若该题是pending里唯一/最低分的，zpopmin立刻再取回它，同一轮poll内无限跳过 | **P0-1修复自身引入的bug** | launcher加`requeued_keys`集合——本轮已跳过的key再被取出时直接break，等下一轮poll |
+| 2 | **A13误报**：DB的`status='running'`只在solve启动时写（3处`update_run`确认），handover进行中tmux总数>DB running是正常状态，初版A13会报假critical | A13设计缺陷 | 按`_classify_p27_session`拆分：tmux_solve↔DB↔Redis对账；tmux_total(solve+handover)↔batch设定对账（handover占并发槽是设计行为） |
+| 3 | **alert `_key`冲突**（MON-A!02）：A13一轮生成两条同类型`real_concurrency_mismatch`，同毫秒必撞unique约束，第二条静默丢失 | 已知bug被新检查放大 | `create_alert`的key加`uuid.uuid4().hex[:6]`随机后缀 |
+| 4 | **`requeued_after_graceful_stop`来历不明**：该verdict出现在DB里，但`git log -S`证实**从未存在于任何已提交代码**（只在报告草稿的stash里） | §4.4证据链勘误 | 来源最可能是8/18-19某次**未提交代码或手工DB操作**（临时恢复脚本）。它不是当晚launcher代码写出的——当晚工作区无src/改动。修正认知：amo_bench回到pending的路径主要是截断重入队+feeder重喂（§4.2根因链3、4步），graceful-stop重入队是未经证实的次要假设 |
+
+**其他补查确认无问题的部分**：`enqueue_pending`改NX后所有调用方兼容（launcher 3处重入队语义不变、feeder/run_continuation_pipeline幂等性反而增强、其他Pipe用独立模块无影响）；`is_completed/is_truncated`仅launcher和测试调用（可选参数向后兼容）；watchdog/collector/result_collector与改动无交互；`monitor_check_continuation.sh`已补第9节"系统流动历史"（`--stats --since 1h`）。
+
+**教训**：修复本身也需要代码级全量自查——P0-1的9999重入队方案在"队列只有一道题"的边界条件下引入了新死循环；A13的初版设计没有核对"DB running状态到底何时写入"这一数据流事实。**每写一个检查/修复，必须回答"这个值是谁在什么时候写的"**。
+
+测试更新：`scripts/test_016_observability.py` 27断言（+6：alert key唯一性、session分类）。
+
 
 
 

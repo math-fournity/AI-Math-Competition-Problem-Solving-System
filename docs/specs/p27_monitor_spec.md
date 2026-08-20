@@ -122,10 +122,11 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 - **warning条件**：单个run运行>30分钟（DEFAULT_MAX_RUNTIME_SECONDS=1800）
 
 #### A13. real_concurrency（016事故新增）
-- **检查方法**：四源对比——`tmux list-sessions`的p27-s*数 vs DB `status='running'`数 vs Redis `p27:running` hlen vs batch文档concurrency
-- **critical条件**：tmux（物理真相）与DB/Redis/设定任一不一致，或tmux数超过batch设定
-- **背景**：016事故中四源分别为 6/2/1/1，三个不同数字，无一检查对比过它们。以tmux为锚——它是物理真相，其他都是"记账"
+- **检查方法**：按session类型拆分对账——tmux的p27 solve session数（`-handover-`/`-h`命名除外）vs DB `status='running'`数（只记solve）vs Redis `p27:running` hlen（只记solve）；tmux总session数（solve+handover，handover占并发槽是设计行为）vs batch文档concurrency
+- **critical条件**：tmux_solve与DB/Redis任一不一致，或tmux总数超过batch设定
+- **背景**：016事故中四源分别为 6(solve2+handover4)/2/1/1，无一检查对比过它们。tmux是物理锚，其他都是"记账"；注意DB/Redis只记solve，handover进行中tmux总数>DB running是正常状态（勘误：初版未拆分类型会误报）
 - **处置**：不一致=孤儿session或状态脱节，查行为流水`python -m src.observability --tail 50`找模式
+- **alert key已加随机后缀**（MON-A!02修复）：同一毫秒多条同类型alert不再撞unique约束丢失
 
 #### A14. launch_churn（016事故新增）
 - **检查方法**：读行为流水`log/flow/`（`src/observability.py`），统计最近60分钟内每run_key的launch_solve+launch_handover次数

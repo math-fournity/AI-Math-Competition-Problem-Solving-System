@@ -849,11 +849,18 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
         # 启动新的（填满并发槽）——优雅退出模式下跳过
         # handover_pending占并发槽——handover生成中的题+解题中的题总数不超过concurrency
+        # 016勘误补丁：requeued_keys防死循环——被防抖跳过重入队(9999)的题如果
+        # 是pending里唯一/最低分的，zpopmin会立刻再取回它，同一轮poll内无限跳过。
+        # 再取到已重入队过的key时直接break，等下一轮poll（孤儿session可能已结束）。
+        requeued_keys = set()
         while not should_stop() and len(running) + len(handover_pending) < concurrency and pending_count(r) > 0:
             items = dequeue_pending(r, count=1)
             if not items:
                 break
             run_key, priority = items[0]
+            if run_key in requeued_keys:
+                enqueue_pending(r, run_key, priority=9999)
+                break
             log_flow("dequeue", run_key=run_key, priority=priority)
 
             run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
@@ -871,6 +878,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                           problem_id=pid, run_key=run_key, source="memory", batch_id=batch_id)
                 log_flow("skip_duplicate", run_key=run_key, pid=pid, source="memory",
                          priority=priority)
+                requeued_keys.add(run_key)
                 enqueue_pending(r, run_key, priority=9999)
                 continue
             # 检查2：注册表——该题是否有活跃孤儿session（防launcher重启后重复启动）
@@ -882,6 +890,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                           session_name=active_session, batch_id=batch_id)
                 log_flow("skip_orphan", run_key=run_key, pid=pid,
                          session_name=active_session, priority=priority)
+                requeued_keys.add(run_key)
                 enqueue_pending(r, run_key, priority=9999)
                 continue
 

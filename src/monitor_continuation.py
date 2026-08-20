@@ -96,8 +96,15 @@ def ensure_monitor_collections(db):
 
 
 def create_alert(db, alert_type, severity, details):
+    """创建alert。
+
+    016勘误补丁：_key加随机后缀防冲突（MON-A!02）。原key格式
+    p27-alert-{ts}-{type}——同一毫秒两条同类型alert（如A13的两条
+    real_concurrency_mismatch）会撞unique约束，第二条静默丢失。
+    """
+    import uuid
     ts = int(time.time() * 1000)
-    alert_key = f"p27-alert-{ts}-{alert_type}"
+    alert_key = f"p27-alert-{ts}-{alert_type}-{uuid.uuid4().hex[:6]}"
     doc = {
         "_key": alert_key,
         "alert_type": alert_type,
@@ -198,14 +205,31 @@ def check_session_health(db, batch_id, expected_concurrency):
     return alerts
 
 
+def _classify_p27_session(name):
+    """按session名分类：'handover'（含-handover-或结尾-h）或'solve'。
+
+    编号化命名：p27-s{seq}-handover-{pid}-r{n} / p27-s{seq}-solve-{run_key}-r{n}
+    旧兼容命名：p27-{pid}-r{n}（solve）/ p27-{pid}-r{n}-h（handover）
+    """
+    if "-handover-" in name or name.endswith("-h"):
+        return "handover"
+    return "solve"
+
+
 def check_real_concurrency(db, batch_id):
     """A13: 真实并发四源审计（016事故新增）
 
     对比四个"并发"视角，任何一个不一致都说明系统状态脱节：
-      tmux实际p27-s*数 vs DB running数 vs Redis running hash数 vs batch并发设定
+      tmux实际p27 session数（分solve/handover）
+      vs DB running数（只统计solve——handover启动时不写DB状态）
+      vs Redis running hash数（同样只统计solve）
+      vs batch并发设定（约束的是solve+handover总数——handover_pending占并发槽）
 
-    事故中：tmux=6, DB running=2, Redis running=1, 设定=1——四源三个数，
-    全都不一致，但没有任何检查对比过它们。
+    勘误（自查发现）：初版直接比较tmux总数 vs DB running——但DB的running状态
+    只在solve启动时写入，handover进行中tmux>DB是**正常状态**，会误报。
+    现按session类型拆分对比：tmux_solve↔DB↔Redis，tmux_total↔batch设定。
+
+    事故中：tmux=6(solve2+handover4), DB running=2, Redis running=1, 设定=1。
     """
     alerts = []
     try:
@@ -215,7 +239,11 @@ def check_real_concurrency(db, batch_id):
     except Exception as e:
         return [("redis_connection", "critical", {"summary": f"Redis连接失败: {e}"})]
 
-    tmux_actual = len(_tmux_p27_sessions())
+    p27_sessions = _tmux_p27_sessions()
+    tmux_solve = sum(1 for l in p27_sessions
+                     if _classify_p27_session(l.split(":")[0]) == "solve")
+    tmux_handover = len(p27_sessions) - tmux_solve
+    tmux_total = len(p27_sessions)
 
     aql = (
         f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
@@ -229,28 +257,30 @@ def check_real_concurrency(db, batch_id):
     batch_conc = _batch_concurrency(db, batch_id, None)
 
     sources = {
-        "tmux": tmux_actual,
+        "tmux_solve": tmux_solve,
+        "tmux_handover": tmux_handover,
         "db_running": db_running,
         "redis_running": redis_running,
         "batch_concurrency": batch_conc,
     }
-    # tmux是物理真相——以它为锚，其他源和它不一致就告警
-    if tmux_actual != db_running:
+    # tmux_solve是solve的物理真相——DB/Redis只记solve，逐一对账
+    if tmux_solve != db_running:
         alerts.append(("real_concurrency_mismatch", "critical", {
-            "summary": f"真实并发脱节: tmux={tmux_actual} vs DB running={db_running}"
+            "summary": f"solve并发脱节: tmux_solve={tmux_solve} vs DB running={db_running}"
                        f"——孤儿session或DB状态滞后（016事故模式）",
             **sources,
         }))
-    if tmux_actual != redis_running:
+    if tmux_solve != redis_running:
         alerts.append(("real_concurrency_mismatch", "critical", {
-            "summary": f"真实并发脱节: tmux={tmux_actual} vs Redis running={redis_running}"
+            "summary": f"solve并发脱节: tmux_solve={tmux_solve} vs Redis running={redis_running}"
                        f"——launcher内存态与进程脱节",
             **sources,
         }))
-    if batch_conc is not None and tmux_actual > batch_conc:
+    # 并发约束的是总数（handover占并发槽是设计行为）
+    if batch_conc is not None and tmux_total > batch_conc:
         alerts.append(("real_concurrency_exceeded", "critical", {
-            "summary": f"tmux并发({tmux_actual})超过设定({batch_conc})"
-                       f"——孤儿session或防抖失效（016事故模式）",
+            "summary": f"tmux总并发({tmux_total}=solve{tmux_solve}+handover{tmux_handover})"
+                       f"超过设定({batch_conc})——孤儿session或防抖失效（016事故模式）",
             **sources,
         }))
     return alerts

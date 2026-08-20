@@ -312,12 +312,9 @@ P0 修复拦住了已知循环，但 Master Agent 仍"看不见"系统的逻辑�
   每题启动Top10/失控嫌疑/判定分布/重入队原因）、`--tail N`、
   `--run-key <key>`（单题完整生命周期）、`--event <type>`、
   `--clean-days 14`（保留14天）。
-- **monitor 新检查**：A13 真实并发四源审计（tmux vs DB vs Redis vs 设定，
-  tmux为物理锚）+ A14 启动抖动（行为流水中同 run 1小时≥5次 launch → critical，
-  事故中第5次启动即报警）。A1 修复：并发从DB读 + 补"实际>设定"分支。
-- **SOP 集成**：SOP_01 新增第8节"系统流动历史观察"（必查项），含判断标准表。
-- **测试**：`scripts/test_016_observability.py`（21 断言：读写过滤/聚合/
-  churn告警模拟/DB并发读取）。
+- **monitor 新检查**：A13 真实并发四源审计（**按solve/handover拆分**——DB/Redis的running只记solve，不拆分会把handover进行中误判为脱节）、A14 启动抖动（同 run 1小时≥5次 launch → critical）。A1 修复：并发从DB读+补"实际>设定"分支。alert `_key` 加随机后缀（MON-A!02修复）。launcher 防抖重入队加 `requeued_keys` 守卫（防"队列仅剩被跳过题"时poll内死循环）。
+- **SOP 集成**：SOP_01 新增第8节"系统流动历史观察"（必查项），含判断标准表；`monitor_check_continuation.sh` 新增第9节输出行为流水统计。
+- **测试**：`scripts/test_016_observability.py`（27 断言：读写过滤/聚合/churn告警模拟/DB并发读取/alert key唯一性/session分类）。
 
 ---
 
