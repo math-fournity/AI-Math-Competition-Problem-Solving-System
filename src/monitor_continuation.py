@@ -756,6 +756,11 @@ def flag_for_ai_review(db, batch_id, sample_size=SAMPLE_SIZE):
             "summary": f"抽样{len(flagged)}条COMPLETED结果需AI review（按specs/p27_monitor_spec.md §3.3检查）",
             "samples": flagged,
         })
+        # 设置被抽样run的needs_ai_review标记，让check_04能查询到
+        for run in runs:
+            db.collection(CONTINUATION_RUNS_COLLECTION).update(
+                run["_key"], {"needs_ai_review": True})
+
     return flagged
 
 
