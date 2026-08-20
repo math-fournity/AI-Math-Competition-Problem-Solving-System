@@ -3,7 +3,7 @@
 > **门类**: MON-A · Monitor Pipe A类自动检查
 > **状态**: [!]
 > **负责的WP**: WP-02, WP-05
-> **来源**: CheckList.md MON-A已知问题 / p27_monitor_pipe_operations.md §3.1.1
+> **来源**: CheckList.md MON-A已知问题 / p27_monitor_spec.md §3（原 p27_monitor_pipe_operations.md §3.1.1，该文档已废弃）
 > **所属章节**: §MON-A · Monitor Pipe A 类自动检查（12 项）
 
 ## 需求描述

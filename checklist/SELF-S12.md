@@ -3,7 +3,7 @@
 > **门类**: SELF · Master Agent self-check
 > **状态**: [ ]
 > **负责的WP**: WP-04, WP-07
-> **来源**: p27_monitor_pipe_operations.md §4
+> **来源**: p27_monitor_spec.md §4（原 p27_monitor_pipe_operations.md §4，该文档已废弃，内容已并入 p27_monitor_spec.md）
 > **所属章节**: §SELF-BEHAVIOR · 行为正确性（S9-S12）
 
 ## 需求描述

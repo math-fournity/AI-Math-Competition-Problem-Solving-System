@@ -1,5 +1,11 @@
 # CheckList-ExecDevin — Monitor Exec Devin 必读需求点子集
 
+> ⚠️ **过时标记（2026-08-20）**：Monitor Exec Devin（`monitor_exec_launcher.py`）从未实现
+> （spec `p27_session_management_and_polish_spec.md` §B 中 `- [ ]` 未勾选）。本文件描述的
+> 是一个规划中但未落地的功能。C 类 AI 判断当前由 Master Agent 自己在 SOP_04 步做，
+> 不是由 Exec Devin 做。本文件保留作为设计参考，但不应作为运行依据。
+> 引用的 `p27_monitor_pipe_operations.md` 已废弃。
+
 > **本文件是什么**：从 `checklist/README.md`（127 个需求点全集）中提取的 Monitor Exec Devin 必须知道的需求点子集。
 > **为什么需要这个子集**：全集 127 个需求点中，约 46% 是 Master Agent/开发者的事（环境确认、控制命令实现、运行监控、审计、文档同步、待决策问题），Exec Devin 不需要知道。信息散落在 6 个文档中，Exec Devin 需要一个统一视角的"我要检查什么、我要遵守什么"清单。
 >

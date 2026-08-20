@@ -215,7 +215,6 @@ python -m src.step_gate --hold-resource tmux       # 按分类批量hold
 
 当前配置：
 - `src/continuation_config.py`: `DEVIN_MODEL = "glm-5-2"`（GLM-5.2 High, 200K context, Free）✅
-- `src/config.py`: `DEVIN_MODEL = "glm-5-2"`（Pipe 1/2/3 用，已修正）✅
 
 检查日志中的 model 参数：
 ```

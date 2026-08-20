@@ -107,7 +107,8 @@
 **第一级文档清单**（Master Agent 必须同步修改，和代码在同一个 commit 中）：
 - `docs/architecture.md` · `docs/operational-concerns.md` · `docs/graceful-shutdown.md` · `docs/dynamic-concurrency.md` · `docs/framework-checklist.md` · `docs/monitor-pipe-pattern.md` · `docs/solver-harness-borrowing.md`
 - `docs/system/AnalysisSystemDesign.md` §4 代码资产索引
-- `docs/specs/p27_monitor_spec.md` §2/§3 · `docs/specs/p27_monitor_pipe_operations.md` §3/§4 · `docs/specs/p27_session_management_and_polish_spec.md` §A/§B
+- `docs/specs/p27_monitor_spec.md` §2/§3 · `docs/specs/p27_session_management_and_polish_spec.md` §A/§B
+- ⚠️ `docs/specs/p27_monitor_pipe_operations.md` 已废弃（原 §3/§4 内容已并入 p27_monitor_spec.md）
 
 **第二级规范清单**（Master Agent 改时需谨慎，记录变更原因）：
 - `AGENTS.md` · `.devin/rules/*.md` · `docs/patterns/MonitorPipe.md` 三层架构定义/设计原则 · `docs/system/AnalysisSystemDesign.md` §5 设计原则/§6 关键设计决策

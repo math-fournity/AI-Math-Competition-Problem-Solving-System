@@ -10,8 +10,10 @@
 
 ### 项目概况
 
-用并发devin cli实例分析失败题——判定每道失败题是"方向出错"还是"token不够"，
-并分类卡点类型。用于Mid-Hint实验的选题阶段。
+对失败的数学题启动续传解题管线——通过多轮 handover→solve 循环让 devin cli 接力
+解题，直至解出、AI 放弃、或达到最大轮次（默认5轮）。每道题是一条管线，管线内部
+顺序调用 devin cli，故并发数 = 管线条数 = devin cli 实例数上限。
+本系统只有这一条续传解题管线（Pipe 1/2/3 分析/审计/选题已删除）。
 本repo从数学大师repo用git filter-repo拆分而来。
 
 ### 硬约束（10条基础 + 016/017/018新增4条）
@@ -37,16 +39,18 @@
 
 | 文档 | 位置 | 用途 |
 |---|---|---|
-| AnalysisSystem.md | `docs/system/` | 新Session接手AI的完整加载指南 |
-| AnalysisSystemDesign.md | `docs/system/` | 设计总索引（§6关键设计决策） |
-| AnalysisSystemOps.md | `docs/system/` | 运行操作手册 |
+| solve-pipeline.md | `docs/architecture/` | **解题管线核心概念**（并发=管线条数=devin cli实例数） |
+| dynamic-concurrency.md | `docs/architecture/` | 动态并发设计（DB记录方案，set-concurrency机制） |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（§2.2已改为Master Agent SOP循环） |
 | StepGate.md | `docs/patterns/` | 步进门闸设计范式（@gated/hold-step/落盘论证） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准8章节（SOP_04 C4依据） |
 | p27_monitor_spec.md | `docs/specs/` | A/B/C类检查详细标准（A1~A14，SOP_03/04引用） |
 | p27_session_management_and_polish_spec.md | `docs/specs/` | §A Session管理（有效）/ §B Exec Devin（已废弃） |
-| ~~p27_monitor_pipe_operations.md~~ | `docs/specs/` | 已废弃（Exec Devin认知资产入口） |
-| architecture/*.md | `docs/architecture/` | 9个架构文档（运维/优雅停止/动态并发/框架检查清单等） |
+| ~~AnalysisSystem.md~~ | `docs/system/` | ⚠️ 过时（描述4 Pipe架构，Pipe 1/2/3已删） |
+| ~~AnalysisSystemDesign.md~~ | `docs/system/` | ⚠️ 过时（同上） |
+| ~~AnalysisSystemOps.md~~ | `docs/system/` | ⚠️ 过时（同上） |
+| ~~p27_monitor_pipe_operations.md~~ | `docs/specs/` | 已废弃 |
+| ~~selfrun-workflow.md~~ | `docs/architecture/` | 已废弃（selfrun代码已删） |
 | continuation_control.py | `monitoring/` | 解题系统控制脚本（start/stop/status/health/set-concurrency/sessions） |
 | monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01调用） |
 | SOP_01~06+Z+OP | `docs/sop/` | Master Agent SOP文档（8个，自包含+认知闭包） |
@@ -56,6 +60,7 @@
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案 |
 | 017-全流程模拟系统设计方案 | `dev-docs/` | 全流程模拟（src/sim/，7剧本，首日捕获5bug） |
 | 018-teardown误删生产目录事故报告 | `dev-docs/` | 018事故（成果双写教训） |
+| 019-删除Pipe123后系统全面检查分析报告 | `dev-docs/` | 删除Pipe1/2/3后的残留引用检查报告 |
 | README.md | `checklist/` | 需求点清单索引（14门类147checkpoint） |
 
 详细定位见`README.md`引导地图。

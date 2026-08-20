@@ -9,13 +9,15 @@
 
 ## 1. 系统使命
 
-用并发 devin cli 实例分析数学失败题——判定每道失败题是"**方向出错**"还是
-"**token 不够**"，并分类卡点类型。用于 Mid-Hint 实验的选题阶段。
+对失败的数学题启动续传解题管线——通过多轮 handover→solve 循环，让 devin cli
+接力解题，直至题目解出、AI 放弃、或达到最大轮次（默认5轮）。
 
-一句话：**判定截断 vs 思维错误**。截断=token不够（续传能救）；思维错误=方向出错
-（续传救不了）。核心使命依赖截断判定引擎正确工作——017实证此前它结构性不可达。
+一句话：**续传解题，判定截断 vs 思维错误**。截断=token不够（续传能救）；思维错误=
+方向出错（续传救不了）。每道题是一条管线，管线内部顺序调用 devin cli（handover
+和 solve 不会同时跑），故**系统并发数 = 同时在跑的管线条数 = devin cli 实例数上限**。
+详见 `docs/architecture/solve-pipeline.md` 和 AGENTS.md"核心概念"段。
 
-## 2. 四 Pipe 架构 + 数据流
+## 2. 续传解题管线架构 + 数据流
 
 ```
 continuation_collector → continuation_feeder → continuation_launcher → continuation_result_collector
@@ -27,8 +29,9 @@ continuation_collector → continuation_feeder → continuation_launcher → con
                          observability（行为流水黑匣子，log/flow/）
 ```
 
-当前只有 Pipe 4（续传）在运行。数据流：collector 把失败题入 DB(prepared) →
-feeder 入 Redis pending → launcher 并发 dequeue 启动 devin cli → result_collector 汇总。
+数据流：collector 把失败题入 DB(prepared) → continuation_feeder 入 Redis pending →
+launcher 并发 dequeue 启动 devin cli → result_collector 汇总。本系统只有这一条
+管线（Pipe 1/2/3 分析/审计/选题已删除）。
 
 ## 3. 一道题的完整生命周期（正常工作模式）
 
