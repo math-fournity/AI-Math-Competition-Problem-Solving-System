@@ -10,50 +10,45 @@ Master Agent 自己（不是独立 devin cli）作为 Monitor Pipe 的承载者�
 
 ### 启动循环
 
-用户说"开始工作"时，执行第一个脚本：
+用户说"开始工作"时，执行 SOP 入口脚本：
 ```
-python -m scripts.sop.sop_01_health_check
+python -m scripts.sop.run
 ```
 
-### 11 步循环（5 工作 + 5 元检查 + 1 整体检查）
+### 7 步循环（6 工作 + 1 元/整体检查）
 
-| 步骤 | 脚本 | 职责 |
+| 步骤 | 名称 | 检查什么 |
 |---|---|---|
-| 01 | `sop_01_health_check` | 健康检查——运行 monitor_check_continuation.sh |
-| 01m | `sop_01m_meta_health_check` | 元检查——01本身的合理性 |
-| 02 | `sop_02_alert_triage` | alert 分类处理 |
-| 02m | `sop_02m_meta_alert_triage` | 元检查——02本身的合理性 |
-| 03 | `sop_03_ai_judgment` | C类AI判断 |
-| 03m | `sop_03m_meta_ai_judgment` | 元检查——03本身的合理性 |
-| 04 | `sop_04_code_repair` | 代码修复 |
-| 04m | `sop_04m_meta_code_repair` | 元检查——04本身的合理性 |
-| 05 | `sop_05_report_worklog` | 报告+WORKLOG |
-| 05m | `sop_05m_meta_report_worklog` | 元检查——05本身的合理性 |
-| Z | `sop_Z_system_review` | SOP系统整体检查 |
+| 01 | 系统存活+进度+Session | 进程状态/进度统计/session注册表一致性/stuck/done |
+| 02 | 数据完整性 | 产出文件存在性/rounds_log 7字段/DB-文件一致性/Redis-DB一致性 |
+| 03 | alert分类 | 读未处理alert，分类为代码bug/数据/基础设施/需重跑/需清理 |
+| 04 | C类AI判断 | 读proof.md/HANDOVER.md做C1-C5判断（数学正确性/幻觉/泄漏/质量/方向） |
+| 05 | 代码修复 | 修分类为代码bug的问题+py_compile+git commit+文档同步 |
+| 06 | 报告+WORKLOG+Self-check | 写报告+续写WORKLOG+执行SELF-S1~S17+resolve alert |
+| Z | 元检查+整体检查 | 每个SOP步骤合理性+整体系统是否需要调整 |
 
-**元检查机制**：每个工作步骤后跟一个元检查步骤（m 后缀），反思该步骤的 SOP 设计是否还合理。整个循环最后有 Z 步骤检查整个 SOP 系统。这让 SOP 系统不仅能修目标系统，还能修自己——自我进化的机制。
+**自我进化机制**：Z 步骤检查整个 SOP 系统本身是否需要调整——SOP 系统不仅能修目标系统，还能修自己。
 
 ### 自驱动机制
 
-每个脚本的输出末尾要求你用 `todo_write` 建立 todo list，**最后一项固定是"执行下一个脚本"**。完成当前阶段所有 todo 后，执行最后一项 → 自动触发下一阶段。sop_Z 的最后一项是 sop_01——循环回到开始。这就是 7x24 持续循环。
+每个脚本的输出末尾要求你用 `todo_write` 建立 todo list，**最后一项固定是"执行 `python -m scripts.sop.run`"**。完成当前阶段所有 todo 后，执行最后一项 → 自动触发下一阶段。Z 步骤的最后一项回到 01——循环回到开始。这就是 7x24 持续循环。
 
 ### 顺序校验
 
-脚本通过 `scripts/sop/_state.json` 记录上一个/下一个应该执行的步骤。错误执行其他脚本时，脚本会拒绝并提示正确的下一步。需要跳步时：
+脚本通过 `scripts/sop/_state.json` 记录上一个/下一个应该执行的步骤。错误执行其他步骤时，脚本会拒绝并提示正确的下一步。需要跳步时：
 ```
-python -m scripts.sop._set_next 03        # 强制设定下一步为 sop_03
-python -m scripts.sop._set_next 03m       # 跳到元检查
-python -m scripts.sop._set_next Z         # 跳到整体检查
+python -m scripts.sop._set_next 03        # 强制设定下一步为步骤03
+python -m scripts.sop._set_next Z         # 跳到元/整体检查
 python -m scripts.sop._set_next status    # 查看当前状态
 ```
-有效编号：`01` `01m` `02` `02m` `03` `03m` `04` `04m` `05` `05m` `Z`
+有效编号：`01` `02` `03` `04` `05` `06` `Z`
 
 ### SOP 文档
 
-每个脚本会读取并完整打印对应的 SOP 文档到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档自包含，打印出来后你知道该做什么。元检查脚本还会额外打印被检查的主步骤的 SOP 文档作为上下文。
+每个脚本会读取并完整打印对应的 SOP 文档到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档**自包含**——含认知闭包（前提知识）+ 执行指令 + todo 指令，打印出来后你知道该做什么。
 
-SOP 文档目录：`docs/sop/`（SOP_01~05 + SOP_01m~05m + SOP_Z，共 11 个）
-SOP 脚本目录：`scripts/sop/`（sop_01~05 + sop_01m~05m + sop_Z + sop_meta_base + sop_state + _set_next）
+SOP 文档目录：`docs/sop/`（SOP_01~06 + SOP_Z，共 7 个）
+SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _state.json）
 
 **这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
 
@@ -82,8 +77,8 @@ SOP 脚本目录：`scripts/sop/`（sop_01~05 + sop_01m~05m + sop_Z + sop_meta_b
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
-| SOP_01~05 + 01m~05m + Z | `docs/sop/` | Master Agent SOP 文档（11个，被脚本读取打印） |
-| sop_01~05 + 01m~05m + Z + _set_next | `scripts/sop/` | Master Agent SOP 脚本（11步循环+状态管理） |
+| SOP_01~06 + Z | `docs/sop/` | Master Agent SOP 文档（7个，自包含+认知闭包，被脚本读取打印） |
+| run + checks + sop_state + _set_next | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理） |
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
 | README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
 | MasterAgentCheck.md | `checklist/` | Master Agent SOP 索引（内容已迁移到 docs/sop/） |

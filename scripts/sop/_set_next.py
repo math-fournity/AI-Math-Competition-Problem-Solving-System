@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from scripts.sop.sop_state import load_state, set_next, SOP_STEPS, SOP_SCRIPTS
+from scripts.sop.sop_state import load_state, set_next, SOP_STEPS, SOP_NAMES
 
 
 def main():
@@ -28,8 +28,8 @@ def main():
     if arg == "status":
         state = load_state()
         print("=== SOP 流程状态 ===")
-        print(f"  上一个: sop_{state.get('last')}（{SOP_SCRIPTS.get(state.get('last'), '无')}）")
-        print(f"  下一个: sop_{state.get('next')}（{SOP_SCRIPTS.get(state.get('next'), '无')}）")
+        print(f"  上一个: sop_{state.get('last')}（{SOP_NAMES.get(state.get('last'), '无')}）")
+        print(f"  下一个: sop_{state.get('next')}（{SOP_NAMES.get(state.get('next'), '无')}）")
         print(f"  循环轮次: {state.get('cycle', 0)}")
         print(f"  上次执行: {state.get('last_ts', '无')}")
         print(f"  batch_id: {state.get('batch_id', 'p27-full')}")
@@ -38,7 +38,7 @@ def main():
     ok, msg = set_next(arg)
     if ok:
         print(msg)
-        print(f"现在可以执行: python -m scripts.sop.{SOP_SCRIPTS[arg]}")
+        print(f"现在可以执行: python -m scripts.sop.{SOP_NAMES[arg]}")
     else:
         print(msg)
         sys.exit(1)

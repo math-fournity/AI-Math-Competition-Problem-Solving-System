@@ -1,30 +1,18 @@
 """sop_state.py — SOP 流程状态管理模块
 
-读写 _state.json，提供顺序校验。所有 SOP 脚本共用此模块。
+读写 _state.json，提供顺序校验。单脚本 run.py 共用此模块。
+
+循环结构（7步）：
+  01  系统存活+进度+Session
+  02  数据完整性
+  03  alert分类
+  04  C类AI判断
+  05  代码修复
+  06  报告+WORKLOG+Self-check
+  Z   元检查+整体检查
+  → 回到 01（新的一轮循环）
 
 状态文件：scripts/sop/_state.json
-结构：
-  {
-    "last": "01",       # 上一个执行的脚本编号
-    "next": "01m",      # 下一个应该执行的脚本编号
-    "cycle": 3,         # 当前是第几轮循环（01→05+元检查+Z 完成为一轮）
-    "last_ts": "...",   # 上次执行时间（ISO格式）
-    "batch_id": "p27-full"  # 当前监控的批次
-  }
-
-循环结构（11步）：
-  01  健康检查
-  01m 元检查：01本身的合理性
-  02  alert分类
-  02m 元检查：02本身的合理性
-  03  AI判断
-  03m 元检查：03本身的合理性
-  04  代码修复
-  04m 元检查：04本身的合理性
-  05  报告+WORKLOG
-  05m 元检查：05本身的合理性
-  Z   SOP系统整体检查
-  → 回到 01（新的一轮循环）
 """
 
 import json
@@ -34,74 +22,47 @@ from datetime import datetime, timezone
 STATE_FILE = Path(__file__).parent / "_state.json"
 
 # SOP 步骤定义——顺序即循环顺序
-# m后缀=元检查（检查前一步SOP本身的合理性），Z=整体检查
-SOP_STEPS = ["01", "01m", "02", "02m", "03", "03m", "04", "04m", "05", "05m", "Z"]
+SOP_STEPS = ["01", "02", "03", "04", "05", "06", "Z"]
 
-# 编号→脚本名映射
-SOP_SCRIPTS = {
-    "01": "sop_01_health_check",
-    "01m": "sop_01m_meta_health_check",
-    "02": "sop_02_alert_triage",
-    "02m": "sop_02m_meta_alert_triage",
-    "03": "sop_03_ai_judgment",
-    "03m": "sop_03m_meta_ai_judgment",
-    "04": "sop_04_code_repair",
-    "04m": "sop_04m_meta_code_repair",
-    "05": "sop_05_report_worklog",
-    "05m": "sop_05m_meta_report_worklog",
-    "Z": "sop_Z_system_review",
+# 编号→步骤名称映射（用于显示）
+SOP_NAMES = {
+    "01": "系统存活+进度+Session",
+    "02": "数据完整性",
+    "03": "alert分类",
+    "04": "C类AI判断",
+    "05": "代码修复",
+    "06": "报告+WORKLOG+Self-check",
+    "Z": "元检查+整体检查",
 }
 
 # 编号→SOP文档名映射
 SOP_DOCS = {
-    "01": "SOP_01_health_check.md",
-    "01m": "SOP_01m_meta_health_check.md",
-    "02": "SOP_02_alert_triage.md",
-    "02m": "SOP_02m_meta_alert_triage.md",
-    "03": "SOP_03_ai_judgment.md",
-    "03m": "SOP_03m_meta_ai_judgment.md",
-    "04": "SOP_04_code_repair.md",
-    "04m": "SOP_04m_meta_code_repair.md",
-    "05": "SOP_05_report_worklog.md",
-    "05m": "SOP_05m_meta_report_worklog.md",
-    "Z": "SOP_Z_system_review.md",
-}
-
-# 元检查步骤 → 被检查的主步骤
-META_TARGETS = {
-    "01m": "01",
-    "02m": "02",
-    "03m": "03",
-    "04m": "04",
-    "05m": "05",
+    "01": "SOP_01_system_health.md",
+    "02": "SOP_02_data_integrity.md",
+    "03": "SOP_03_alert_triage.md",
+    "04": "SOP_04_ai_judgment.md",
+    "05": "SOP_05_code_repair.md",
+    "06": "SOP_06_report_worklog_selfcheck.md",
+    "Z": "SOP_Z_meta_system_review.md",
 }
 
 
 def load_state():
-    """读取状态文件"""
     with open(STATE_FILE) as f:
         return json.load(f)
 
 
 def save_state(state):
-    """写入状态文件"""
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def get_next_step():
-    """获取下一个应该执行的步骤编号"""
-    return load_state()["next"]
-
-
 def get_sop_doc_path(step_num):
-    """获取 SOP 文档路径"""
     docs_dir = Path(__file__).parent.parent.parent / "docs" / "sop"
     return docs_dir / SOP_DOCS[step_num]
 
 
 def get_sop_doc_content(step_num):
-    """读取 SOP 文档内容"""
     path = get_sop_doc_path(step_num)
     if not path.exists():
         return f"⚠️ SOP 文档不存在: {path}"
@@ -109,31 +70,25 @@ def get_sop_doc_content(step_num):
 
 
 def get_next_step_num(current_step):
-    """获取循环中的下一个步骤编号（Z→01 回到开始）"""
     idx = SOP_STEPS.index(current_step)
     next_idx = (idx + 1) % len(SOP_STEPS)
     return SOP_STEPS[next_idx]
 
 
 def check_order(step_num):
-    """校验执行顺序。返回 (ok, message)。
-
-    如果 state["next"] == step_num，校验通过。
-    否则返回错误信息，告知上一个和下一个应该是什么。
-    """
     state = load_state()
     expected = state["next"]
     if expected == step_num:
         return True, None
     last = state.get("last", "（无）")
-    last_script = SOP_SCRIPTS.get(last, "（无）")
-    expected_script = SOP_SCRIPTS.get(expected, "（无）")
-    your_script = SOP_SCRIPTS.get(step_num, "（未知）")
+    last_name = SOP_NAMES.get(last, "（无）")
+    expected_name = SOP_NAMES.get(expected, "（无）")
+    your_name = SOP_NAMES.get(step_num, "（未知）")
     msg = (
-        f"⚠️ 顺序错误：你试图执行 sop_{step_num}（{your_script}），\n"
-        f"   但下一个应该执行的是 sop_{expected}（{expected_script}）。\n"
-        f"   上一个执行的是 sop_{last}（{last_script}）。\n\n"
-        f"   如果你确定要执行 sop_{step_num}，请先运行：\n"
+        f"⚠️ 顺序错误：你试图执行步骤 {step_num}（{your_name}），\n"
+        f"   但下一个应该执行的是步骤 {expected}（{expected_name}）。\n"
+        f"   上一个执行的是步骤 {last}（{last_name}）。\n\n"
+        f"   如果你确定要执行步骤 {step_num}，请先运行：\n"
         f"   python -m scripts.sop._set_next {step_num}\n"
         f"   然后再执行本脚本。"
     )
@@ -141,10 +96,6 @@ def check_order(step_num):
 
 
 def advance(step_num):
-    """执行完成后推进状态——更新 last/next/cycle/last_ts。
-
-    如果 step_num == "Z"（最后一步），cycle + 1，next 回到 "01"。
-    """
     state = load_state()
     state["last"] = step_num
     state["next"] = get_next_step_num(step_num)
@@ -156,35 +107,32 @@ def advance(step_num):
 
 
 def set_next(step_num):
-    """强制设定下一步"""
     if step_num not in SOP_STEPS:
         return False, f"无效步骤编号: {step_num}，有效值: {SOP_STEPS}"
     state = load_state()
     state["next"] = step_num
     save_state(state)
-    return True, f"已设定下一步为 sop_{step_num}（{SOP_SCRIPTS[step_num]}）"
+    return True, f"已设定下一步为步骤 {step_num}（{SOP_NAMES[step_num]}）"
 
 
 def print_header(step_num):
-    """打印脚本头部信息"""
     state = load_state()
     cycle = state.get("cycle", 0)
     last_ts = state.get("last_ts", "（首次执行）")
     batch_id = state.get("batch_id", "p27-full")
-    script_name = SOP_SCRIPTS[step_num]
     doc_name = SOP_DOCS[step_num]
+    step_name = SOP_NAMES[step_num]
     next_step = get_next_step_num(step_num)
-    next_script = SOP_SCRIPTS[next_step]
+    next_name = SOP_NAMES[next_step]
 
-    print(f"=== SOP_{step_num}: {script_name} ===")
+    print(f"=== SOP_{step_num}: {step_name} ===")
     print(f"（轮次: 第{cycle + 1}轮 | 上次执行: {last_ts} | batch: {batch_id}）")
     print(f"（SOP文档: docs/sop/{doc_name}）")
-    print(f"（下一步: sop_{next_step}（{next_script}））")
+    print(f"（下一步: 步骤 {next_step}（{next_name}））")
     print()
 
 
 def print_sop_doc(step_num):
-    """打印 SOP 文档内容"""
     print("--- SOP 文档内容 ---")
     print(get_sop_doc_content(step_num))
     print("--- SOP 文档内容结束 ---")
@@ -192,32 +140,14 @@ def print_sop_doc(step_num):
 
 
 def print_todo_directive(step_num):
-    """打印 todo_write 指令——最后一项是执行下一个脚本"""
     next_step = get_next_step_num(step_num)
-    next_script = SOP_SCRIPTS[next_step]
+    next_name = SOP_NAMES[next_step]
     print("--- 下一步指令 ---")
     print(f"请用 todo_write 建立本轮 todo list。")
     print(f"todo list 的最后一项必须是：")
-    print(f"  执行下一个脚本: python -m scripts.sop.{next_script}")
+    print(f"  执行下一个脚本: python -m scripts.sop.run")
     print()
-    print(f"完成所有 todo 后，最后一项会自动触发下一阶段（sop_{next_step}）。")
+    print(f"完成所有 todo 后，最后一项会自动触发下一阶段（步骤 {next_step}: {next_name}）。")
     if step_num == "Z":
-        print(f"注意：这是循环的最后一步（整体检查），下一阶段 sop_01 是新的一轮循环。")
-    print()
-
-
-def get_meta_target(target_step):
-    """获取元检查对应的主步骤编号"""
-    return META_TARGETS.get(target_step)
-
-
-def print_meta_context(meta_step):
-    """打印元检查的上下文——被检查的主步骤的SOP文档内容"""
-    target = get_meta_target(meta_step)
-    if not target:
-        return
-    target_doc = SOP_DOCS.get(target, "（未知）")
-    print(f"--- 被检查的SOP文档: docs/sop/{target_doc} ---")
-    print(get_sop_doc_content(target))
-    print(f"--- 被检查的SOP文档结束 ---")
+        print(f"注意：这是循环的最后一步，下一阶段是新一轮循环的开始。")
     print()
