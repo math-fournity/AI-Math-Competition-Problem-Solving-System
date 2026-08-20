@@ -11,19 +11,27 @@
 python -m scripts.sop.sop_01_health_check
 ```
 
-### 5 步循环
+### 11 步循环（5 工作 + 5 元检查 + 1 整体检查）
 
 | 步骤 | 脚本 | 职责 |
 |---|---|---|
-| 01 | `sop_01_health_check` | 健康检查——运行 monitor_check_continuation.sh 获取系统状态+alert |
-| 02 | `sop_02_alert_triage` | alert 分类——逐个读 alert，分为代码bug/数据/基础设施/需重跑 |
-| 03 | `sop_03_ai_judgment` | C类AI判断——读 proof.md/HANDOVER.md 做数学正确性/幻觉/方向判断 |
-| 04 | `sop_04_code_repair` | 代码修复——修分类为代码bug的问题，py_compile验证，git commit |
-| 05 | `sop_05_report_worklog` | 报告——写 MONITOR_EXEC_REPORT.md + 续写 WORKLOG.md + resolve alert |
+| 01 | `sop_01_health_check` | 健康检查——运行 monitor_check_continuation.sh |
+| 01m | `sop_01m_meta_health_check` | 元检查——01本身的合理性 |
+| 02 | `sop_02_alert_triage` | alert 分类处理 |
+| 02m | `sop_02m_meta_alert_triage` | 元检查——02本身的合理性 |
+| 03 | `sop_03_ai_judgment` | C类AI判断 |
+| 03m | `sop_03m_meta_ai_judgment` | 元检查——03本身的合理性 |
+| 04 | `sop_04_code_repair` | 代码修复 |
+| 04m | `sop_04m_meta_code_repair` | 元检查——04本身的合理性 |
+| 05 | `sop_05_report_worklog` | 报告+WORKLOG |
+| 05m | `sop_05m_meta_report_worklog` | 元检查——05本身的合理性 |
+| Z | `sop_Z_system_review` | SOP系统整体检查 |
+
+**元检查机制**：每个工作步骤后跟一个元检查步骤，反思该步骤的 SOP 设计是否还合理。整个循环最后有 Z 步骤检查整个 SOP 系统。这让 SOP 系统不仅能修目标系统，还能修自己——自我进化的机制。
 
 ### 自驱动机制
 
-每个脚本的输出末尾要求你用 `todo_write` 建立 todo list，**最后一项固定是"执行下一个脚本"**。完成当前阶段所有 todo 后，执行最后一项 → 自动触发下一阶段。sop_05 的最后一项是 sop_01——循环回到开始。这就是 7x24 持续循环。
+每个脚本的输出末尾要求你用 `todo_write` 建立 todo list，**最后一项固定是"执行下一个脚本"**。完成当前阶段所有 todo 后，执行最后一项 → 自动触发下一阶段。sop_Z 的最后一项是 sop_01——循环回到开始。这就是 7x24 持续循环。
 
 ### 顺序校验
 
