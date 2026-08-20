@@ -19,7 +19,7 @@
 用法:
   from monitoring.shared_logger import get_logger, log_event
   logger = get_logger("continuation_launcher")
-  logger.info("启动续传批次 batch=p27-full concurrency=5")
+  logger.info("启动续传批次 batch=p27-full concurrency=1")
 
   # 结构化日志（推荐——可被log_search.py按字段检索）
   log_event(logger, "info", "launch_solve",

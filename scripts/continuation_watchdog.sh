@@ -64,7 +64,7 @@ while true; do
 
     # === 检查monitor ===
     ensure_service "monitor" "monitor-p27" \
-        "cd $ANALYSIS_DIR && while true; do $PY -m src.monitor_continuation --batch-id $BATCH_ID --interval 120 --concurrency 5 2>&1; echo '[auto-restart] monitor退出, 5秒后重启...'; sleep 5; done"
+        "cd $ANALYSIS_DIR && while true; do $PY -m src.monitor_continuation --batch-id $BATCH_ID --interval 120 --concurrency 1 2>&1; echo '[auto-restart] monitor退出, 5秒后重启...'; sleep 5; done"
 
     # === 每5分钟做一次一致性检查 ===
     now=$(date +%s)

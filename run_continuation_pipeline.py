@@ -17,7 +17,7 @@
   # 分步执行
   python run_continuation_pipeline.py --batch-id p27-full --step collect
   python run_continuation_pipeline.py --batch-id p27-full --step feed
-  python run_continuation_pipeline.py --batch-id p27-full --step launch --concurrency 5
+  python run_continuation_pipeline.py --batch-id p27-full --step launch --concurrency 1
   python run_continuation_pipeline.py --batch-id p27-full --step collect-results
 
   # 状态检查

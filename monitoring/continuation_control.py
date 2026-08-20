@@ -14,7 +14,7 @@ auto-restart机制：
   防止8天运行中因Redis断连、未处理异常等导致整个batch停滞。
 
 用法:
-  python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
+  python -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
   python -m monitoring.continuation_control stop
   python -m monitoring.continuation_control stop --force
   python -m monitoring.continuation_control status --batch-id p27-full

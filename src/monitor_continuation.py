@@ -992,7 +992,7 @@ def check_done_sessions_uncleaned(db, batch_id):
         return []
 
 
-def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
+def run_monitor_loop(batch_id, interval=120, expected_concurrency=1):
     """运行监控循环"""
     logger.info(f"续传监控Pipe启动 batch={batch_id} interval={interval}s")
     print(f"=== 续传监控Pipe启动 batch={batch_id} interval={interval}s ===")

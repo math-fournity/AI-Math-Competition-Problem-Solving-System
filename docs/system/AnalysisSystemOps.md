@@ -889,7 +889,7 @@ ps aux | grep "continue_solver.py batch" | grep -v grep | awk '{print $2}' | xar
 **★ 如何启动全量续传**（推荐——自动启动launcher+monitor到tmux，带auto-restart）：
 ```bash
 cd ..
-.venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5 --max-rounds 5 --method v2
+.venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 1 --max-rounds 5 --method v2
 ```
 
 **★ 如何启动watchdog**（守护launcher+monitor，崩溃自动重启）：

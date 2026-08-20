@@ -222,7 +222,7 @@ git log --oneline -20
 **要读**：`AnalysisSystemDesign.md` §1快速入口 + `p27_monitor_spec.md`
 
 **要做**：
-- 启动系统：`&& .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5`
+- 启动系统：`&& .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 1`
 - 检查健康：`continuation_control health --batch-id p27-full`
 - 循环监控：`bash scripts/monitor_check_continuation.sh p27-full`
 - 停止：`continuation_control stop`（优雅）或 `stop --force`（强制，分类处理不kill running）

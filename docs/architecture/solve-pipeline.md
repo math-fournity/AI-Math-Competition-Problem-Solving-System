@@ -66,7 +66,7 @@ while ... len(running) + len(handover_pending) < concurrency ...
 - ✅ 如果只启动 Pipe 4 → 限制管线数 = 限制 devin cli 实例数，命题成立
 - ❌ 如果 Pipe 4 和 Pipe 1 同时跑 → Pipe 4 管线数限制了 solve/handover，但 Pipe 1 的 analysis devin cli 不受约束，系统总 devin cli 实例数 = Pipe 4 管线数 + Pipe 1 并发数
 
-**当前实际运行模式**（AGENTS.md 启动指令）：只启动 Pipe 4（`continuation_control start --batch-id p27-full --concurrency 5`），不同时启动 Pipe 1/2/3。所以命题在当前运行模式下成立。
+**当前实际运行模式**（AGENTS.md 启动指令）：只启动 Pipe 4（`continuation_control start --batch-id p27-full --concurrency 1`），不同时启动 Pipe 1/2/3。所以命题在当前运行模式下成立。
 
 **如果要保证命题在任何情况下都成立**：需要新增一个跨所有 devin cli 消费者的全局并发闸（不只是管 Pipe 4），让 analysis/audit/selection/solver 启动 devin cli 前也先抢全局锁。当前架构没有这个能力。
 

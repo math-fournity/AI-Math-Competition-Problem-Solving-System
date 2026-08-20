@@ -55,8 +55,8 @@
 
 ```
 # 重启 launcher + monitor
-python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
-# 注意：--concurrency 5 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，
+python -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
+# 注意：--concurrency 1 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，
 # launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 set-concurrency（见 AGENTS.md）。
 
 # 单独重启 monitor

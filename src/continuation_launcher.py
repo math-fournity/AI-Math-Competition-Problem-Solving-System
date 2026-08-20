@@ -10,7 +10,7 @@
   4. 更长timeout——续传单轮可能thinking spin很久（30分钟 vs 分析5分钟）
 
 用法：
-  python -m src.continuation_launcher --batch-id p27-full --concurrency 5 --max-rounds 5 --method v2
+  python -m src.continuation_launcher --batch-id p27-full --concurrency 1 --max-rounds 5 --method v2
   python -m src.continuation_launcher --status --batch-id p27-full
   python -m src.continuation_launcher --stop --batch-id p27-full
 """

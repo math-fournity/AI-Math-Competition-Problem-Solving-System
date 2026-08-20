@@ -489,7 +489,7 @@ bash scripts/monitor_check_continuation.sh p27-full
 - 命令：`&& .venv/bin/python3 -c "..."` （具体见续传规范）
 
 ### 需要重启的服务
-- launcher挂了：`&& .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 5`
+- launcher挂了：`&& .venv/bin/python3 -m monitoring.continuation_control start --batch-id p27-full --concurrency 1`
 - monitor挂了：同上（start命令会同时启动launcher和monitor）
 
 ## 严格约束
