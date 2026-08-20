@@ -58,6 +58,11 @@
 上方 checks.py 已经抽查了最近 10 个有 rounds_log 的 run，检查了：
 - rounds_log 中 7 个路径字段指向的文件是否存在
 - export 文件是否过小（<100字节）
+- **proof.md 质量统计（RUN-05）**——全量统计 COMPLETED 数 / proof.md 存在数 / 有 boxed 数，计算存在率和 boxed 率
+
+重点关注：
+- COMPLETED 的 run 缺少 proof.md → 数据丢失风险（critical）
+- proof.md 存在但没有 `\boxed` → 未完成的证明（warning）
 
 如果发现问题，逐个确认是否是真实问题（不是路径格式变化导致的误报）。
 

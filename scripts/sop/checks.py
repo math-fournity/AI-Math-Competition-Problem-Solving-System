@@ -93,6 +93,52 @@ def check_02_data_integrity(batch_id):
                     if size < 100:
                         issues.append(f"  [{pid} R{round_num}] export 文件过小: {size}字节")
 
+        # === proof.md 质量统计（RUN-05 需求点）===
+        # 全量统计：COMPLETED 数 / proof.md 存在数 / 有 boxed 数
+        aql_all = (
+            f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+            f"FILTER run.batch_id == @bid "
+            f"RETURN {{final_status: run.final_status, work_dir: run.work_dir, "
+            f"proof_path: (run.rounds_log[LENGTH(run.rounds_log)-1].proof_path)}}"
+        )
+        cursor_all = db.aql.execute(aql_all, bind_vars={"bid": batch_id}, ttl=120)
+        all_runs = list(cursor_all)
+
+        total = len(all_runs)
+        completed = sum(1 for r in all_runs if r.get("final_status") == "COMPLETED")
+        proof_exists = 0
+        proof_has_boxed = 0
+        for r in all_runs:
+            proof_path = r.get("proof_path", "")
+            if not proof_path:
+                # proof_path 不在 rounds_log 最后一条，尝试 work_dir/proof.md
+                work_dir = r.get("work_dir", "")
+                if work_dir:
+                    proof_path = str(Path(work_dir) / "proof.md")
+            if proof_path and Path(proof_path).exists():
+                proof_exists += 1
+                try:
+                    content = Path(proof_path).read_text(encoding="utf-8", errors="ignore")
+                    if "\\boxed" in content:
+                        proof_has_boxed += 1
+                except Exception:
+                    pass
+
+        print(f"\n--- proof.md 质量统计（RUN-05）---")
+        print(f"  总 run 数: {total}")
+        print(f"  COMPLETED: {completed} ({completed}/{total} = {completed/total:.1%})" if total else "  COMPLETED: 0")
+        print(f"  proof.md 存在: {proof_exists}")
+        print(f"  proof.md 有 boxed: {proof_has_boxed}")
+        if completed > 0:
+            print(f"  存在率（proof_exists/COMPLETED）: {proof_exists}/{completed} = {proof_exists/completed:.1%}")
+        if proof_exists > 0:
+            print(f"  boxed 率（has_boxed/proof_exists）: {proof_has_boxed}/{proof_exists} = {proof_has_boxed/proof_exists:.1%}")
+        if completed > 0 and proof_exists < completed:
+            print(f"  ⚠️ {completed - proof_exists} 个 COMPLETED 的 run 缺少 proof.md（数据丢失风险）")
+        if proof_exists > 0 and proof_has_boxed < proof_exists:
+            print(f"  ⚠️ {proof_exists - proof_has_boxed} 个 proof.md 没有 boxed 答案（未完成的证明）")
+        print()
+
         if issues:
             print(f"发现 {len(issues)} 个数据完整性问题：")
             for issue in issues[:20]:
