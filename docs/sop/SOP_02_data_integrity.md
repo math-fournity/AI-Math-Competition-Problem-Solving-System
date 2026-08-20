@@ -154,9 +154,32 @@ for s in sessions:
 
 **这是 AI 的核心价值**——脚本能统计分组数据，但只有 AI 能判断"为什么 oda 和 polymath 全 0%"是系统性问题还是还没跑到。
 
-### 3. 记录发现的问题
+### 3. 填写报表（必须做）
 
-每个数据完整性问题记录：
+脚本运行时已自动在D盘生成报表目录：
+
+```
+/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory/p27-sop-reports/cycle_{NNN}/step_02/{timestamp}/
+  report.md           ← 你必须填写这个文件
+  snapshot.json       ← 系统快照（聚合统计）
+  snapshot_runs.json  ← 全量per-run数据（919条）
+  check_output.txt    ← 脚本输出原文
+```
+
+**你必须**：
+1. 用 read 工具加载 `report.md`（路径在脚本输出末尾已打印）
+2. 填写检查项清单表格——对每个检查项打勾：`[x]` 通过 / `[!]` 有问题 / `[ ]` 待检查 / `[-]` 不适用
+3. 填写"发现的问题"——按 Critical / Warning / Info 分级
+4. 填写"执行的操作"——做了什么修复/重启/重跑
+5. 填写"未修复的问题及原因"
+6. 填写"下一轮建议"
+7. 用 edit 工具写回同一文件
+
+**报表是审计痕迹**——回头可以 grep 到某一轮检查、某个step中、AI的报表文件到底是什么、查了什么、结果是什么。不填写报表 = 检查没有完成。
+
+### 4. 记录发现的问题
+
+每个数据完整性问题记录在 report.md 的"发现的问题"节中：
 - 哪个 run（problem_id）
 - 哪个字段/文件
 - 什么问题（文件不存在/字段缺失/不一致）
@@ -167,8 +190,8 @@ for s in sessions:
 ## 你需要建立的 todo list
 
 - 阅读自动化全量检查结果
-- 深度检查 2a-2d（每个一个 todo）
-- 记录发现的问题
+- 深度检查 2a-2e（每个一个 todo）
+- **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤03（alert分类）。

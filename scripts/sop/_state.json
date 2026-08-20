@@ -1,1 +1,7 @@
-{"last": null, "next": "01", "cycle": 0, "last_ts": null, "batch_id": "p27-full"}
+{
+  "last": "02",
+  "next": "03",
+  "cycle": 0,
+  "last_ts": "2026-08-20T05:30:54.035388+00:00",
+  "batch_id": "p27-full"
+}

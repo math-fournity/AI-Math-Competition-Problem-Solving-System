@@ -89,6 +89,7 @@
 - 需步骤05修复的alert（每个一个todo）
 - 需步骤04做AI判断的（如果有needs_ai_review标记）
 - 需立即处理的（launcher_dead等）
+- **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤04（C类AI判断）。

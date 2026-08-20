@@ -126,7 +126,16 @@ python -m scripts.sop._set_next status    # 查看当前状态
 每个脚本会读取并完整打印对应的 SOP 文档到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档**自包含**——含认知闭包（前提知识）+ 执行指令 + todo 指令，打印出来后你知道该做什么。
 
 SOP 文档目录：`docs/sop/`（SOP_01~06 + SOP_Z，共 7 个）
-SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _state.json）
+SOP 脚本目录：`scripts/sop/`（run + checks + report + sop_state + _set_next + _state.json）
+
+**报表系统**：每次SOP步骤执行后，脚本自动在D盘生成报表目录：
+`/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory/p27-sop-reports/cycle_{NNN}/step_{XX}/{timestamp}/`
+- `report.md` — AI必须填写的报表（检查项打勾+发现+操作）
+- `snapshot.json` — 系统快照（聚合统计）
+- `snapshot_runs.json` — 全量per-run数据（每道题的status/round/完成情况）
+- `check_output.txt` — 脚本输出原文
+
+**每次检查必须填写 report.md**——这是审计痕迹，回头可以grep到某一轮检查某个step中AI查了什么、结果是什么。不填写报表 = 检查没有完成。
 
 **这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
 

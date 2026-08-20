@@ -120,6 +120,7 @@ DB 中 `p27_monitor_alerts` 集合的已处理 alert，更新 `status` 为 `reso
 - 执行 Self-check S1-S17
 - resolve 已处理 alert
 - git commit
+- **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤Z（元检查+整体检查）。

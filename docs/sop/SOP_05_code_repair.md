@@ -86,6 +86,7 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 ## 你需要建立的 todo list
 
 - 每个修复任务拆解为：读代码→定位根因→修复→验证→同步文档→commit
+- **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤06（报告+WORKLOG+Self-check）。

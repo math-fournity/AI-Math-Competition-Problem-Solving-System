@@ -116,6 +116,7 @@ echo $ARANGO_DB    # 必须输出 xishujuzhen_math_glm52，如果为空先 sourc
 
 根据检查结果建立 todo list：
 - 发现的问题（每个一个 todo）
+- **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，最后一项自动触发步骤02（数据完整性）。
