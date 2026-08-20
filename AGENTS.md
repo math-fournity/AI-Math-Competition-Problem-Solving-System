@@ -2,7 +2,11 @@
 
 ## ⚠️ Master Agent SOP 流程控制机制（最前面，不可截断）
 
-**你是错题分析系统的 Monitor AI。系统运行时，你通过 5 步 SOP 循环持续检查+判断+修复+报告。**
+**你是错题分析系统的 Monitor AI。系统运行时，你通过 11 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
+
+### 核心理念
+
+Master Agent 自己（不是独立 devin cli）作为 Monitor Pipe 的承载者。7x24 持续循环通过**自驱动 todo list 机制**实现——每个 SOP 脚本输出末尾要求用 `todo_write` 建 todo list，最后一项固定是"执行下一个脚本"，完成 todo 自动触发下一阶段。不依赖 devin -p 定时启动，因为本 repo 上下文负担小（无 .devin/rules/，AGENTS.md 聚焦），Master Agent 直接做比独立 cli 更简单且能力更强。方案详情见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
 
 ### 启动循环
 
@@ -27,7 +31,7 @@ python -m scripts.sop.sop_01_health_check
 | 05m | `sop_05m_meta_report_worklog` | 元检查——05本身的合理性 |
 | Z | `sop_Z_system_review` | SOP系统整体检查 |
 
-**元检查机制**：每个工作步骤后跟一个元检查步骤，反思该步骤的 SOP 设计是否还合理。整个循环最后有 Z 步骤检查整个 SOP 系统。这让 SOP 系统不仅能修目标系统，还能修自己——自我进化的机制。
+**元检查机制**：每个工作步骤后跟一个元检查步骤（m 后缀），反思该步骤的 SOP 设计是否还合理。整个循环最后有 Z 步骤检查整个 SOP 系统。这让 SOP 系统不仅能修目标系统，还能修自己——自我进化的机制。
 
 ### 自驱动机制
 
@@ -38,12 +42,18 @@ python -m scripts.sop.sop_01_health_check
 脚本通过 `scripts/sop/_state.json` 记录上一个/下一个应该执行的步骤。错误执行其他脚本时，脚本会拒绝并提示正确的下一步。需要跳步时：
 ```
 python -m scripts.sop._set_next 03        # 强制设定下一步为 sop_03
+python -m scripts.sop._set_next 03m       # 跳到元检查
+python -m scripts.sop._set_next Z         # 跳到整体检查
 python -m scripts.sop._set_next status    # 查看当前状态
 ```
+有效编号：`01` `01m` `02` `02m` `03` `03m` `04` `04m` `05` `05m` `Z`
 
 ### SOP 文档
 
-每个脚本会读取并完整打印对应的 SOP 文档（`docs/sop/SOP_01~05.md`）到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档自包含，打印出来后你知道该做什么。
+每个脚本会读取并完整打印对应的 SOP 文档到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档自包含，打印出来后你知道该做什么。元检查脚本还会额外打印被检查的主步骤的 SOP 文档作为上下文。
+
+SOP 文档目录：`docs/sop/`（SOP_01~05 + SOP_01m~05m + SOP_Z，共 11 个）
+SOP 脚本目录：`scripts/sop/`（sop_01~05 + sop_01m~05m + sop_Z + sop_meta_base + sop_state + _set_next）
 
 **这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
 
@@ -72,8 +82,12 @@ python -m scripts.sop._set_next status    # 查看当前状态
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
+| SOP_01~05 + 01m~05m + Z | `docs/sop/` | Master Agent SOP 文档（11个，被脚本读取打印） |
+| sop_01~05 + 01m~05m + Z + _set_next | `scripts/sop/` | Master Agent SOP 脚本（11步循环+状态管理） |
+| 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
 | README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
-| ExecDevin.md | `checklist/` | Monitor Exec Devin必读子集 |
+| MasterAgentCheck.md | `checklist/` | Master Agent SOP 索引（内容已迁移到 docs/sop/） |
+| ExecDevin.md | `checklist/` | Monitor Exec Devin必读子集（历史参考） |
 | README.md | `working-packages/` | 工作包目录说明 |
 | INDEX.md | `working-packages/` | 工作包跟踪表（动态） |
 
