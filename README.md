@@ -139,16 +139,36 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 **注意**：该角色已由 Master Agent 接管，本文件保留作为历史参考。Master Agent 现在使用 `checklist/MasterAgentCheck.md`。
 
-### `checklist/MasterAgentCheck.md` — Master Agent 检查工作清单
+### `checklist/MasterAgentCheck.md` — Master Agent SOP 索引
 
-Master Agent 接管 Monitor Pipe 检查工作后使用的检查清单（取代 ExecDevin.md 的角色）。从 ExecDevin.md 提取 Master Agent 需要执行的检查项，重新组织为"Master Agent 视角"。包含6个部分：C类AI判断（MON-C1~C5）、self-check（SELF-S1~S17）、新alert分类处理、已知问题诊断（MON-A-issue-01~05）、落盘完整性检查、修复操作规范。
+Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-08-19 升级**：从"按需检查清单"升级为 7x24 持续循环的 SOP 脚本机制。检查内容已迁移到 `docs/sop/SOP_01~05.md`，由 `scripts/sop/sop_01~05.py` 脚本读取并打印。本文件保留为 SOP 文档索引。
 
 **覆盖问题场景**：
-- Master Agent 检查系统状态时——运行 `./scripts/monitor_check_continuation.sh <batch_id>` 后全文加载本文件逐项处理
-- 确认 Master Agent 需要执行哪些检查项时
-- 查找某个检查项的处理方式时
+- Master Agent 开始 7x24 监控循环时——执行 `python -m scripts.sop.sop_01_health_check` 进入循环
+- 查找某个 SOP 步骤的内容时——看 `docs/sop/SOP_XX.md`
+- 查看当前 SOP 流程状态时——`python -m scripts.sop._set_next status`
 
-**依赖关系**：完整需求点索引见 `checklist/README.md`；检查规范见 `docs/specs/p27_monitor_spec.md`；来源（历史参考）见 `checklist/ExecDevin.md`；需求来源见 `dev-docs/005-Master-Agent接管Monitor-Pipe检查工作.md` + `dev-docs/006-Master-Agent接管Monitor-Pipe检查工作方案.md`。
+**依赖关系**：SOP 文档见 `docs/sop/`；SOP 脚本见 `scripts/sop/`；检查规范见 `docs/specs/p27_monitor_spec.md`；需求来源见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
+
+### `docs/sop/` — Master Agent SOP 文档（5个）
+
+5 步 SOP 循环的自包含执行指令文档，每个对应一个 SOP 脚本。脚本运行时读取并完整打印到 stdout——内容进入 Master Agent 最近上下文，不依赖 AGENTS.md always-on 注入。
+
+| 文档 | 脚本 | 职责 |
+|---|---|---|
+| `SOP_01_health_check.md` | `sop_01_health_check.py` | 健康检查——运行 monitor_check_continuation.sh |
+| `SOP_02_alert_triage.md` | `sop_02_alert_triage.py` | alert 分类处理 |
+| `SOP_03_ai_judgment.md` | `sop_03_ai_judgment.py` | C 类 AI 判断 |
+| `SOP_04_code_repair.md` | `sop_04_code_repair.py` | 代码修复 |
+| `SOP_05_report_worklog.md` | `sop_05_report_worklog.py` | 报告+WORKLOG |
+
+**覆盖问题场景**：Master Agent 在 SOP 循环的某个步骤时，脚本打印对应 SOP 文档，知道该做什么。
+
+### `scripts/sop/` — Master Agent SOP 脚本（5个+1个状态管理）
+
+5 步 SOP 循环的编号化脚本 + 状态管理。脚本按顺序执行，通过 `_state.json` 记录上一个/下一个步骤，防止跳步。每个脚本输出末尾要求 Master Agent 用 `todo_write` 建立 todo list，最后一项是"执行下一个脚本"——自驱动 7x24 持续循环。
+
+**覆盖问题场景**：用户说"开始工作"时启动循环；流程状态查询/跳步修正时用 `_set_next.py`。
 
 ### `checklist/<编号>.md` — 单个checkpoint详情（153个）
 

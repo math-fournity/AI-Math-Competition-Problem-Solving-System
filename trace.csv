@@ -1753,6 +1753,7 @@ document,AGENTS.md,commit,4b0bf33,changed-in,AGENTS.md加硬约束9（禁止绝�
 document,AGENTS.md,commit,8f66457,changed-in,创建README.md引导地图+AGENTS.md（read-sync skill）,8f66457
 document,AGENTS.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 document,AGENTS.md,commit,f1ca691,changed-in,checklist/和working-packages/拆分到根目录，dev/目录删除,f1ca691
+document,AGENTS.md,working-package,WP-13,implements,AGENTS.md的SOP指令由WP-13实现,
 document,AnalysisSystem.md,commit,f5c04e1,changed-in,新建AnalysisSystem.md——新Session接手AI的完整加载指南,f5c04e1
 document,AnalysisSystemDesign.md,commit,0084273,changed-in,方案文档：Session编号化管理与打磨devin架构规范,0084273
 document,AnalysisSystemDesign.md,commit,107e9f5,changed-in,文档同步更新+新规则：代码修改后同步更新文档,107e9f5
@@ -2532,6 +2533,7 @@ document,checklist/MasterAgentCheck.md,document,checklist/MasterAgentCheck.md#�
 document,checklist/MasterAgentCheck.md,document,checklist/MasterAgentCheck.md#版本记录,contains,,
 document,checklist/MasterAgentCheck.md,document,checklist/MasterAgentCheck.md#行为正确性（S9-S12）,contains,,
 document,checklist/MasterAgentCheck.md,document,checklist/MasterAgentCheck.md#运行完整性（S1-S4）,contains,,
+document,checklist/MasterAgentCheck.md,working-package,WP-13,implements,MasterAgentCheck索引由WP-13实现,
 document,checklist/README.md,commit,925151a,changed-in,新增checkpoint ENV-07：启动devin cli必须指定glm-5.2-high,925151a
 document,checklist/README.md,commit,f1ca691,changed-in,从CheckList.md精简为索引,
 document,checklist/README.md,document,checklist/README.md#如何查找 checkpoint,contains,,
@@ -2910,6 +2912,17 @@ document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md,
 document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md,document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md#§4 遗留问题,contains,,
 document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md,document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md#§5 下一个工作包建议,contains,,
 document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md,document,dev-docs/011-Master-Agent接管Monitor-Pipe检查工作执行结果.md#§6 commit 记录,contains,,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,docs/sop/SOP_01_health_check.md,produces,013方案产出SOP_01文档,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,docs/sop/SOP_02_alert_triage.md,produces,013方案产出SOP_02文档,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,docs/sop/SOP_03_ai_judgment.md,produces,013方案产出SOP_03文档,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,docs/sop/SOP_04_code_repair.md,produces,013方案产出SOP_04文档,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,docs/sop/SOP_05_report_worklog.md,produces,013方案产出SOP_05文档,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_01_health_check.py,produces,013方案产出sop_01,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_02_alert_triage.py,produces,013方案产出sop_02,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_03_ai_judgment.py,produces,013方案产出sop_03,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_04_code_repair.py,produces,013方案产出sop_04,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_05_report_worklog.py,produces,013方案产出sop_05,
+document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,document,scripts/sop/sop_state.py,produces,013方案产出sop_state.py,
 document,dev/CheckList-ExecDevin.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 document,dev/CheckList.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 document,dev/CheckList.md,commit,f1ca691,changed-in,checklist/和working-packages/拆分到根目录，dev/目录删除,f1ca691
@@ -3523,6 +3536,11 @@ document,docs/system/AnalysisSystemOps.md,document,docs/system/AnalysisSystemOps
 document,docs/system/AnalysisSystemOps.md,document,docs/system/AnalysisSystemOps.md#连续打磨SOP（5题一组手动运行 + 质量检查）,contains,,
 document,docs/system/AnalysisSystemOps.md,document,docs/system/AnalysisSystemOps.md#错题分析系统,contains,,
 document,docs/续传规范文档.md,commit,eb27fab,changed-in,目录重组：根文档移到docs/，POC-2.7数据移到data/，加.gitignore和.env.example,eb27fab
+document,scripts/sop/sop_01_health_check.py,document,docs/sop/SOP_01_health_check.md,reads,sop_01读取SOP_01文档,
+document,scripts/sop/sop_02_alert_triage.py,document,docs/sop/SOP_02_alert_triage.md,reads,sop_02读取SOP_02文档,
+document,scripts/sop/sop_03_ai_judgment.py,document,docs/sop/SOP_03_ai_judgment.md,reads,sop_03读取SOP_03文档,
+document,scripts/sop/sop_04_code_repair.py,document,docs/sop/SOP_04_code_repair.md,reads,sop_04读取SOP_04文档,
+document,scripts/sop/sop_05_report_worklog.py,document,docs/sop/SOP_05_report_worklog.md,reads,sop_05读取SOP_05文档,
 document,working-packages/INDEX.md,commit,f1ca691,changed-in,checklist/和working-packages/拆分到根目录，dev/目录删除,f1ca691
 document,working-packages/INDEX.md,document,working-packages/INDEX.md#优先级说明,contains,,
 document,working-packages/INDEX.md,document,working-packages/INDEX.md#依赖关系图,contains,,
@@ -3854,6 +3872,7 @@ view-file,working-packages/README.md,document,working-packages/WP-07-阶段2端�
 view-file,working-packages/README.md,document,working-packages/WP-08-阶段3文档同步.md,indexes,working-packages/README.md索引working-packages/WP-08-阶段3文档同步.md,
 view-file,working-packages/README.md,document,working-packages/WP-09-POC-2.7并发1运行和监控.md,indexes,working-packages/README.md索引working-packages/WP-09-POC-2.7并发1运行和监控.md,
 view-file,working-packages/README.md,document,working-packages/WP-10-系统审计.md,indexes,working-packages/README.md索引working-packages/WP-10-系统审计.md,
+working-package,WP-13,document,dev-docs/013-Master-Agent-SOP流程控制机制方案.md,comes-from,WP-13来自013方案,
 wp,WP-01,checkpoint,CTRL-01,creates,WP-01创建checkpoint CTRL-01,
 wp,WP-01,checkpoint,CTRL-02,creates,WP-01创建checkpoint CTRL-02,
 wp,WP-01,checkpoint,CTRL-03,creates,WP-01创建checkpoint CTRL-03,

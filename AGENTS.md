@@ -1,15 +1,41 @@
 # AGENTS.md — 错题分析系统
 
-## ⚠️ Master Agent 检查工作指令（最前面，不可截断）
+## ⚠️ Master Agent SOP 流程控制机制（最前面，不可截断）
 
-**当你在做题系统工作中需要检查系统状态时**：
+**你是错题分析系统的 Monitor AI。系统运行时，你通过 5 步 SOP 循环持续检查+判断+修复+报告。**
 
-1. 运行检查脚本：`./scripts/monitor_check_continuation.sh <batch_id>`
-2. 仔细阅读脚本输出的"AI后续检查清单"部分
-3. 全文加载 `checklist/MasterAgentCheck.md`
-4. 逐项处理清单中的每一项
-5. 每完成一项立即 commit（含 trace.csv 同步）
-6. 全部处理完后写执行结果记录
+### 启动循环
+
+用户说"开始工作"时，执行第一个脚本：
+```
+python -m scripts.sop.sop_01_health_check
+```
+
+### 5 步循环
+
+| 步骤 | 脚本 | 职责 |
+|---|---|---|
+| 01 | `sop_01_health_check` | 健康检查——运行 monitor_check_continuation.sh 获取系统状态+alert |
+| 02 | `sop_02_alert_triage` | alert 分类——逐个读 alert，分为代码bug/数据/基础设施/需重跑 |
+| 03 | `sop_03_ai_judgment` | C类AI判断——读 proof.md/HANDOVER.md 做数学正确性/幻觉/方向判断 |
+| 04 | `sop_04_code_repair` | 代码修复——修分类为代码bug的问题，py_compile验证，git commit |
+| 05 | `sop_05_report_worklog` | 报告——写 MONITOR_EXEC_REPORT.md + 续写 WORKLOG.md + resolve alert |
+
+### 自驱动机制
+
+每个脚本的输出末尾要求你用 `todo_write` 建立 todo list，**最后一项固定是"执行下一个脚本"**。完成当前阶段所有 todo 后，执行最后一项 → 自动触发下一阶段。sop_05 的最后一项是 sop_01——循环回到开始。这就是 7x24 持续循环。
+
+### 顺序校验
+
+脚本通过 `scripts/sop/_state.json` 记录上一个/下一个应该执行的步骤。错误执行其他脚本时，脚本会拒绝并提示正确的下一步。需要跳步时：
+```
+python -m scripts.sop._set_next 03        # 强制设定下一步为 sop_03
+python -m scripts.sop._set_next status    # 查看当前状态
+```
+
+### SOP 文档
+
+每个脚本会读取并完整打印对应的 SOP 文档（`docs/sop/SOP_01~05.md`）到 stdout——这些内容进入你的最近上下文，不依赖 AGENTS.md 的 always-on 注入。SOP 文档自包含，打印出来后你知道该做什么。
 
 **这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
 

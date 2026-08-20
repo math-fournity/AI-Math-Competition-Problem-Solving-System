@@ -1,12 +1,30 @@
-# MasterAgentCheck — Master Agent 检查工作清单
+# MasterAgentCheck — Master Agent SOP 索引
 
-> **使用场景**：当你在做题系统工作中需要检查系统状态时，运行 `./scripts/monitor_check_continuation.sh <batch_id>` 后，全文加载本文件逐项处理。
+> **状态变化（2026-08-19）**：本文件的检查内容已迁移到 `docs/sop/SOP_01~05.md`，由 SOP 脚本机制承载。本文件保留为索引。
 >
-> **来源**：从 `checklist/ExecDevin.md` 提取 Master Agent 需要执行的检查项，重新组织为"Master Agent 视角"。ExecDevin.md 是给独立 Monitor Pipe devin cli 用的（已废弃此角色），本文件取代它的角色。
+> **新的工作方式**：用户说"开始工作"时，执行 `python -m scripts.sop.sop_01_health_check`，进入 5 步 SOP 循环。详见 `AGENTS.md` 最前面的"Master Agent SOP 流程控制机制"。
 >
-> **检查规范**：`docs/specs/p27_monitor_spec.md`（MON-A/B/C 详细标准）
->
-> **和 ExecDevin.md 的关系**：内容有重叠但视角不同——ExecDevin 是"独立AI的视角"（含循环监控指令、不要STOP等），MasterAgentCheck 是"Master Agent 的视角"（按需检查，不循环）。ExecDevin.md 暂不删除，保留作为历史参考。
+> **历史**：本文件原来是从 `checklist/ExecDevin.md` 提取的"按需检查清单"（运行 monitor_check_continuation.sh 后全文加载逐项处理）。现已升级为 7x24 持续循环的 SOP 脚本机制。
+
+---
+
+## SOP 文档索引（内容已迁移）
+
+| SOP 文档 | 对应脚本 | 内容来源 |
+|---|---|---|
+| `docs/sop/SOP_01_health_check.md` | `scripts/sop/sop_01_health_check.py` | 原来的"运行检查脚本"+A类检查项 |
+| `docs/sop/SOP_02_alert_triage.md` | `scripts/sop/sop_02_alert_triage.py` | 原来的"新alert分类处理" |
+| `docs/sop/SOP_03_ai_judgment.md` | `scripts/sop/sop_03_ai_judgment.py` | 原来的"§C类AI判断（MON-C1~C5）" |
+| `docs/sop/SOP_04_code_repair.md` | `scripts/sop/sop_04_code_repair.py` | 原来的"修复操作规范" |
+| `docs/sop/SOP_05_report_worklog.md` | `scripts/sop/sop_05_report_worklog.py` | 原来的"执行结果记录" + WORKLOG |
+
+## 检查规范
+
+`docs/specs/p27_monitor_spec.md`（MON-A/B/C 详细标准）—— SOP 文档中引用此规范。
+
+## 和 ExecDevin.md 的关系
+
+`checklist/ExecDevin.md` 是给独立 Monitor Pipe devin cli 用的（已废弃此角色）。本文件和 SOP 脚本机制取代它的角色。ExecDevin.md 保留作为历史参考。
 
 ---
 
