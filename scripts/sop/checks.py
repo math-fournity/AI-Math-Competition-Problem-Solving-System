@@ -46,57 +46,118 @@ def check_01_system_health(batch_id):
 
 
 def check_02_data_integrity(batch_id):
-    """步骤02：数据完整性——抽查 run 的产出文件存在性 + rounds_log 字段完整性"""
+    """步骤02：数据完整性——全量检查所有 run 的每轮输入/输出文件"""
     log.info(f"check_02_data_integrity: start batch={batch_id}")
     try:
         from src.continuation_db_schema import connect_db
         from src.continuation_config import CONTINUATION_RUNS_COLLECTION
         db = connect_db()
 
-        # 抽查最近10个有 rounds_log 的 run
+        # 全量检查所有有 rounds_log 的 run（最多200个）
         aql = (
             f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
             f"FILTER run.batch_id == @bid "
             f"FILTER LENGTH(run.rounds_log) > 0 "
             f"SORT run.updated_at DESC "
-            f"LIMIT 10 "
+            f"LIMIT 200 "
             f"RETURN {{_key: run._key, problem_id: run.problem_id, "
             f"status: run.status, final_status: run.final_status, "
             f"work_dir: run.work_dir, rounds_log: run.rounds_log}}"
         )
-        cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=60)
+        cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=120)
         runs = list(cursor)
 
-        print(f"--- 数据完整性抽查（{len(runs)}个run）---")
+        print(f"--- 数据完整性检查（{len(runs)}个run，最多200个）---")
         if not runs:
             print("（无有 rounds_log 的 run）")
             print()
             return
 
         issues = []
+        checked_files = 0
         for run in runs:
             pid = run.get("problem_id", "?")
-            work_dir = run.get("work_dir", "")
             rounds_log = run.get("rounds_log", [])
 
             for i, entry in enumerate(rounds_log):
                 round_num = entry.get("round", i + 1)
 
-                # 检查 rounds_log 的7个路径字段
-                path_fields = ["export", "handover_path", "map_path",
-                               "prompt_path", "prev_export", "proof_path"]
-                for field in path_fields:
-                    val = entry.get(field)
-                    if val and val != "":
-                        if not Path(val).exists():
-                            issues.append(f"  [{pid} R{round_num}] {field} 文件不存在: {val}")
+                # 每轮的输入/输出文件
+                file_checks = [
+                    ("export", "输出", True),
+                    ("prompt_path", "输入", True),
+                    ("proof_path", "输出", False),
+                    ("handover_path", "输入", False),
+                    ("map_path", "输入", False),
+                    ("prev_export", "输入", False),
+                ]
 
-                # 检查 export 文件是否可读（不是空文件或损坏JSON）
-                export_path = entry.get("export", "")
-                if export_path and Path(export_path).exists():
-                    size = Path(export_path).stat().st_size
+                for field, io_type, required in file_checks:
+                    val = entry.get(field)
+                    if not val or val == "":
+                        if required:
+                            issues.append(f"  [{pid} R{round_num}] {io_type}字段 {field} 为空")
+                        continue
+
+                    path = Path(val)
+                    checked_files += 1
+
+                    if not path.exists():
+                        issues.append(f"  [{pid} R{round_num}] {io_type} {field} 文件不存在: {val}")
+                        continue
+
+                    size = path.stat().st_size
                     if size < 100:
-                        issues.append(f"  [{pid} R{round_num}] export 文件过小: {size}字节")
+                        issues.append(f"  [{pid} R{round_num}] {io_type} {field} 文件过小: {size}字节")
+                        continue
+
+                    # export 是有效JSON
+                    if field == "export":
+                        try:
+                            with open(path, encoding="utf-8", errors="ignore") as f:
+                                head = f.read(4096)
+                            if not head.strip().startswith(("{", "[")):
+                                issues.append(f"  [{pid} R{round_num}] 输出 export 不是JSON格式")
+                        except Exception:
+                            issues.append(f"  [{pid} R{round_num}] 输出 export 读取失败")
+
+                    # proof.md 有内容
+                    if field == "proof_path":
+                        try:
+                            c = path.read_text(encoding="utf-8", errors="ignore")
+                            if len(c.strip()) < 50:
+                                issues.append(f"  [{pid} R{round_num}] 输出 proof.md 内容过短: {len(c)}字符")
+                        except Exception:
+                            pass
+
+                    # HANDOVER.md 有内容
+                    if field == "handover_path":
+                        try:
+                            c = path.read_text(encoding="utf-8", errors="ignore")
+                            if len(c.strip()) < 200:
+                                issues.append(f"  [{pid} R{round_num}] 输入 HANDOVER.md 内容过短: {len(c)}字符")
+                        except Exception:
+                            pass
+
+                    # prompt 有内容
+                    if field == "prompt_path":
+                        try:
+                            c = path.read_text(encoding="utf-8", errors="ignore")
+                            if len(c.strip()) < 100:
+                                issues.append(f"  [{pid} R{round_num}] 输入 prompt 内容过短: {len(c)}字符")
+                        except Exception:
+                            pass
+
+        print(f"  检查了 {len(runs)} 个 run 的 {checked_files} 个文件")
+        if issues:
+            print(f"  发现 {len(issues)} 个问题：")
+            for issue in issues[:30]:
+                print(issue)
+            if len(issues) > 30:
+                print(f"  ... 还有 {len(issues) - 30} 个问题")
+        else:
+            print(f"  所有检查的文件完整性正常")
+        print()
 
         # === proof.md 质量统计（RUN-05 需求点）===
         # 全量统计：COMPLETED 数 / proof.md 存在数 / 有 boxed 数
@@ -142,16 +203,6 @@ def check_02_data_integrity(batch_id):
             print(f"  ⚠️ {completed - proof_exists} 个 COMPLETED 的 run 缺少 proof.md（数据丢失风险）")
         if proof_exists > 0 and proof_has_boxed < proof_exists:
             print(f"  ⚠️ {proof_exists - proof_has_boxed} 个 proof.md 没有 boxed 答案（未完成的证明）")
-        print()
-
-        if issues:
-            print(f"发现 {len(issues)} 个数据完整性问题：")
-            for issue in issues[:20]:
-                print(issue)
-            if len(issues) > 20:
-                print(f"  ... 还有 {len(issues) - 20} 个问题")
-        else:
-            print("抽查的10个run的数据完整性正常")
         print()
 
     except Exception as e:

@@ -47,17 +47,23 @@
 
 ### 本步骤检查什么
 
-上方"自动化检查结果"已经抽查了 10 个 run 的数据完整性。你需要：
+上方"自动化检查结果"已经全量检查了最多 200 个 run 的每轮输入/输出文件完整性。你需要：
 
 ---
 
 ## 执行指令
 
-### 1. 阅读自动化抽查结果
+### 1. 阅读自动化全量检查结果
 
-上方 checks.py 已经抽查了最近 10 个有 rounds_log 的 run，检查了：
-- rounds_log 中 7 个路径字段指向的文件是否存在
-- export 文件是否过小（<100字节）
+上方 checks.py 已经全量检查了最多 200 个有 rounds_log 的 run，对每个 run 的每一轮检查了：
+- **6 个路径字段**（export/prompt_path/proof_path/handover_path/map_path/prev_export）指向的文件是否存在
+- **必需字段**（export/prompt_path）为空 → 标记为问题；**可选字段**为空 → 跳过
+- 文件过小（<100字节）→ 标记为问题
+- **内容质量检查**：
+  - export 是否为有效 JSON 格式
+  - proof.md 内容是否过短（<50字符）
+  - HANDOVER.md 内容是否过短（<200字符）
+  - prompt 内容是否过短（<100字符）
 - **proof.md 质量统计（RUN-05）**——全量统计 COMPLETED 数 / proof.md 存在数 / 有 boxed 数，计算存在率和 boxed 率
 
 重点关注：
@@ -124,7 +130,7 @@ for s in sessions:
 
 ## 你需要建立的 todo list
 
-- 阅读自动化抽查结果
+- 阅读自动化全量检查结果
 - 深度检查 2a-2d（每个一个 todo）
 - 记录发现的问题
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
