@@ -33,6 +33,7 @@
 | WP-11 | MasterAgent检查脚本扩展与清单创建 | 无 | P1 | 待执行 |
 | WP-12 | AGENTS指令与trace幂等补全 | WP-11 | P1 | 待执行 |
 | WP-13 | Master Agent SOP流程控制机制 | WP-11, WP-12 | P0 | 进行中 |
+| WP-14 | 检查体系缺口补全 | WP-13 | P0 | 进行中 |
 
 ## 依赖关系图
 
