@@ -2,11 +2,18 @@
 
 ## ⚠️ 启动指令（最前面，不可截断）
 
-**用户说以下任何短语时，你必须启动整个 src 下的解题系统并持续监控：**
+### 触发短语 → 动作对照
 
-触发短语：`开启系统` / `启动系统` / `开启解题系统` / `启动解题系统` / `开始工作` / `开启监控` / `启动监控`
+| 用户说 | 你做什么 |
+|---|---|
+| `开启系统` / `启动系统` / `开启解题系统` / `启动解题系统` | **启动解题系统 + 启动 SOP 监控循环**（完整流程，见下方） |
+| `启动监控` / `开启监控` / `开始监控` / `开始工作` | **只启动 SOP 监控循环**（不启动解题系统，假设系统已在运行，见下方） |
+| `停止` / `停` / `结束` / `停止监控` | **停止 SOP 循环 + 停止解题系统**（见下方停止命令） |
+| `查看SOP状态` / `SOP状态` | **查看 SOP 流程状态**（`python -m scripts.sop._set_next status`） |
 
-**你要做的**：
+---
+
+### 动作1：启动解题系统 + SOP 监控（触发：开启系统/启动系统/开启解题系统/启动解题系统）
 
 1. **启动解题系统**（如果尚未运行）：
    ```
@@ -19,16 +26,24 @@
    ```
    python -m scripts.sop.run
    ```
-   这会执行 SOP 循环的第一步（系统健康检查），打印 SOP 文档+检查结果+todo 指令。
 
 3. **持续循环**——用 `todo_write` 建 todo list，最后一项固定是"执行 `python -m scripts.sop.run`"。完成当前阶段所有 todo 后，执行最后一项自动触发下一阶段。7 步循环（01→02→03→04→05→06→Z→01...）持续运行，这就是 7x24 监控。
 
 4. **停止条件**——只有以下情况停止循环：
-   - 用户说"停止"/"停"/"结束"→ 执行停止命令（见下方）
+   - 用户说"停止"/"停"/"结束"→ 执行停止命令
    - 检查脚本显示"所有任务已完成"（pending=0, running=0）→ 执行停止命令
    - 系统出现无法自动修复的严重故障需用户介入
 
-**停止命令**：
+### 动作2：只启动 SOP 监控循环（触发：启动监控/开启监控/开始监控/开始工作）
+
+假设解题系统已在运行，只启动 SOP 循环：
+```
+python -m scripts.sop.run
+```
+然后同样用 `todo_write` 自驱动持续循环。
+
+### 停止命令
+
 ```
 # 优雅停止（推荐）——launcher收到SIGINT后不再启动新run，等running自然完成
 python -m monitoring.continuation_control stop
@@ -37,9 +52,23 @@ python -m monitoring.continuation_control stop
 python -m monitoring.continuation_control stop --force
 ```
 
-**其他控制命令**：
+### SOP 流程状态查看和跳步控制
+
 ```
-python -m monitoring.continuation_control status --batch-id p27-full    # 查看状态
+# 查看当前 SOP 流程状态（上一个/下一个步骤/循环轮次）
+python -m scripts.sop._set_next status
+
+# 强制设定下一步（跳步用——正常情况下不需要，SOP自动推进）
+python -m scripts.sop._set_next 03        # 跳到步骤03（alert分类）
+python -m scripts.sop._set_next 01        # 回到循环开始（系统健康检查）
+python -m scripts.sop._set_next Z         # 跳到元/整体检查
+```
+有效步骤编号：`01` `02` `03` `04` `05` `06` `Z`
+
+### 其他控制命令
+
+```
+python -m monitoring.continuation_control status --batch-id p27-full    # 查看系统状态
 python -m monitoring.continuation_control health --batch-id p27-full    # 健康检查
 python -m monitoring.continuation_control set-concurrency --batch-id p27-full --concurrency 3  # 动态调并发
 python -m monitoring.continuation_control sessions --status stuck       # 查看stuck session

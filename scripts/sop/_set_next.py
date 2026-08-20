@@ -38,7 +38,7 @@ def main():
     ok, msg = set_next(arg)
     if ok:
         print(msg)
-        print(f"现在可以执行: python -m scripts.sop.{SOP_NAMES[arg]}")
+        print(f"现在可以执行: python -m scripts.sop.run")
     else:
         print(msg)
         sys.exit(1)
