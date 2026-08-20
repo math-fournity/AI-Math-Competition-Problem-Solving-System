@@ -1943,6 +1943,7 @@ document,MonitorPipe.md,commit,c8a4d4c,changed-in,MonitorPipe.md——连续工�
 document,MonitorPipe.md,commit,fb24218,changed-in,修正Monitor Pipe架构：执行层恢复为Python+devin cli两层,fb24218
 document,README.md,commit,00a08d3,changed-in,记录README三层架构与7个分类法设计方案（dev-docs/003）,00a08d3
 document,README.md,commit,82ac6a8,changed-in,补充dev-docs引导条目,
+document,README.md,commit,8c7444b845def43ba063071e9d0398f0b343924e,changed-in,README.md在本次commit中修改,
 document,README.md,commit,8f66457,changed-in,创建README.md引导地图+AGENTS.md（read-sync skill）,8f66457
 document,README.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 document,README.md,commit,eb27fab,changed-in,目录重组：根文档移到docs/，POC-2.7数据移到data/，加.gitignore和.env.example,eb27fab
@@ -2020,6 +2021,7 @@ document,analysis-devin-failure-system/templates/audit_agents_md.md,commit,e33ac
 document,analysis-devin-failure-system/templates/selection_agents_md.md,commit,35322bb,changed-in,Pipe 3扩展：提示词模板+解析器增加6项POC准备数据字段,35322bb
 document,analysis-devin-failure-system/templates/selection_agents_md.md,commit,70da699,changed-in,Pipe 3选题系统：复用错题分析框架，单例测试通过,70da699
 document,analysis-devin-failure-system/templates/selfrun_subagent_task.md,commit,d1cda6b,changed-in,selfrun流程固化：任务文件化调度器+subagent规范v3（TL/PP精化判据）；wave001十二题100%格,d1cda6b
+document,basement/015-README-view-unification.md,commit,8c7444b845def43ba063071e9d0398f0b343924e,changed-in,015在本次commit中新增,
 document,checklist/AUDIT-01.md,document,checklist/AUDIT-01.md#关联文件,contains,,
 document,checklist/AUDIT-01.md,document,checklist/AUDIT-01.md#变更记录,contains,,
 document,checklist/AUDIT-01.md,document,checklist/AUDIT-01.md#需求描述,contains,,
@@ -3722,11 +3724,13 @@ template,docs/templates/analysis_agents_md.md,commit,a4f3a61,changed-in,目录�
 template,docs/templates/audit_agents_md.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 template,docs/templates/selection_agents_md.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
 template,docs/templates/selfrun_subagent_task.md,commit,a4f3a61,changed-in,目录结构扁平化重组（dev-docs/001方案A）,a4f3a61
+view-file,basement/README.md,commit,8c7444b845def43ba063071e9d0398f0b343924e,changed-in,basement/README.md在本次commit中新增,
 view-file,checklist/README.md,document,checklist/ExecDevin.md,indexes,checklist/README.md索引checklist/ExecDevin.md,
 view-file,checklist/README.md,document,checklist/README.md,indexes,checklist/README.md索引checklist/README.md,
 view-file,dev-docs/README.md,document,dev-docs/001-目录结构扁平化重组方案.md,indexes,dev-docs/README.md索引dev-docs/001-目录结构扁平化重组方案.md,
 view-file,dev-docs/README.md,document,dev-docs/002-checklist-working-packages拆分.md,indexes,dev-docs/README.md索引dev-docs/002-checklist-working-packages拆分.md,
 view-file,dev-docs/README.md,document,dev-docs/003-README三层架构与分类法设计.md,indexes,dev-docs/README.md索引dev-docs/003-README三层架构与分类法设计.md,
+view-file,docs/README.md,commit,8c7444b845def43ba063071e9d0398f0b343924e,changed-in,docs/README.md在本次commit中新增,
 view-file,docs/architecture/README.md,document,dev-docs/001-目录结构扁平化重组方案.md,indexes,docs/architecture/README.md索引dev-docs/001-目录结构扁平化重组方案.md,
 view-file,docs/architecture/README.md,document,dev-docs/002-checklist-working-packages拆分.md,indexes,docs/architecture/README.md索引dev-docs/002-checklist-working-packages拆分.md,
 view-file,docs/architecture/README.md,document,dev-docs/003-README三层架构与分类法设计.md,indexes,docs/architecture/README.md索引dev-docs/003-README三层架构与分类法设计.md,
@@ -3810,6 +3814,7 @@ view-file,src/README.md,code,src/session_registry.py,indexes,src/README.md索引
 view-file,src/README.md,code,src/solver_launcher.py,indexes,src/README.md索引src/solver_launcher.py,
 view-file,src/README.md,document,docs/architecture/architecture.md,indexes,src/README.md索引docs/architecture/architecture.md,
 view-file,src/README.md,document,docs/architecture/solver-trajectory-schema.md,indexes,src/README.md索引docs/architecture/solver-trajectory-schema.md,
+view-file,views/cognitive-closure.md,commit,8c7444b845def43ba063071e9d0398f0b343924e,changed-in,views/cognitive-closure.md在本次commit中修改,
 view-file,views/cognitive-closure.md,document,basement/015-README-view-unification.md,indexes,views/cognitive-closure.md索引basement/015-README-view-unification.md,
 view-file,views/idempotency.md,data,scripts/asset_inventory.csv,indexes,views/idempotency.md索引scripts/asset_inventory.csv,
 view-file,views/idempotency.md,data,trace.csv,indexes,views/idempotency.md索引trace.csv,
