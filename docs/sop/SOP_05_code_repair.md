@@ -81,6 +81,22 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 
 修复后，确认问题不会立即复发——下一轮 SOP 循环的步骤01/02/03会发现是否还有同样的 alert。
 
+### 4. 修复后验证（发布门禁——改了调度/判定逻辑时必做）
+
+**背景**：016 事故的 P0-1 修复（防抖重入队 priority=9999）在"队列只有一道题"的边界下引入了新的死循环——如果当时有 sim 门禁就会当场抓到。改了调度/判定逻辑后，必须跑全流程模拟作发布门禁（详见 `dev-docs/017`）：
+
+```bash
+# 改了 launcher/判定逻辑后，跑这两个剧本作发布门禁
+.venv/bin/python -m src.sim.run_sim --scenario solve3      # 多轮续传主干全链（8/8断言）
+.venv/bin/python -m src.sim.run_sim --scenario chaos_016   # 016 失控循环回归不变量（23/23断言）
+```
+
+- `solve3` 验证截断判定→重入队→多轮续传主干还转得对；
+- `chaos_016` 验证三道 P0 闸仍拦得住失控循环（无快速重launch / launch不超轮数 / 无requeue风暴）；
+- **任一剧本失败 = 修复引入了回归，不能 commit，回去排查。**
+
+**适用范围**：改了 `src/continuation_launcher.py` / `continuation_feeder.py` / `continuation_redis_queue.py` / `step_gate.py` / `observability.py` / `monitor_continuation.py` 的判定或调度逻辑时**必做**。只改了文档/配置（非调度逻辑）可跳过此步，在报表标 `[-]` 不适用。
+
 ---
 
 ## 你需要建立的 todo list

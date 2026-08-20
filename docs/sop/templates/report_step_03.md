@@ -34,6 +34,7 @@
 | T2 | 需要立即处理的alert | critical severity的alert需要立即处理。如launcher_dead→重启launcher；rate_limit→降并发；export_missing→检查D盘。 | [ ] | |
 | T3 | alert标记resolved | 已处理的alert用 `python -m monitoring.continuation_control --resolve-alert <key>` 标记为fixed | [ ] | |
 | T4 | 已知问题诊断 | 检查MON-A-issue-01~05中未诊断的alert是否需要优先诊断。特别是MON-A!03(rounds_log_export_missing)和MON-A!04(export_missing)根因未诊断。 | [ ] | |
+| T5 | A13/A14应急alert（016事故类） | `real_concurrency_mismatch`(A13)/`launch_churn`(A14)是016事故新增的critical alert，详见docs/specs/p27_monitor_spec.md §A13/A14。launch_churn触发=失控循环正在发生，**立即按016报告§5**处置（kill launcher→清空Redis队列→查根因）；real_concurrency_mismatch=孤儿进程/注册表脱节，查`sessions --consistency-check`清理。 | [ ] | |
 
 ---
 

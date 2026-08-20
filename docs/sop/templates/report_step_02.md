@@ -58,7 +58,7 @@
 | Q4 | prepared堆积检查 | 读check_output.txt中"prepared 堆积检查"节。prepared>0但pending=0→critical | [ ] | |
 | Q5 | 按题源完成率统计 | 读check_output.txt中"按题源完成率统计"节。完成率=0%的题源→critical | [ ] | |
 | Q6 | 标准文件检查 | 读check_output.txt中"标准文件检查"节。problem.txt/proof.md/round1 export缺失 | [ ] | |
-| Q7 | round编号连续性 | 读check_output.txt中"round 编号连续性检查"节。全从round=2开始→需确认是否by design | [ ] | |
+| Q7 | round编号连续性 | 读check_output.txt中"round 编号连续性检查"节。正常轮序[1,2,3..]连续（round-1补录修复后）；出现重复轮号(如[2,2,3])=旧数据或bug复发，应排查。详见SOP_02 round-1说明 | [ ] | |
 
 ### 二、AI判断检查项（需要AI主动执行检查）
 

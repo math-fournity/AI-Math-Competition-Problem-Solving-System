@@ -52,6 +52,34 @@ def _check_pending_gates():
         print()
 
 
+def _check_flow_snapshot():
+    """步骤01例行：行为流水快照——016事故后新增的"看见流动"能力（SOP_01 §8）。
+
+    日志只看存量（队列/session数），016事故中存量没变但流动病态。行为流水
+    （log/flow/）记录launcher每个状态转移。这里自动跑聚合统计，把"每轮必查"
+    从靠Master Agent自觉变成自动执行——churn_suspects非空时直接醒目输出，
+    是016失控循环的3秒预警。
+    """
+    print("--- 行为流水快照（016预警：失控循环3秒可见，`observability --stats --since 1h`）---")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "src.observability", "--stats", "--since", "1h"],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(Path(__file__).parent.parent.parent),
+        )
+        if result.stdout:
+            print(result.stdout)
+        else:
+            print("  （无行为流水输出——系统可能刚启动/log/flow/为空）")
+        if result.stderr:
+            print(f"  ⚠️ observability stderr: {result.stderr[:500]}")
+    except subprocess.TimeoutExpired:
+        print("  ⚠️ 行为流水统计超时（30秒）——log/flow/可能过大")
+    except Exception as e:
+        print(f"  ⚠️ 行为流水快照失败: {e}")
+    print()
+
+
 def check_01_system_health(batch_id):
     """步骤01：系统存活+进度+Session——运行 monitor_check_continuation.sh"""
     log.info(f"check_01_system_health: start batch={batch_id}")
@@ -80,6 +108,7 @@ def check_01_system_health(batch_id):
     print()
 
     _check_pending_gates()
+    _check_flow_snapshot()
 
 
 def check_02_data_integrity(batch_id):

@@ -76,6 +76,42 @@ python -m monitoring.continuation_control sessions --clean-done         # 批量
 python -m monitoring.continuation_control sessions --consistency-check  # 注册表vs tmux一致性
 ```
 
+### 实战速查：016事故后新增的介入能力
+
+> 016事故（失控循环空转18分钟、上千个session）后系统新增三种能力，SOP_01 §8/§8.5详述。这里放always-on速查——后部可能被截断，实战中你必须知道这些武器存在。
+
+**① 行为流水——"看见"系统流动（016预警核心）**
+
+日志只看存量（队列数/session数），016事故中存量没变但流动病态。行为流水（`log/flow/flow-*.jsonl`）记录launcher每个状态转移：
+
+```
+python -m src.observability --stats --since 1h    # 失控嫌疑/启动Top10/判定分布
+python -m src.observability --run-key <run_key>    # 某题完整生命周期（含判定理由）
+```
+
+`churn_suspects`非空（1小时内某题启动≥5次）= **失控循环正在发生**，立即按016报告§5处置。
+
+**② 步进门闸——"拦住"系统动作（单步跟踪）**
+
+`@gated`把9个语义动作（启动/杀session/重入队/初次入队/覆盖文件/写终态）变成可冻结断点：
+
+```
+python -m src.step_gate --list                    # 门闸目录
+python -m src.step_gate --hold GATE-LAUNCH-SOLVE  # 卡住下一次解题启动
+python -m src.step_gate --pending                 # 看谁在等（输出完整检查清单）
+python -m src.step_gate --step GATE-LAUNCH-SOLVE  # 放行一次
+python -m src.step_gate --auto GATE-LAUNCH-SOLVE  # 恢复自动
+```
+
+SOP_01例程每轮自动查Y通道（有闸在等会打印检查清单）。hold是调试模式，用完记得--auto。
+
+**③ A13/A14应急处置（016场景重演时的critical alert）**
+
+- **`launch_churn`(A14)**：同题1小时内≥5次启动=失控循环。**立即**：`observability --stats --since 1h`看明细→kill launcher→清空Redis队列→查根因（旧产物残留/feeder重喂）。
+- **`real_concurrency_mismatch`(A13)**：tmux实际 vs DB vs Redis vs 设定四源不一致=孤儿进程/注册表脱节。查`sessions --consistency-check`清理孤儿。
+
+详见 `docs/specs/p27_monitor_spec.md` §A13/A14、`docs/patterns/StepGate.md`、`dev-docs/016` §5。
+
 ---
 
 ## ⚠️ Master Agent SOP 流程控制机制

@@ -71,11 +71,18 @@ Z  元检查+整体检查（本步骤）
 - 修复约束是否合理？
 - 修复流程是否被执行了？
 - 是否需要新的修复能力（自动重启/回滚/验证测试）？
+- **改了调度/判定逻辑后是否跑了 sim 发布门禁**（`src.sim.run_sim --scenario solve3 + chaos_016`）？这是016 P0-1修复引入新死循环的教训——没有 sim 门禁，回归不可见。
 
 #### 步骤06 报告+WORKLOG+Self-check
 - 报告格式是否覆盖了需要记录的信息？
 - WORKLOG跨轮记忆是否有效？
 - S1-S17 self-check是否有效？有没有需要新增的self-check项？
+
+#### 016后新能力接线检查（016事故后新增，对应report M7/M8）
+- **行为流水**（`src.observability --stats`）：checks.py 是否每轮自动查了？SOP_01 §8 的"每轮必查"是否被执行？
+- **步进门闸**（`src.step_gate`）：checks.py 的 Y 通道检查是否接线？有 Y 时是否完整输出 checklist 闭包？
+- **A13/A14 告警**：SOP_03 的 alert 类型清单是否包含 `real_concurrency_mismatch`/`launch_churn`？report_step_03 是否有 T5 行？
+- **AGENTS.md 启动指令**：三块 always-on 速查（行为流水/门闸/A13A14应急）是否还在？后部截断时这些内容是否仍可见？
 
 ### 第二部分：整体检查
 

@@ -43,6 +43,8 @@
 | `session_registry_inconsistency` | 注册表vs tmux不一致 | 代码bug或数据 | 查具体不一致 |
 | `stuck_session_accumulated` | stuck session堆积 | 需清理 | 判断是否需清理 |
 | `done_session_uncleaned` | done未清理 | 需清理 | 清理done session |
+| `real_concurrency_mismatch` | 真实并发四源不一致（A13，016事故新增） | 代码bug或基础设施 | 查四源差异（tmux/DB/Redis/设定）+observability，清理孤儿进程 |
+| `launch_churn` | 同题1小时内≥5次启动（A14，016事故新增） | 代码bug | **立即按016报告§5**：kill launcher→清空Redis队列→查根因（旧产物残留/feeder重喂） |
 
 ### 分类标准
 
