@@ -74,3 +74,23 @@ db.collection("{name}_batches").update({"_key": batch_id, "concurrency": 20})
 - 升并发：running的run继续，立即启动新run填满并发槽
 
 **不能通过动态并发来中断正在运行的run**——那是优雅停止的职责。
+
+## 6. 016事故教训（2026-08-20）
+
+016事故（`dev-docs/016`）揭示了动态并发的一个盲区：set-concurrency本身生效了
+（DB concurrency=1，launcher也读到了），但**真实并发是6个**——因为：
+
+1. **内存dict不恢复**：launcher的running/handover_pending是内存dict，重启即清空。
+   存量进程变孤儿，不占并发槽、不被监控——set-concurrency对它们无能为力
+   （设计内，但放大了事故）。
+2. **失控循环**：amo_bench_00000006陷入"旧产物秒判完成→截断重入队→再启动"循环，
+   18分钟产生上千个handover session。
+3. **四源脱节**：Redis视角"并发"=1，实际进程6个——队列状态与真实进程严重脱节。
+
+**事后加固**：
+- A13真实并发四源审计（tmux实际 vs DB vs Redis vs 设定）——见`p27_monitor_spec.md` §A13；
+- A14启动抖动检测（行为流水churn_suspects，同题1小时≥5次launch=critical）——见§A14；
+- 步进门闸（step_gate）+行为流水（observability）让Master Agent能"看见"流动+"拦住"动作。
+
+**教训**：动态并发只约束新启动是正确的设计，但**存量+孤儿进程不受控**是真实风险——
+必须配合A13四源审计+行为流水监控，不能只信DB里的concurrency字段。

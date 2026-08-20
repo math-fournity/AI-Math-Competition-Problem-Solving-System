@@ -78,6 +78,17 @@ p27_sessions（session注册表）/ p27_step_gates（门闸状态）/ p27_monito
 rounds_log 每条7字段：export/truncated/completed/reason/method + handover_path/map_path/
 prompt_path/prev_export/proof_path。round-1 只有 export（5基础字段）。
 
+**HANDOFF 8章节合格标准**（HANDOVER.md，续传规范文档.md §2.1——SOP_04 C4判断依据）：
+1.题目 / 2.答案猜想(含置信度) / 3.已确认的结论(独立数学事实+推导概要) /
+4.已尝试的方向(✅/❌/⚠️+失败原因，避免下个AI走死胡同) / 5.关键文献(URL+定理内容) /
+6.已有中间产物(无则明确说"没写出任何脚本") / 7.当前卡在哪(做什么时被截断+为什么困难) /
+8.建议的下一步(具体可执行步骤，非"继续思考")
+> C4判断：HANDOVER缺章节/结论无推导/方向无结果/下一步不具体=不合格。
+
+**Session编号化管理12需求点**（SESS-01~12，详见p27_session_management_and_polish_spec.md §A）：
+session注册(p27-s{seq})/查询/清理/一致性检查/状态流转(stuck/done)/注册表vs tmux对账。
+SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点。
+
 ## 6. 正常工作判定框架（时刻推理用这个）
 
 **正常工作的四个特征**（任何时候都该满足）：

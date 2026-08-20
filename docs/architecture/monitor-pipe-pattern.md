@@ -1,8 +1,13 @@
 # Monitor Pipe设计范式（本地版）
 
+> ⚠️ **本文档已过时**（2026-08-20标记）：创建于8/19，未反映016事故后的演进
+> （step_gate/observability/A13/A14/Master Agent SOP循环）。现行设计范式见
+> `docs/patterns/MonitorPipe.md`（§2.2已改为Master Agent SOP循环）。本文件
+> 保留作历史参考，引用时以 MonitorPipe.md 为准。
+
 ## 1. 概述
 
-Monitor Pipe是连续工作系统的AI智能检查架构。完整设计哲学见项目repo根目录的`MonitorPipe.md`，本文件是错题分析系统内的本地参考，指向具体的代码实现。
+Monitor Pipe是连续工作系统的AI智能检查架构。完整设计哲学见`docs/patterns/MonitorPipe.md`，本文件是错题分析系统内的本地参考，指向具体的代码实现。
 
 ## 2. 三层架构
 
