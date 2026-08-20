@@ -23,6 +23,7 @@ v1方案用单队列：
   items = dequeue_pending(r, count=10)
 """
 import json
+import os
 import time
 from typing import Any
 
@@ -38,22 +39,26 @@ REDIS_HOST = "localhost"
 REDIS_PORT = 6379
 REDIS_DB = 0
 
+# 队列键前缀——env可覆盖，是全流程模拟（src/sim/，dev-docs/017）的隔离旋钮：
+# sim用p27sim:前缀，与生产p27:键空间完全隔离，可并行运行。
+_QUEUE_PREFIX = os.environ.get("P27_REDIS_PREFIX", "p27:")
+
 # v1单队列
-PENDING_KEY = "p27:pending"
-RUNNING_KEY = "p27:running"
-COMPLETED_KEY = "p27:completed"
-FAILED_KEY = "p27:failed"
-STATS_KEY = "p27:stats"
+PENDING_KEY = _QUEUE_PREFIX + "pending"
+RUNNING_KEY = _QUEUE_PREFIX + "running"
+COMPLETED_KEY = _QUEUE_PREFIX + "completed"
+FAILED_KEY = _QUEUE_PREFIX + "failed"
+STATS_KEY = _QUEUE_PREFIX + "stats"
 
 # v2双队列
-HANDOVER_PENDING_KEY = "p27:pending_handover"
-SOLVE_PENDING_KEY = "p27:pending_solve"
-HANDOVER_RUNNING_KEY = "p27:running_handover"
-SOLVE_RUNNING_KEY = "p27:running_solve"
-HANDOVER_COMPLETED_KEY = "p27:completed_handover"
-SOLVE_COMPLETED_KEY = "p27:completed_solve"
-HANDOVER_FAILED_KEY = "p27:failed_handover"
-SOLVE_FAILED_KEY = "p27:failed_solve"
+HANDOVER_PENDING_KEY = _QUEUE_PREFIX + "pending_handover"
+SOLVE_PENDING_KEY = _QUEUE_PREFIX + "pending_solve"
+HANDOVER_RUNNING_KEY = _QUEUE_PREFIX + "running_handover"
+SOLVE_RUNNING_KEY = _QUEUE_PREFIX + "running_solve"
+HANDOVER_COMPLETED_KEY = _QUEUE_PREFIX + "completed_handover"
+SOLVE_COMPLETED_KEY = _QUEUE_PREFIX + "completed_solve"
+HANDOVER_FAILED_KEY = _QUEUE_PREFIX + "failed_handover"
+SOLVE_FAILED_KEY = _QUEUE_PREFIX + "failed_solve"
 
 
 def get_redis() -> "redis.Redis":
@@ -72,15 +77,17 @@ def ping() -> bool:
 
 
 # === v1单队列操作 ===
+# 本模块不设门闸：这里都是底层I/O封装，一个函数有多个调用方（feeder/
+# launcher各路径），各自的正确性标准不同，写不出统一的checklist。
+# 门闸设在调用方的语义动作上（launcher的@gated函数 + feeder的feed_enqueue）。
 
 def enqueue_pending(r, run_key: str, priority: int = 0) -> int:
-    """入队（NX模式——只新增，不覆盖已有score）
+    """入队（NX模式——只新增，不覆盖已有score）。
 
-    016事故P0-3修复：原来zadd会覆盖已有member的score。截断重入队用
-    priority=round_num（低优先级）排队尾，但feeder无条件zadd priority=0
-    会把它重置回队首，导致同一道题反复被dequeue启动（失控循环）。
-    NX模式下已存在的member不更新score，保留截断重入队的低优先级语义。
-
+    016事故P0-3修复：原来zadd会覆盖已有member的score——feeder无条件
+    zadd priority=0会把截断重入队的低优先级重置回队首，导致同一道题
+    反复被dequeue启动（失控循环）。NX模式下已存在的member不更新score，
+    保留截断重入队的低优先级语义。
     返回1=新入队，0=已存在（score未变）。
     """
     log_event(logger, "debug", "enqueue_pending", run_key=run_key, priority=priority)
@@ -88,12 +95,18 @@ def enqueue_pending(r, run_key: str, priority: int = 0) -> int:
 
 
 def dequeue_pending(r, count: int = 1) -> list[tuple[str, int]]:
+    """从pending队列原子取出（zpopmin，取走即从zset删除）。"""
     results = r.zpopmin(PENDING_KEY, count)
     log_event(logger, "debug", "dequeue_pending", count=len(results))
     return [(m, int(s)) for m, s in results]
 
 
 def add_running(r, run_key: str, metadata: dict[str, Any]) -> int:
+    """把run加入running hash——launcher内存态的对外记账。
+
+    A13四源审计用它对账（tmux_solve↔redis_running）。016事故中它和
+    实际进程脱节（redis=1实际6个），所以A13要交叉验证而非单信它。
+    """
     log_event(logger, "debug", "add_running", run_key=run_key)
     return r.hset(RUNNING_KEY, run_key, json.dumps(metadata))
 

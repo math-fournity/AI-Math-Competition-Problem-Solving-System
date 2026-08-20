@@ -316,23 +316,63 @@ P0 修复拦住了已知循环，但 Master Agent 仍"看不见"系统的逻辑�
 - **SOP 集成**：SOP_01 新增第8节"系统流动历史观察"（必查项），含判断标准表；`monitor_check_continuation.sh` 新增第9节输出行为流水统计。
 - **测试**：`scripts/test_016_observability.py`（27 断言：读写过滤/聚合/churn告警模拟/DB并发读取/alert key唯一性/session分类）。
 
-### 步进门闸（同日新增，用户设计的单步跟踪系统）
+### 步进门闸（2026-08-20定稿：语义动作闸+X/Y注意力模型）
 
-`src/step_gate.py`——`@gated`装饰器把改变系统状态的动作（launcher 8个：
-启动solve/handover、kill session、截断/防抖重入队、round1种子覆盖、
+`src/step_gate.py`——`@gated`装饰器把**语义动作**（9个=launcher 8 + feeder 1：
+启动solve/handover、kill session、截断/防抖重入队/初次入队、round1种子覆盖、
 删旧proof、写COMPLETED终态）变成可单步跟踪门闸：
 
 - **函数名=日志标志**：`launch_solve`→`GATE-LAUNCH-SOLVE`，grep直达；
-- **docstring=自包含文档**：注册表经inspect自动收集进`p27_step_gates`
-  集合（含"做什么/为什么追踪/放行前检查什么"），永不与代码漂移；
+- **docstring=自包含文档+checklist闭包**：注册表经inspect自动收集进
+  `p27_step_gates`集合；"放行前Master Agent应检查"段是机器可提取接口，
+  `--pending`和SOP_01例程按它截取完整输出——Master Agent在单步时刻直接
+  拿到检查清单；
+- **X/Y注意力模型**：X=mode（布防），Y=waiting_for（触发）。无Y不操心
+  （auto静默记gate_pass流水）；hold未触发也是信息（该路径未发生）；
+  SOP_01例行检查已接线Y通道（有Y自动打印闭包）；
+- **范围铁律**：只对语义动作设闸——底层I/O封装（redis_queue）**不设闸**
+  （多调用方正确性标准不同，写不出统一checklist——"所有Redis写全闸"的
+  L1方案已试行并回退，教训见StepGate.md §3）；只读判定靠行为流水；
+  resource参数只是分类标签（action/redis/db/file/tmux）供
+  `--hold-resource`批量操作；
 - **DB信号**：mode(auto/hold)+proceed(0/1)——hold时代码轮询proceed，
   0→1后代码自清零继续（Master Agent用`--step`放行）；
-- **范围铁律**：只对状态改变动作设闸；只读判定靠行为流水。全部等放行
-  则吞吐归零；DB不可达降级auto；hold阻塞主循环，是调试模式非常态；
 - **CLI**：`python -m src.step_gate --register/--list/--hold/--step/
-  --pending/--auto`；
-- **测试**：`scripts/test_016_step_gate.py`（13断言：auto/hold全链/
-  DB降级/注册表）。
+  --pending(完整checklist)/--auto/--hold-resource RES`；
+- **测试**：`scripts/test_016_step_gate.py`（13断言）+ sim全流程下
+  gate_pass/gate_done流水验证（dev-docs/017）。
+
+### 全流程模拟系统（2026-08-20建成，dev-docs/017）
+
+`src/sim/`——被测系统100%真代码真跑，唯一替换的是devin命令（SIM_MODE=1
+时换成剧本演员`fake_devin.py`，命令结构与生产一致）。四层隔离（独立DB/
+Redis前缀/文件根/sim_题目id）可与生产并行。7剧本覆盖launcher全部分支
+（solve3/first_try/never/dead/stall/h_timeout/chaos_016）+016动力学
+回归不变量。四源终态断言（DB/Redis/flow流水/tmux）。
+
+**运维要点**：
+- 改launcher后跑`solve3`+`chaos_016`两剧本作**发布门禁**；
+- 隔离环境只通过`run_sim`程序化设置——**绝不手动export后跑setup/teardown**
+  （018事故的直接诱因）；
+- 入口：`.venv/bin/python -m src.sim.run_sim --scenario <名> [--keep]`。
+
+### 2026-08-20五bug修复+018事故（详见dev-docs/017 §5、dev-docs/018）
+
+sim首日运行捕获5个真bug（全部已修+回归全绿），**launcher重启后生效**：
+
+| 级别 | bug | 生产影响 |
+|---|---|---|
+| P0 | 截断判定被dead分支抢占，多轮续传引擎不可达 | 真实截断全被误判dead_session（4712实证）；核心使命的截断半边失效 |
+| P1 | 主循环退出条件漏handover_pending | 批次最后一题走v2时被晾半路 |
+| P1 | rounds_log不补录round-1条目→R2重跑一次 | 多耗一轮handover+solve；round2产物被二次启动覆盖 |
+| P2 | TRUNCATED_AT_MAX不写run_completed流水 | 黑匣子漏终态 |
+| P2 | 四处failed终态不写run_failed流水 | 黑匣子漏终态 |
+
+**018事故**：sim收尾时teardown护栏不对称（缺文件根检查）+手动env漏设
+→误删生产D盘p27-continuation。124份proof永久丢失（DB只存路径）；
+5958个work_dir经collector重跑重建验证。加固：teardown护栏补全、
+session匹配修复、**finalize把proof文本入库**（continuation_results双写）。
+防再犯三条：清场默认值不指向生产；破坏性操作先预览目标；成果文件必须双写。
 
 ---
 

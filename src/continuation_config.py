@@ -40,10 +40,20 @@ MAPPER_SCRIPT = PROJECT_ROOT / "scripts" / "conversation_mapper.py"
 CONTINUE_SPEC = PROJECT_ROOT / "docs" / "patterns" / "续传规范文档.md"
 
 # === ArangoDB配置（复用现有）===
-ARANGO_HOST = "http://localhost:8529"
-ARANGO_DB = "xishujuzhen_math_glm52"
+# ARANGO_DB/ARANGO_HOST支持env覆盖（.env里的值优先生效）——这也是全流程模拟
+# （src/sim/，见dev-docs/017）的隔离旋钮：sim用独立DB名，与生产完全隔离。
+ARANGO_HOST = os.environ.get("ARANGO_HOST", "http://localhost:8529")
+ARANGO_DB = os.environ.get("ARANGO_DB", "xishujuzhen_math_glm52")
 ARANGO_USER = "root"
 ARANGO_PASSWORD = "moira123"
+
+# SIM_MODE=1时launcher启动的devin cli命令替换为src/sim/fake_devin.py（剧本演员），
+# 用于全流程模拟（详见dev-docs/017）。生产绝不设置此变量。
+SIM_MODE = os.environ.get("SIM_MODE", "") == "1"
+
+# Pipe A（HANDOVER生成）超时秒数——异步路径的强制kill阈值。
+# env可调是为了sim的h_timeout剧本不用等600秒。
+HANDOVER_TIMEOUT_SECONDS = int(os.environ.get("HANDOVER_TIMEOUT_SECONDS", "600"))
 
 # 续传Pipe的DB集合（独立于现有Pipe）
 CONTINUATION_BATCHES_COLLECTION = "p27_continuation_batches"

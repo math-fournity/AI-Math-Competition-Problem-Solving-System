@@ -194,6 +194,61 @@ python -m monitoring.analysis_control set-concurrency --batch-id analysis-1 --co
 - 降低并发数不会kill正在运行的题——只是不再启动新题，等当前题完成后逐步降到目标并发数
 - 提高并发数会立即启动新题填满并发槽（如果pending队列中还有题）
 
+### 环境变量旋钮与隔离（2026-08-20新增）
+
+| 变量 | 作用 | 默认 | 说明 |
+|---|---|---|---|
+| `ARANGO_DB` | ArangoDB库名 | `xishujuzhen_math_glm52` | **代码现在真的读这个env**（此前AGENTS要求source .env确认但代码硬编码——已修复的隐性不一致） |
+| `ARANGO_HOST` | ArangoDB地址 | `http://localhost:8529` | 同上 |
+| `P27_REDIS_PREFIX` | Pipe 4队列键前缀 | `p27:` | sim隔离用`p27sim:` |
+| `SIM_MODE` | =1时devin命令换成剧本演员 | 空 | **生产绝不设置** |
+| `HANDOVER_TIMEOUT_SECONDS` | Pipe A超时秒数 | 600 | env化为sim可调短 |
+
+（`SOLVER_BASE`/`TRAJECTORY_BASE`为既有env，指向D盘数据根。）
+
+### 步进门闸操作面（2026-08-20定稿，详见docs/patterns/StepGate.md）
+
+9个语义动作闸（launcher 8 + feeder 1）。X/Y注意力模型：auto且无waiting_for=
+不需操心；hold触发时置Y，SOP_01例程和`--pending`会完整输出该闸的checklist
+闭包（认知闭包），按清单核对后放行：
+
+```bash
+.venv/bin/python -m src.step_gate --list               # 目录（按resource分组）
+.venv/bin/python -m src.step_gate --hold GATE-LAUNCH-SOLVE   # 布防
+.venv/bin/python -m src.step_gate --pending            # 看谁在等+完整checklist
+.venv/bin/python -m src.step_gate --step GATE-LAUNCH-SOLVE   # 放行一次
+.venv/bin/python -m src.step_gate --auto GATE-LAUNCH-SOLVE   # 恢复
+.venv/bin/python -m src.step_gate --hold-resource tmux       # 按分类批量hold
+```
+
+### 全流程模拟（2026-08-20建成，dev-docs/017）
+
+**用途**：改launcher/调度逻辑后的发布门禁；新剧本=下一个事故的固化回归。
+
+```bash
+# 跑一个剧本（setup→真feeder→真launcher→等终态→四源断言→清场）
+.venv/bin/python -m src.sim.run_sim --scenario solve3
+.venv/bin/python -m src.sim.run_sim --scenario chaos_016 --keep   # 保留现场
+# 7个剧本：solve3/first_try/never/dead/stall/h_timeout/chaos_016
+```
+
+**安全规则（018事故后）**：隔离环境只通过run_sim程序化设置，**绝不手动
+export环境变量后直接跑setup/teardown**——teardown护栏已补全（文件根检查），
+但手动env仍是018事故的直接诱因。
+
+### 2026-08-20行为变化（5个bug修复，launcher重启后生效）
+
+1. **截断判定先于dead判定**（P0）——此前真实截断被误判dead_session，
+   多轮续传引擎不可达（生产4712实证）。生产曾误判dead的run重置prepared后
+   将正确走截断续传；
+2. **rounds_log含round-1条目**——轮序从[2,3..]变为[1,2,3..]，round 1
+   （seed重判）的历史在DB完整可见；此前R2会被重跑一次；
+3. 主循环退出条件补handover_pending（批次最后一题不再被晾半路）；
+4. TRUNCATED_AT_MAX终态写run_completed流水；
+5. 四处failed终态（unknown/rate_limit/timeout/stall）写run_failed流水；
+6. **proof文本入库**（018加固）——continuation_results现在存每个COMPLETED
+   run的proof全文（≤100KB），不再依赖盘上单点文件。
+
 ### 异常处理与重试（对齐solver_harness）
 
 **网络抖动、API限流、进程异常退出等基础设施失败会自动重试，题目不会丢失。**

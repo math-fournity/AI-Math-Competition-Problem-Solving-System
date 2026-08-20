@@ -48,6 +48,23 @@
 
 **下一步**：阶段1需要在真实运行中验证，然后做阶段2（Monitor Pipe执行devin架构）。
 
+### 3.1.1 2026-08-20重大更新（StepGate改造+全流程模拟+5个bug修复+018事故）
+
+- **步进门闸范式定稿**：语义动作闸（9个=launcher 8+feeder 1）+X/Y注意力模型
+  （无Y不操心）+checklist闭包经docstring反射传递（详见`docs/patterns/StepGate.md`）；
+  SOP_01例行检查已接线Y通道。曾试行的"L1资源闸全闸底层I/O"方案已回退（写不出
+  统一checklist，见StepGate.md §3教训）。
+- **全流程模拟系统建成**（`src/sim/`，dev-docs/017）：剧本演员替换devin命令，
+  系统100%真代码真跑于隔离环境。7剧本对应launcher全部分支。用法：
+  `.venv/bin/python -m src.sim.run_sim --scenario solve3`。
+- **首日捕获5个真bug已修**（最重要的P0：截断→重入队引擎不可达，真实截断被
+  误判dead_session——生产4712实证；详见017 §5）。**生产launcher重启后生效**；
+  重启前建议跑一轮solve3作发布门禁。
+- **⚠️ 018事故**（dev-docs/018）：sim收尾时teardown护栏不对称误删生产D盘
+  p27-continuation。**124份proof文本永久丢失**（判定结论在DB不受影响）；
+  5958个work_dir已重建验证；finalize已加固proof入库双写。
+  2026-08-20检查时生产launcher未在运行。
+
 ### 3.2 系统运行状态
 
 **检查系统当前是否在运行**：
@@ -135,7 +152,13 @@ git log --oneline -20
     continuation_feeder.py          # 入Redis队列
     continuation_launcher.py        # ★核心★——并发启动devin cli+多轮续传
     continuation_result_collector.py # 结果收集
-    session_registry.py             # ★新增★——Session编号化管理
+    session_registry.py             # Session编号化管理
+    step_gate.py                    # ★步进门闸——语义动作单步跟踪（@gated装饰器）
+    observability.py                # 行为流水黑匣子（flow ledger）
+  src/sim/                           # ★全流程模拟（dev-docs/017）
+    run_sim.py                      # 入口：一个命令跑完一个剧本（setup→真组件→断言→清场）
+    fake_devin.py                   # 剧本演员——按剧本写真export/proof/DONE再退出
+    scenarios.py                    # 剧本库（7个，对应launcher全部分支）
     monitor_continuation.py         # Monitor Pipe（Python部分，A1-A12+B1-B9+C1-C5）
     monitor_exec_launcher.py        # ★待实现★——Monitor Exec Devin启动器（阶段2）
     # Pipe 1/2/3的代码也在src/下（analysis_*/audit_*/selection_*）

@@ -17,6 +17,41 @@ from scripts.sop.sop_log import get_logger
 log = get_logger("checks")
 
 
+def _check_pending_gates():
+    """步骤01例行：步进门闸Y通道——查有没有闸在等放行（系统冻结在此）。
+
+    X/Y注意力模型：auto且无waiting_for=不需操心；有waiting_for（Y）=
+    系统正冻结在该闸处等Master Agent核对checklist后--step放行。
+    这里完整输出该闸的认知闭包（"放行前…检查"段），Master Agent
+    按清单核对——这就是单步跟踪的检查提示词，随Y自动送达。
+    """
+    print("--- 步进门闸Y通道（waiting中的闸=系统冻结点）---")
+    try:
+        from src.continuation_db_schema import connect_db
+        from src.step_gate import extract_checklist, COLLECTION
+        db = connect_db()
+        if not db.has_collection(COLLECTION):
+            print("  （门闸集合未创建——先 python -m src.step_gate --register）")
+            print()
+            return
+        pending = [d for d in db.collection(COLLECTION).all() if d.get("waiting_for")]
+        if not pending:
+            print("  ✅ 无Y——没有闸在等待，系统未被hold冻结")
+            print()
+            return
+        for doc in pending:
+            print(f"  🔶 Y: {doc['_key']} 自 {doc.get('waiting_since')} 冻结至今")
+            print(f"     上下文: {doc['waiting_for']}")
+            print(f"     放行: python -m src.step_gate --step {doc['_key']}")
+            print(f"     --- 认知闭包 / 放行前检查清单 ---")
+            for line in extract_checklist(doc.get("doc") or "").splitlines():
+                print(f"     {line}")
+            print()
+    except Exception as e:
+        print(f"  ⚠️ 门闸Y通道检查失败（DB不可达？）: {e}")
+        print()
+
+
 def check_01_system_health(batch_id):
     """步骤01：系统存活+进度+Session——运行 monitor_check_continuation.sh"""
     log.info(f"check_01_system_health: start batch={batch_id}")
@@ -43,6 +78,8 @@ def check_01_system_health(batch_id):
     except Exception as e:
         print(f"⚠️ 检查脚本执行失败: {e}")
     print()
+
+    _check_pending_gates()
 
 
 def check_02_data_integrity(batch_id):
@@ -83,14 +120,20 @@ def check_02_data_integrity(batch_id):
                 round_num = entry.get("round", i + 1)
 
                 # 每轮的输入/输出文件
-                file_checks = [
-                    ("export", "输出", True),
-                    ("prompt_path", "输入", True),
-                    ("proof_path", "输出", False),
-                    ("handover_path", "输入", False),
-                    ("map_path", "输入", False),
-                    ("prev_export", "输入", False),
-                ]
+                # round=1是seed预检轮（2026-08-20起补录——017 off-by-one修复）：
+                # 它没有自己的prompt/handover（那是R2起才有的），唯一产物是
+                # round1_export.json（seed镜像）。必填字段只有export。
+                if round_num == 1:
+                    file_checks = [("export", "输出", True)]
+                else:
+                    file_checks = [
+                        ("export", "输出", True),
+                        ("prompt_path", "输入", True),
+                        ("proof_path", "输出", False),
+                        ("handover_path", "输入", False),
+                        ("map_path", "输入", False),
+                        ("prev_export", "输入", False),
+                    ]
 
                 for field, io_type, required in file_checks:
                     val = entry.get(field)

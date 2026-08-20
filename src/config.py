@@ -49,8 +49,9 @@ AGENTS_MD_TEMPLATE = PROJECT_ROOT / "docs" / "templates" / "analysis_agents_md.m
 OUTPUT_BASE = PROJECT_ROOT / "output"
 
 # === ArangoDB配置 ===
-ARANGO_HOST = "http://localhost:8529"
-ARANGO_DB = "xishujuzhen_math_glm52"
+# env可覆盖——与continuation_config.py一致（sim隔离旋钮，见dev-docs/017）
+ARANGO_HOST = os.environ.get("ARANGO_HOST", "http://localhost:8529")
+ARANGO_DB = os.environ.get("ARANGO_DB", "xishujuzhen_math_glm52")
 ARANGO_USER = "root"
 ARANGO_PASSWORD = "moira123"
 

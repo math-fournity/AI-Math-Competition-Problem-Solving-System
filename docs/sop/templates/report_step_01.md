@@ -35,6 +35,7 @@
 | 6 | 通过率判定 | 读check_output.txt第6节"通过率判定"。通过率是否达标 | [ ] | |
 | 7 | 系统健康 | 读check_output.txt第7节"系统健康"。DB/Redis/Disk是否正常 | [ ] | |
 | 8 | 运行时健康检查10维度 | 读check_output.txt第8节"运行时健康检查"。A-J 10维度有无⚠️ | [ ] | |
+| 9 | 门闸Y通道 | 读check_output.txt末尾"步进门闸Y通道"节。无Y=✅跳过；有Y=系统冻结在该闸——按打印的checklist闭包逐项核对后 --step 放行或维持hold并记录原因 | [ ] | |
 
 ### 二、AI判断检查项
 

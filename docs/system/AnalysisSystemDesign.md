@@ -374,6 +374,44 @@ auto-restart用bash while循环包裹：`while true; do python launcher.py; echo
 - 自动kill会重蹈export丢失的覆辙——这是本规范要根治的问题
 - stuck不占并发槽，不影响系统吞吐——只是占tmux资源，tmux能承载几百个session
 
+### 6.14 步进门闸=语义动作闸，底层I/O封装不设闸（2026-08-20定稿）
+
+曾试行"所有Redis写装L1资源闸"的方案，回退——`enqueue_pending`有feeder/截断
+重入队/防抖重入队三个调用方，各自的正确性标准不同，**"这次入队对不对"的答案
+在调用方，不在I/O本身**，底层粒度写不出统一checklist，而checklist恰是门闸的
+核心价值。定稿：闸只设在语义动作上（9个）；resource只是分类标签供批量hold。
+checklist闭包的传递链：docstring（唯一事实源，随代码同commit）→inspect反射
+→DB缓存→hold触发时置Y（waiting_for）→SOP_01/`--pending`按"放行前"标题提取
+完整输出→Master Agent核对→`--step`放行。详见`docs/patterns/StepGate.md`。
+
+### 6.15 截断判定必须先于dead判定；rounds_log必须含round-1（2026-08-20，sim实证）
+
+原sweep结构里`is_truncated`只在"已完成"之后才被咨询——devin退出+无proof+截断
+态export时dead分支抢占，**截断→重入队的多轮续传引擎结构性不可达**，真实截断
+全部被误判dead_session（生产run 4712实证，其export是教科书式截断）。同理
+round-1（seed重判）不补录rounds_log条目导致`current_round=len+1`重跑round 2。
+两个修复均由全流程模拟首日运行实证（solve3剧本rounds_log从[2,2,3]修为[1,2,3]）。
+**教训：未被生产数据触发过的分支≈未测试的分支**——生产299条rounds_log全是
+completed、零截断条目，恰说明截断路径从未真正跑通过。
+
+### 6.16 全流程模拟：命令行层注入，世界=文件+进程行为（2026-08-20，dev-docs/017）
+
+模拟"AI世界"的正确注入点不在内部接缝（mock返回值破坏控制流），而在命令构造
+处：SIM_MODE=1时devin命令换成剧本演员`src/sim/fake_devin.py`，命令结构（含
+`echo $? > DONE.md; sleep 999999`）与生产完全一致。于是世界的全部输出
+（export/proof/HANDOVER/DONE/pane/退出）由演员真实产生，launcher/feeder/门闸
+100%真代码真跑于四层隔离环境（独立DB/Redis前缀/文件根/sim_题目id），可与生产
+并行。7剧本覆盖launcher全部分支+016动力学回归不变量。**改launcher后跑
+solve3+chaos_016作为发布门禁**。
+
+### 6.17 成果文件必须双写入库（2026-08-20，018事故教训）
+
+proof.md是解题成果的唯一凭证，原设计"盘上单点文件+DB只存路径"——018事故
+（teardown误删生产目录）实证单点丢失不可恢复（124份proof永久丢失，APFS无
+快照）。加固：finalize_run_completed把proof文本（≤100KB）写入
+continuation_results，DB成为第二份存档。**通用原则：任何"只此一份"的产物
+都要先问"丢了怎么办"。**
+
 ---
 
 ## 7. 解题系统参考

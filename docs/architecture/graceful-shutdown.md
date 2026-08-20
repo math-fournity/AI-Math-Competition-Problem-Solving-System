@@ -49,13 +49,14 @@ def launch_batch(...):
     register_shutdown("continuation_launcher")
 
     while True:
-        # 退出条件
-        if not running and pending_count(r) == 0:
+        # 退出条件（2026-08-20修复：必须含handover_pending——否则批次最后
+        # 一题走v2路径时被晾在handover生成中，launcher提前退出，017-sim实证）
+        if not running and not handover_pending and pending_count(r) == 0:
             break
 
         # 优雅退出检查——收到SIGTERM/SIGINT后不再启动新run
         if should_stop():
-            if not running:
+            if not running and not handover_pending:
                 print("running已全部完成，launcher退出")
                 break
             else:

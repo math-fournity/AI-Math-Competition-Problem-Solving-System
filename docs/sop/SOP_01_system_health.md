@@ -187,22 +187,32 @@ python -m src.observability --event skip_orphan --since 2h
 
 ### 8.5 步进门闸——单步跟踪系统（016事故后新增）
 
-行为流水让你**看见**流动，门闸让你**卡住**流动。`@gated`装饰器把launcher的
-8个状态改变动作（启动/杀session/重入队/覆盖文件/写终态）变成可单步跟踪的
-门闸。**hold住一个门闸后，系统在该动作点冻结等你放行**——每个门闸的
-docstring（进DB注册表）写明了"放行前检查什么"。
+行为流水让你**看见**流动，门闸让你**卡住**流动。`@gated`装饰器把系统的
+9个语义动作（launcher 8个：启动/杀session/重入队/覆盖文件/写终态 +
+feeder 1个：初次入队）变成可单步跟踪的门闸。**hold住一个门闸后，系统
+在该动作点冻结等你放行**。
+
+**X/Y注意力模型（你只需在Y出现时操心）**：
+- X（mode）是你布防的控制变量；Y（waiting_for）是代码冻结时的需求发起；
+- 无Y=不操心（auto模式静默记gate_pass流水，事后可审计）；
+- **每轮例行检查里脚本已自动查Y**（上面"门闸Y通道"段）——有Y时会完整
+  打印该闸的"放行前检查"清单（认知闭包），你按清单核对后
+  `--step` 放行或维持hold。这就是单步跟踪：像工程师断点调试一样，
+  冻结点+检查清单+核对+继续。
 
 ```
-python -m src.step_gate --list      # 门闸目录（位置/文档/模式）
+python -m src.step_gate --list      # 门闸目录（按resource分组）
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE   # 卡住下一次解题启动
-python -m src.step_gate --pending   # 看谁在等（run_key+上下文）
+python -m src.step_gate --pending   # 看谁在等（完整输出checklist闭包）
 python -m src.step_gate --step GATE-LAUNCH-SOLVE   # 放行一次
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE   # 恢复自动
+python -m src.step_gate --hold-resource tmux       # 按分类批量hold
 ```
 
 **使用时机**：怀疑某个动作有问题时（如A14报了launch_churn），hold住对应
-门闸逐次放行+检查；日常监控不需要hold（auto模式下每次通过都写gate_pass
-流水，事后可审计）。hold会阻塞launcher主循环，用完记得--auto。
+门闸逐次放行+检查；日常监控不需要hold。hold会阻塞launcher主循环，
+用完记得--auto。设计范式详见 `docs/patterns/StepGate.md`（含"为什么
+底层I/O封装不设闸"的教训）。
 
 ### 9. devin cli model 参数检查（CHECKPOINT）
 

@@ -10,9 +10,31 @@
 > （发现问题），StepGate 范式解决"怎么冻结系统动作"（介入系统）。两者配合：
 > 行为流水（observability）让你看见流动，门闸让你卡住流动。
 >
-> **首次实现**：`src/step_gate.py`（POC-2.7 续传 Pipe，8 个门闸）。
+> **首次实现**：`src/step_gate.py`（POC-2.7 续传 Pipe，9 个门闸：
+> launcher 8 个 + feeder 1 个）。
 
 ---
+
+## 0. 心智模型：工程师单步跟踪 + X/Y 注意力模型
+
+整套范式的心智模型是：**Master Agent 像一个工程师单步跟踪系统的运行**——
+在关键动作点设断点（闸），断点命中时读取该处的检查清单（checklist），
+核对"系统在这里做的事是对的"再继续。
+
+注意力模型（Master Agent 只在 Y 出现时操心）：
+
+```
+X = mode（auto/hold）   Master Agent → 代码 的控制变量（"布防"一个闸）
+Y = waiting_for(+上下文)  代码 → Master Agent 的需求发起（断点"命中"）
+```
+
+- **无 Y** = 代码不要求 Master Agent 操心这个位置。auto 模式静默记
+  gate_pass 流水，事后可审计——注意力不被打扰；
+- **hold 但无 Y**（布防未触发）也是信息：说明该动作路径在此期间没有
+  发生（如 hold 住 requeue_skip 一整天没命中 = 防抖路径没触发过）；
+- **Y 出现** = 单步时刻：SOP_01 例程 / `--pending` 会完整输出该闸的
+  认知闭包（checklist），Master Agent 按清单核对后 `--step` 放行或维持
+  hold。`proceed` 是回程握手：Master Agent 置 1，代码自清零后执行。
 
 ## 1. 问题：自动系统的"最后一公里信任"
 
@@ -25,7 +47,7 @@
 **根因**：系统只有"开"（全自动）和"关"（整体停止）两种状态，缺少
 "在指定动作点暂停等审批"的中间态。
 
-## 2. 核心设计（三条）
+## 2. 核心设计（四条）
 
 ### 2.1 DB 信号变量：动作点等待 0→1，代码自清零
 
@@ -66,7 +88,45 @@ def kill_session(session_name, run_key, pid, reason):
 调用点可传 `gate_ctx={"run_key":..., "reason":...}` 提供放行时的上下文
 （Master Agent 用 `--pending` 能看到"谁在等、为什么"）。
 
-### 2.3 定位用"函数名+docstring"，不用行号
+装饰器可选带分类标签 `@gated(resource="redis"|"db"|"file"|"tmux")`，
+默认 `"action"`。标签不改变任何行为，只供 `--hold-resource` 批量操作
+（如 hold 住 tmux+file ≈ 冻结所有不可逆动作）。
+
+### 2.3 认知闭包（checklist）：docstring 是唯一事实源
+
+Master Agent 在单步时刻怎么知道"这个位置要检查什么"？答案是每个闸的
+docstring 里有一段自包含的**认知闭包**——但闭包放在哪里、怎么传递，
+是一个必须想清楚的设计决策（本范式试过错，见 §3）：
+
+```
+开发时刻：  代码+docstring（含"放行前…检查"段）← 唯一事实源，随代码同commit
+              │ import时 inspect 反射进注册表
+              │ launcher启动/--register 时同步进DB（DB只是缓存/运输层）
+              ▼
+单步时刻：  代码走到被hold的闸 → 置Y（waiting_for，含run_key/pid上下文）
+              │ SOP_01例程 / --pending 检查Y
+              ▼
+            脚本按"放行前"标题截取闭包段完整输出 → Master Agent按清单核对
+              │
+              ▼
+            --step（proceed=1）→ 代码自清零继续执行
+```
+
+三条存放原则（为什么不放 DB 字段 / SOP 提示词里）：
+
+1. **不放 DB 字段**：谁改代码就得记得同步改 DB——双事实源必然漂移。
+   docstring 与代码同一个编辑、同一个 commit、grep 直达，**不可能漂移**。
+   DB 里的 `doc` 字段是反射同步的缓存，不是源。
+2. **不放 SOP 提示词**：SOP 文档写**程序性知识**（"发现 Y 时怎么办"，
+   写一次对所有闸通用）；闸的 docstring 写**陈述性知识**（"这个位置什么
+   是对的"，随代码写随代码改）。如果 SOP 枚举各闸 checklist，每加一个闸
+   改一份 SOP，N 闸 × 7 文档的漂移矩阵。
+3. **"放行前"标题是机器可提取的接口**：所有闸的 docstring 固定写
+   `放行前Master Agent应检查：` 段落（checklist 约定是 docstring 的最后
+   一段），`extract_checklist()` 按这个标题截取，`--pending` 和 SOP_01
+   检查脚本输出完整闭包。没这段的闸是半成品。
+
+### 2.4 定位用"函数名+docstring"，不用行号
 
 - **函数名 = 日志标志**：`kill_session` → `GATE-KILL-SESSION`。
   `grep -rn kill_session src/` 直达代码块。行号会随代码变动失效，
@@ -80,20 +140,30 @@ def kill_session(session_name, run_key, pid, reason):
 
 ## 3. 范围铁律（最重要的工程决策）
 
-**门闸只设在"改变系统状态的动作"上，只读判定不设闸。**
+**门闸只设在"语义动作"上——一个有独立正确性标准的业务动作。
+只读判定不设闸，底层 I/O 封装也不设闸。**
 
-| 设闸的动作 | 不设闸的判定 |
-|---|---|
-| 启动进程（launch_solve/launch_handover） | is_truncated / is_completed 等纯读取判定 |
-| 杀进程（kill_session） | 队列长度/session数量等状态查询 |
-| 重入队（requeue_truncated/requeue_skip） | |
-| 文件操作（overwrite_round1_seed/remove_old_proof） | |
-| 写终态（finalize_run_completed） | |
+| 设闸（语义动作） | 不设闸：只读判定 | 不设闸：底层 I/O 封装 |
+|---|---|---|
+| 启动进程（launch_solve/start_handover） | is_truncated 等纯读取判定 | enqueue_pending / dequeue_pending |
+| 杀进程（kill_session） | 队列长度/session数等状态查询 | add_running / update_stats |
+| 重入队（requeue_truncated/requeue_skip） | | （continuation_redis_queue 全模块无闸） |
+| 初次入队（feeder 的 feed_enqueue） | | |
+| 文件操作（overwrite_round1_seed/remove_old_proof） | | |
+| 写终态（finalize_run_completed） | | |
 
-为什么：如果把每一步（含只读判定）都等放行——launcher 主循环 15 秒一轮，
-每轮几十次判定，5957 道题 × 5 轮 = 数万次放行，每次审批 10-60 秒，**系统
-吞吐归零，7x24 自动运行就不存在了**。只读判定改为行为流水全量记录
-（见 `src/observability.py`），事后可审计；门闸只留给不可逆/高消耗的动作。
+**底层 I/O 封装不设闸**是踩过坑后的结论（016 后曾试过"所有 Redis 写
+全闸"的资源闸方案，已回退）：同一个底层函数被多条业务路径调用
+（enqueue_pending 有 feeder / 截断重入队 / 防抖重入队三个调用方），
+各自的正确性标准不同——**"这次入队对不对"的答案在调用方，不在 Redis
+写本身**，所以那个粒度上写不出统一的 checklist，而 checklist 恰恰是
+门闸的核心价值。闸设在语义动作上，调用方路径天然分离，每个闸的
+checklist 才能写清楚。
+
+为什么只读判定也不设闸：launcher 主循环 15 秒一轮，每轮几十次判定，
+5957 道题 × 5 轮 = 数万次放行，每次审批 10-60 秒，**系统吞吐归零，
+7x24 自动运行就不存在了**。只读判定改为行为流水全量记录
+（见 `src/observability.py`），事后可审计。
 
 这个取舍的通用原则：**可观测性管"看到"，门闸管"拦住"——看到要全量，
 拦住要精选。**
@@ -120,6 +190,7 @@ def kill_session(session_name, run_key, pid, reason):
   "file": "src/continuation_launcher.py",  // 定位三元组（inspect自动收集）
   "function": "kill_session",
   "doc": "【门闸: GATE-KILL-SESSION】kill一个解题session...(自包含文档全文)",
+  "resource": "tmux",               // 分类标签：action/redis/db/file/tmux
   "mode": "auto",                    // auto | hold
   "proceed": 0,                      // 放行信号：Master Agent置1，代码自清零
   "waiting_for": {"run_key": "...", "pid": "...", "reason": "truncated"},
@@ -128,29 +199,36 @@ def kill_session(session_name, run_key, pid, reason):
 }
 ```
 
-注册表在 **launcher 启动时自动同步**（`sync_registry_to_db`）——代码加新
-门闸只需写 `@gated` 函数，DB 目录自动更新。
+注册表在 **launcher 启动时自动同步**（`sync_registry_to_db`——内部 import
+launcher 和 feeder 以触发所有装饰器收集）——代码加新门闸只需写 `@gated`
+函数，DB 目录自动更新。**注意**：新加闸的模块必须在 `sync_registry_to_db`
+里被 import，否则注册不到（feeder 的闸第一次接时就漏过这个）。
 
 ## 6. Master Agent 操作面（CLI）
 
 ```bash
 python -m src.step_gate --register    # 注册/刷新门闸目录到DB
-python -m src.step_gate --list        # 目录：位置/文档/模式/等待状态
+python -m src.step_gate --list        # 目录：按resource分组/文档/模式/等待状态
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE    # 卡住下一次解题启动
-python -m src.step_gate --pending     # 谁在等（run_key+上下文+文档）
+python -m src.step_gate --pending     # 谁在等——完整输出checklist闭包（单步时刻）
 python -m src.step_gate --step GATE-LAUNCH-SOLVE    # 放行一次（proceed置1）
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE    # 恢复自动
 python -m src.step_gate --hold-all / --auto-all     # 批量切换
+python -m src.step_gate --hold-resource tmux        # 按分类批量hold
 ```
 
 **典型工作流（调试模式）**：
 1. monitor 报 `launch_churn`（A14 启动抖动告警）；
 2. `--hold GATE-LAUNCH-SOLVE` 卡住启动动作；
-3. `--pending` 看被卡住的是哪个 run、上下文是什么；
-4. 按该门闸 docstring 的"放行前检查"清单逐项核查（查行为流水
-   `python -m src.observability --run-key <key>`）；
+3. `--pending` 看被卡住的是哪个 run、上下文是什么——输出末尾就是该闸
+   docstring 里"放行前Master Agent应检查"清单的**完整闭包**；
+4. 按清单逐项核查（查行为流水 `python -m src.observability --run-key <key>`）；
 5. 有问题 → 保持 hold 排查；没问题 → `--step` 放行一次再看下一次；
 6. 结束后 `--auto` 恢复。
+
+**SOP 例行接线（Y 通道进 7x24 循环）**：SOP_01 的健康检查脚本每轮自动
+查 `waiting_for` 非空的闸——有 Y 就完整打印闭包并提示"系统冻结在此"，
+Master Agent 不会因为注意力被下一轮 SOP 带走而漏掉被冻结的系统。
 
 ## 7. 已知坑（移植时必读）
 
@@ -172,14 +250,18 @@ python -m src.step_gate --hold-all / --auto-all     # 批量切换
 
 1. 复制 `src/step_gate.py`，改 `COLLECTION` 常量为新 Pipe 的集合名
    （如 `analysis_step_gates`）；
-2. 把业务代码里的"改变系统状态的动作"提取成小函数（这一步本身就是
-   代码质量提升——内联的状态操作块必须先变成函数才能装装饰器）；
-3. 每个函数加 `@gated` + 按三问结构写 docstring（是什么/为什么追踪/
-   放行前检查什么）；
-4. 主循环启动处调 `sync_registry_to_db()`；
+2. 把业务代码里的**语义动作**提取成小函数（这一步本身就是代码质量
+   提升——内联的状态操作块必须先变成函数才能装装饰器）。只提取语义
+   动作，不要给底层 I/O 封装装闸（见 §3）；
+3. 每个函数加 `@gated`（按需带 resource 标签）+ 按三问结构写 docstring
+   （是什么/为什么追踪/放行前检查什么）——"放行前"段是必须的，
+   它是 `--pending` 输出的闭包；
+4. 主循环启动处调 `sync_registry_to_db()`，**函数体内 import 所有带闸
+   的模块**（漏 import = 闸注册不到 DB）；
 5. 配套行为流水（observability）——没有流水，hold 时的"检查之前的工作"
    就没有数据来源；两者是一对；
-6. 在 SOP 文档里登记操作面（SOP_01 §8.5 是范例）。
+6. 在 SOP 健康检查脚本里接 Y 通道（查 waiting_for 非空 → 完整输出闭包），
+   并在 SOP 文档里登记操作面（SOP_01 §8.5 是范例）。
 
 ## 9. 与其他机制的关系
 

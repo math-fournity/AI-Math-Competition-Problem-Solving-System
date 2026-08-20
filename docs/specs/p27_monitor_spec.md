@@ -59,7 +59,7 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | B5. handover_completeness | handover_too_small | warning | <500B | HANDOVER.md太小，可能不完整 |
 | B6. truncation_pattern | all_rounds_truncated | warning | 5轮全截断 | 5轮全部TRUNCATED，可能是思维错误 |
 | B7. final_status_distribution | status_anomaly | info | — | final_status分布异常（全TRUNCATED或全ERROR） |
-| B8. rounds_log_integrity | rounds_log_missing_field | warning | — | rounds_log缺必需字段（round/export/truncated/completed/reason） |
+| B8. rounds_log_integrity | rounds_log_missing_field | warning | — | rounds_log缺必需字段（round/export/truncated/completed/reason）。round=1是seed预检轮（2026-08-20起补录，只含5基础字段，无prompt/handover/proof——属正常） |
 | B8. rounds_log_integrity | rounds_log_export_missing | critical | — | rounds_log的export指向的文件不存在 |
 | B8. rounds_log_integrity | rounds_log_handover_missing | critical | — | rounds_log的handover_path指向的文件不存在（handover_success=True时） |
 | B8. rounds_log_integrity | rounds_log_proof_missing | critical | — | rounds_log的proof_path指向的文件不存在（completed=True时） |

@@ -20,6 +20,12 @@
 
 每个 run 的 DB 记录中有 `rounds_log` 数组，每条记录对应一轮：
 
+**round=1 是 seed 预检轮**（2026-08-20 起补录——017 sim 实证的 off-by-one
+修复）：launcher 取件时对 seed export 重判截断/完成，结果补录为 round-1
+条目。它没有自己的 prompt/handover/proof（那是 R2 起才有的），唯一产物是
+`round1_export.json`（seed 镜像），所以只有 5 个基础字段。checks.py 对
+round-1 只必查 export。R2 起的条目才是完整 7 字段：
+
 ```python
 {
     "round": 2,
@@ -73,7 +79,11 @@
 - **prepared 堆积检查**——prepared 状态的 run 数 vs Redis pending 数。prepared > 0 但 pending = 0 → feeder 没在入队（critical）
 - **按题源完成率统计**——按 problem_id 前缀分组统计完成率。完成率 = 0% 的题源 → 系统性问题（critical）
 - **标准文件检查**——problem.txt / proof.md / round1 export 是否存在（rounds_log 之外的文件）
-- **round 编号连续性检查**——rounds_log 的 round 字段是否连续。当前全部从 round=2 开始——需确认是否 by design
+- **round 编号连续性检查**——rounds_log 的 round 字段是否连续。
+  ~~当前全部从 round=2 开始——需确认是否 by design~~
+  **已确认不是 by design**（2026-08-20，017 sim 实证 off-by-one）：round-1
+  曾不补录导致 R2 被重跑。已修复——正常轮序为 `[1, 2, 3, ...]` 连续；
+  出现重复轮号（如 `[2,2,3]`）= 旧数据或 bug 复发，应排查
 
 重点关注：
 - COMPLETED 的 run 缺少 proof.md → 数据丢失风险（critical）
