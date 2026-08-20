@@ -12,10 +12,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.sop.sop_log import get_logger
+
+log = get_logger("checks")
 
 
 def check_01_system_health(batch_id):
     """步骤01：系统存活+进度+Session——运行 monitor_check_continuation.sh"""
+    log.info(f"check_01_system_health: start batch={batch_id}")
     repo_root = Path(__file__).parent.parent.parent
     script = repo_root / "scripts" / "monitor_check_continuation.sh"
 
@@ -43,6 +47,7 @@ def check_01_system_health(batch_id):
 
 def check_02_data_integrity(batch_id):
     """步骤02：数据完整性——抽查 run 的产出文件存在性 + rounds_log 字段完整性"""
+    log.info(f"check_02_data_integrity: start batch={batch_id}")
     try:
         from src.continuation_db_schema import connect_db
         from src.continuation_config import CONTINUATION_RUNS_COLLECTION
@@ -156,6 +161,7 @@ def check_02_data_integrity(batch_id):
 
 def check_03_alert_triage(batch_id):
     """步骤03：alert分类——查询未处理 alert"""
+    log.info(f"check_03_alert_triage: start batch={batch_id}")
     try:
         from src.continuation_db_schema import connect_db
         db = connect_db()
@@ -191,6 +197,7 @@ def check_03_alert_triage(batch_id):
 
 def check_04_ai_judgment(batch_id):
     """步骤04：C类AI判断——查询 needs_ai_review 的 run"""
+    log.info(f"check_04_ai_judgment: start batch={batch_id}")
     try:
         from src.continuation_db_schema import connect_db
         from src.continuation_config import CONTINUATION_RUNS_COLLECTION
@@ -230,6 +237,7 @@ def check_04_ai_judgment(batch_id):
 
 def check_05_code_repair(batch_id):
     """步骤05：代码修复——显示最近 git log"""
+    log.info(f"check_05_code_repair: start batch={batch_id}")
     repo_root = Path(__file__).parent.parent.parent
     try:
         result = subprocess.run(
@@ -246,6 +254,7 @@ def check_05_code_repair(batch_id):
 
 def check_06_report_worklog_selfcheck(batch_id):
     """步骤06：报告+WORKLOG+Self-check——显示 WORKLOG 状态"""
+    log.info(f"check_06_report_worklog_selfcheck: start batch={batch_id}")
     repo_root = Path(__file__).parent.parent.parent
     worklog = repo_root / "WORKLOG.md"
     print("--- WORKLOG.md 状态 ---")
@@ -260,6 +269,7 @@ def check_06_report_worklog_selfcheck(batch_id):
 
 def check_Z_meta_system_review(batch_id):
     """步骤Z：元检查+整体检查——显示 SOP 系统全貌"""
+    log.info(f"check_Z_meta_system_review: start batch={batch_id}")
     from scripts.sop.sop_state import load_state, SOP_STEPS, SOP_NAMES
     state = load_state()
     cycle = state.get("cycle", 0)

@@ -23,6 +23,9 @@ from scripts.sop.sop_state import (
     SOP_STEPS, SOP_NAMES,
 )
 from scripts.sop import checks
+from scripts.sop.sop_log import get_logger
+
+log = get_logger("run")
 
 
 # 步骤编号 → 检查函数映射
@@ -45,34 +48,48 @@ def main():
     # 确定要执行的步骤
     if args.step:
         step_num = args.step
+        log.info(f"main: --step={step_num} (forced)")
     else:
         state = load_state()
         step_num = state["next"]
+        log.info(f"main: auto step={step_num} from state")
 
     # 顺序校验
     ok, msg = check_order(step_num)
     if not ok:
+        log.error(f"main: order check failed for step={step_num}")
         print(msg)
         sys.exit(1)
 
     # 获取 batch_id
     state = load_state()
     batch_id = state.get("batch_id", "p27-full")
+    log.info(f"main: executing step={step_num} ({SOP_NAMES[step_num]}) batch={batch_id}")
 
     # 打印头部 + SOP 文档
     print_header(step_num)
     print_sop_doc(step_num)
+    log.info(f"main: printed SOP doc for step={step_num}")
 
     # 执行该步骤的自动化检查逻辑
     check_fn = STEP_CHECKS.get(step_num)
     if check_fn:
-        check_fn(batch_id)
+        log.info(f"main: running check function for step={step_num}")
+        try:
+            check_fn(batch_id)
+            log.info(f"main: check function completed for step={step_num}")
+        except Exception as e:
+            log.error(f"main: check function failed for step={step_num}: {e}", exc_info=True)
+            print(f"⚠️ 检查函数执行失败: {e}")
+    else:
+        log.warning(f"main: no check function for step={step_num}")
 
     # 推进状态
     advance(step_num)
 
     # 打印 todo 指令
     print_todo_directive(step_num)
+    log.info(f"main: step={step_num} done, todo directive printed")
 
 
 if __name__ == "__main__":

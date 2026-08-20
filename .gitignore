@@ -5,3 +5,4 @@ __pycache__/
 analysis-devin-failure-system/output/
 *.log
 .DS_Store
+log/

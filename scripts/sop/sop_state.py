@@ -16,10 +16,15 @@
 """
 
 import json
+import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
+from scripts.sop.sop_log import get_logger
+
 STATE_FILE = Path(__file__).parent / "_state.json"
+
+log = get_logger("state")
 
 # SOP 步骤定义——顺序即循环顺序
 SOP_STEPS = ["01", "02", "03", "04", "05", "06", "Z"]
@@ -49,10 +54,13 @@ SOP_DOCS = {
 
 def load_state():
     with open(STATE_FILE) as f:
-        return json.load(f)
+        state = json.load(f)
+    log.debug(f"load_state: {state}")
+    return state
 
 
 def save_state(state):
+    log.info(f"save_state: last={state.get('last')} next={state.get('next')} cycle={state.get('cycle')}")
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
@@ -79,6 +87,7 @@ def check_order(step_num):
     state = load_state()
     expected = state["next"]
     if expected == step_num:
+        log.info(f"check_order PASS: step={step_num} (expected={expected})")
         return True, None
     last = state.get("last", "（无）")
     last_name = SOP_NAMES.get(last, "（无）")
@@ -92,6 +101,7 @@ def check_order(step_num):
         f"   python -m scripts.sop._set_next {step_num}\n"
         f"   然后再执行本脚本。"
     )
+    log.warning(f"check_order FAIL: step={step_num} expected={expected} last={last}")
     return False, msg
 
 
@@ -101,6 +111,9 @@ def advance(step_num):
     state["next"] = get_next_step_num(step_num)
     if step_num == "Z":
         state["cycle"] = state.get("cycle", 0) + 1
+        log.info(f"advance: step={step_num} → cycle {state['cycle']} completed, next={state['next']}")
+    else:
+        log.info(f"advance: step={step_num} → next={state['next']}")
     state["last_ts"] = datetime.now(timezone.utc).isoformat()
     save_state(state)
     return state
@@ -108,9 +121,11 @@ def advance(step_num):
 
 def set_next(step_num):
     if step_num not in SOP_STEPS:
+        log.warning(f"set_next: invalid step={step_num}")
         return False, f"无效步骤编号: {step_num}，有效值: {SOP_STEPS}"
     state = load_state()
     state["next"] = step_num
+    log.info(f"set_next: forcing next={step_num} ({SOP_NAMES[step_num]})")
     save_state(state)
     return True, f"已设定下一步为步骤 {step_num}（{SOP_NAMES[step_num]}）"
 

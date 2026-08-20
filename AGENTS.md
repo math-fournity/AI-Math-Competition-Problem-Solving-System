@@ -162,7 +162,8 @@ SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _stat
 | continuation_control.py | `monitoring/` | **解题系统控制脚本**——start/stop/status/health/set-concurrency/sessions |
 | monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01 调用它） |
 | SOP_01~06 + Z | `docs/sop/` | Master Agent SOP 文档（7个，自包含+认知闭包） |
-| run + checks + sop_state + _set_next | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理） |
+| run + checks + sop_state + _set_next + dry_run + sop_log | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理+dry-run验证+日志） |
+| log/ | `log/` | SOP 日志目录（循环覆盖，最多500个文件，每个最大1MB，总上限500MB） |
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
 | README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
 | MasterAgentCheck.md | `checklist/` | Master Agent SOP 索引（内容已迁移到 docs/sop/） |

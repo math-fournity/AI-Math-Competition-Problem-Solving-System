@@ -14,6 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.sop.sop_state import load_state, set_next, SOP_STEPS, SOP_NAMES
+from scripts.sop.sop_log import get_logger
+
+log = get_logger("set_next")
 
 
 def main():
@@ -27,6 +30,7 @@ def main():
 
     if arg == "status":
         state = load_state()
+        log.info(f"status query")
         print("=== SOP 流程状态 ===")
         print(f"  上一个: sop_{state.get('last')}（{SOP_NAMES.get(state.get('last'), '无')}）")
         print(f"  下一个: sop_{state.get('next')}（{SOP_NAMES.get(state.get('next'), '无')}）")
