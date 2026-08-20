@@ -24,9 +24,28 @@
 3. **持续循环**——用 `todo_write` 建 todo list，最后一项固定是"执行 `python -m scripts.sop.run`"。完成当前阶段所有 todo 后，执行最后一项自动触发下一阶段。7 步循环（01→02→03→04→05→06→Z→01...）持续运行，这就是 7x24 监控。
 
 4. **停止条件**——只有以下情况停止循环：
-   - 用户说"停止"/"停"/"结束"
-   - 检查脚本显示"所有任务已完成"（pending=0, running=0）
+   - 用户说"停止"/"停"/"结束"→ 执行停止命令（见下方）
+   - 检查脚本显示"所有任务已完成"（pending=0, running=0）→ 执行停止命令
    - 系统出现无法自动修复的严重故障需用户介入
+
+**停止命令**：
+```
+# 优雅停止（推荐）——launcher收到SIGINT后不再启动新run，等running自然完成
+python -m monitoring.continuation_control stop
+
+# 强制停止——停服务+清理done session+清空Redis队列（stuck/running不kill，等DONE.md）
+python -m monitoring.continuation_control stop --force
+```
+
+**其他控制命令**：
+```
+python -m monitoring.continuation_control status --batch-id p27-full    # 查看状态
+python -m monitoring.continuation_control health --batch-id p27-full    # 健康检查
+python -m monitoring.continuation_control set-concurrency --batch-id p27-full --concurrency 3  # 动态调并发
+python -m monitoring.continuation_control sessions --status stuck       # 查看stuck session
+python -m monitoring.continuation_control sessions --clean-done         # 批量清理done session
+python -m monitoring.continuation_control sessions --consistency-check  # 注册表vs tmux一致性
+```
 
 ---
 
@@ -107,6 +126,8 @@ SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _stat
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
+| continuation_control.py | `monitoring/` | **解题系统控制脚本**——start/stop/status/health/set-concurrency/sessions 子命令。启动和停止系统都用这个，不写inline代码 |
+| monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01 调用它获取系统状态） |
 | SOP_01~06 + Z | `docs/sop/` | Master Agent SOP 文档（7个，自包含+认知闭包，被脚本读取打印） |
 | run + checks + sop_state + _set_next | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理） |
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
