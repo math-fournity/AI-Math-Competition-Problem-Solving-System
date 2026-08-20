@@ -102,6 +102,13 @@ cognitive-closure,views/cognitive-closure.md,basement/015-README-view-unificatio
 运行操作,docs/specs/README.md,docs/architecture/dynamic-concurrency.md,document,动态并发设计
 运行操作,docs/specs/README.md,docs/architecture/graceful-shutdown.md,document,优雅停止设计
 运行操作,docs/specs/README.md,docs/architecture/operational-concerns.md,document,运维关注点
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_01.md,document,SOP step_01报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_02.md,document,SOP step_02报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_03.md,document,SOP step_03报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_04.md,document,SOP step_04报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_05.md,document,SOP step_05报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_06.md,document,SOP step_06报表模板（检查项清单+检查方法+填写位置）
+运行操作,docs/specs/README.md,docs/sop/templates/report_step_Z.md,document,SOP step_Z报表模板（检查项清单+检查方法+填写位置）
 运行操作,docs/specs/README.md,docs/specs/p27_monitor_pipe_operations.md,document,Monitor Pipe操作规范
 运行操作,docs/specs/README.md,docs/specs/p27_monitor_spec.md,document,Pipe 4续传检查规范
 运行操作,docs/specs/README.md,docs/specs/p27_session_management_and_polish_spec.md,document,Session编号化管理与打磨规范

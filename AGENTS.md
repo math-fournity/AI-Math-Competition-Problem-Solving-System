@@ -128,14 +128,16 @@ python -m scripts.sop._set_next status    # 查看当前状态
 SOP 文档目录：`docs/sop/`（SOP_01~06 + SOP_Z，共 7 个）
 SOP 脚本目录：`scripts/sop/`（run + checks + report + sop_state + _set_next + _state.json）
 
-**报表系统**：每次SOP步骤执行后，脚本自动在D盘生成报表目录：
+**报表系统**：每次SOP步骤执行后，脚本自动在D盘生成报表目录，并把报表模板复制过去：
 `/Volumes/data/math-agent-glm5.2-tmux-agents-trajectory/p27-sop-reports/cycle_{NNN}/step_{XX}/{timestamp}/`
-- `report.md` — AI必须填写的报表（检查项打勾+发现+操作）
+- `report.md` — 从模板复制过来的报表，AI必须填写（检查项打勾+发现+操作）
 - `snapshot.json` — 系统快照（聚合统计）
 - `snapshot_runs.json` — 全量per-run数据（每道题的status/round/完成情况）
 - `check_output.txt` — 脚本输出原文
 
-**每次检查必须填写 report.md**——这是审计痕迹，回头可以grep到某一轮检查某个step中AI查了什么、结果是什么。不填写报表 = 检查没有完成。
+**报表模板是项目运行期资产**，存放在 `docs/sop/templates/report_step_{XX}.md`（7个模板文件，每个step一个）。模板中包含每个检查项的检查方法、填写位置、格式要求。和给解题devin cli的提示词模板文件一样，是AI运行用资产。
+
+**每次检查必须填写 report.md**——加载D盘报表目录中的report.md，按模板中的检查方法逐项检查并填写，填写完用edit写回。这是审计痕迹，回头可以grep到某一轮检查某个step中AI查了什么、结果是什么。不填写报表 = 检查没有完成。
 
 **这个指令放在最前面是因为**：连续运行中 AGENTS.md 后部可能被截断，这个指令必须始终可见。
 
