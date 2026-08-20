@@ -99,7 +99,7 @@ python -m src.observability --run-key <run_key>    # 某题完整生命周期（
 python -m src.step_gate --list                    # 门闸目录
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE  # 卡住下一次解题启动
 python -m src.step_gate --pending                 # 看谁在等（输出完整检查清单）
-python -m src.step_gate --step GATE-LAUNCH-SOLVE  # 放行一次
+python -m src.step_gate --step GATE-LAUNCH-SOLVE --reason '...'  # 放行（附理由，落盘flow流水）
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE  # 恢复自动
 ```
 

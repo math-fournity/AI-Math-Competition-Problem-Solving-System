@@ -203,11 +203,17 @@ feeder 1个：初次入队）变成可单步跟踪的门闸。**hold住一个门
 ```
 python -m src.step_gate --list      # 门闸目录（按resource分组）
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE   # 卡住下一次解题启动
-python -m src.step_gate --pending   # 看谁在等（完整输出checklist闭包）
-python -m src.step_gate --step GATE-LAUNCH-SOLVE   # 放行一次
+python -m src.step_gate --pending   # 看谁在等（完整输出checklist+论证依据闭包）
+python -m src.step_gate --step GATE-LAUNCH-SOLVE --reason '看到1✓+2✓+3✓+4✓，理由：前置条件满足'   # 放行（必须附理由）
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE   # 恢复自动
 python -m src.step_gate --hold-resource tmux       # 按分类批量hold
 ```
+
+**落盘论证（铁律）**：放行必须用 `--reason` 附理由——理由落盘到 `gate_release`
+行为流水（log/flow/，grep可回溯"某轮某闸放行了什么、为什么"）。`--pending`
+输出的checklist闭包现在含【检查项】（含查法）+【论证依据】（可放行+理由/不可放行+理由），
+你按论证依据核对后附理由放行。**不放行（维持hold）也要在 report.md 的门闸记录区填写原因。**
+没有理由的放行=审计断点，016教训：失控循环就是"无人论证的动作连续发生"。
 
 **使用时机**：怀疑某个动作有问题时（如A14报了launch_churn），hold住对应
 门闸逐次放行+检查；日常监控不需要hold。hold会阻塞launcher主循环，

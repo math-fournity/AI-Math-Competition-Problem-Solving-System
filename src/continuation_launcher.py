@@ -138,10 +138,17 @@ def remove_old_proof(work_dir, round_num, started_at=None):
       proof.md会被本轮误判为完成（016事故P0-2根因），所以启动新一轮前必须删；
     - 但删除文件本身不可逆——删错了就丢失解题成果证据。
 
-    放行前Master Agent应检查：
-    1. 要删的确实是旧proof：mtime早于本轮启动时间（started_at参数）；
-    2. 若上一轮完成过，proof应已归档为round{N}_proof.md（归档优先于删除）；
-    3. 该run当前没有正在运行的session可能在写proof.md。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. 要删的确实是旧proof → 查法：stat work_dir/proof.md的mtime < started_at
+    2. 上轮proof已归档 → 查法：ls work_dir/round*_proof.md（归档优先于删除）
+    3. 无运行中session在写proof → 查法：find_active_session(db,run_key,pid)返回None
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓(mtime<started_at)+3✓(无session写proof)。理由：删的是上轮残留proof，
+       删除不丢失本轮成果也不破坏正在写入的proof——旧产物清场正确(016 P0-2)
+    不可放行：mtime≥started_at→这是本轮刚写的proof，删=丢失解题成果；
+       有运行session→可能正写proof，删=破坏
 
     调用点：三处（v2 handover回退分支 / v2 handover完成启动solve / v1直接启动），
     全部在launch_batch主循环"启动新一轮"之前。
@@ -449,11 +456,17 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
     - 016事故中上千个handover session全部从这里产生——旧HANDOVER.md被
       check_handover秒判成功，导致"启动→秒判→重入队→再启动"死循环。
 
-    放行前Master Agent应检查：
-    1. prev_export存在且mtime属于本轮应引用的那一轮（非历史残留）；
-    2. 面包屑地图已生成（map_path存在且非空）；
-    3. 该run无活跃handover session；
-    4. round_num正确（生成的是round{N-1}的HANDOVER）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. prev_export非历史残留 → 查法：stat prev_export的mtime属于应引用的那一轮
+    2. 面包屑地图已生成 → 查法：ls map_path存在且非空
+    3. 无活跃handover session → 查法：find_active_session(db,run_key,pid)返回None
+    4. round_num正确 → 查法：DB run的current_round+1 == round_num
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓+2✓+3✓+4✓。理由：Pipe A输入(prev_export+map)正确非残留、无重复
+       handover、round编号正确——启动不会产生016"秒判→重入队→再启动"循环
+    不可放行：1✗(prev_export残留)→016根因重现；3✗(有活跃handover)→重复启动=失控循环
 
     返回handover信息dict（含session_name/session_key和路径），或None（启动失败时）。
     主循环通过check_handover()检查是否完成。
@@ -611,11 +624,18 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
     - 016事故的失控循环就是"启动"这个动作被高频触发（18分钟上千次），
       Master Agent当时既看不见也拦不住。
 
-    放行前Master Agent应检查：
-    1. work_dir存在且属于该run；
-    2. 该run无活跃session（P0-1防抖已做，此为双保险）；
-    3. 并发槽真的空闲（running+handover_pending < concurrency）；
-    4. prompt文件内容合理（题目文本+上轮reasoning/HANDOVER都在）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. work_dir存在且属于该run → 查法：ls work_dir + DB run记录的work_dir字段比对
+    2. 该run无活跃session → 查法：find_active_session(db,run_key,pid)返回None
+    3. 并发槽空闲 → 查法：len(running)+len(handover_pending)<concurrency
+    4. prompt内容合理 → 查法：head prompt_file，确认题目文本+上轮reasoning/HANDOVER
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓+2✓+3✓+4✓。理由：系统最重动作的所有前置条件满足——产物归属正确、
+       无重复启动(016 P0-1)、并发不超限(016根因)、输入完整。启动不会产生失控循环
+    不可放行：2✗(有活跃session)→重复启动=016失控循环直接原因；
+       3✗(并发满)→超并发=016"设1跑6"直接原因；4✗(prompt空)→devin立即失败=浪费配额
 
     如果传了db，使用编号化管理（allocate_seq + create_session_record）。
     返回 (session_name, session_key) 元组——session_key在编号化管理时为"p27-s{seq}"，
@@ -715,10 +735,17 @@ def requeue_skip(r, run_key, pid, priority, source, session_name=""):
     - 016事故后加的requeued_keys守卫保证同一轮poll不会无限跳过——
       再取到已跳过的key就break等下一轮。
 
-    放行前Master Agent应检查：
-    1. source=orphan时：该session_name真的还在tmux里（tmux has-session）；
-    2. 该题不是被误伤（比如launcher重启后正常接管的题）；
-    3. 重入队后score=9999确实排在队尾（NX模式不被feeder重置）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. source=orphan时session真在tmux → 查法：tmux has-session -t <session_name>
+    2. 该题非误伤 → 查法：observability --run-key看该run历史，判断是否真孤儿
+    3. score=9999在队尾 → 查法：ZRANGE p27:pending 0 -1 WITHSCORES查该key的score
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓(orphan时session真在tmux)+3✓(score=9999队尾)。理由：防抖拦截合理
+       (真孤儿/真重复)，重入队低优先级排队尾不抢队首——不产生016"跳过→重取→再跳过"死循环
+    不可放行：2✗(被误伤)→正常题被当孤儿跳过=系统有bug；
+       3✗(score被feeder重置回0)→016 P0-3根因重现(NX失效)
     """
     enqueue_pending(r, run_key, priority=9999)
 
@@ -737,11 +764,17 @@ def overwrite_round1_seed(work_dir, seed_export, run_key, pid):
     - 覆盖本身无损（原件在seed_export路径），但若seed_export路径失效，
       旧文件会残留——这正是hold此闸时要检查的。
 
-    放行前Master Agent应检查：
-    1. seed_export路径存在且非空；
-    2. 该run是本轮首次取件（current_round==1）；
-    3. 覆盖前的round1_export.json若是"今天以前的旧文件"，说明它就是
-       016模式的历史残留（覆盖它是对的，不用担心）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. seed_export存在且非空 → 查法：ls -la seed_export路径
+    2. 本轮首次取件 → 查法：DB run的current_round==1
+    3. 旧round1_export是历史残留 → 查法：stat round1_export.json的mtime是今天以前
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓(seed存在)+2✓(首次取件)。理由：用正确seed覆盖=旧产物清场(016 P0-2)，
+       round1_export恢复正确镜像，后续截断/完成判定基于正确产物
+    不可放行：1✗(seed不存在)→代码会shutil.copy(空路径)崩溃；
+       2✗(非首次取件)→不该覆盖(可能已有正确round1)
     """
     import shutil
     round1_export = Path(work_dir) / "round1_export.json"
@@ -766,11 +799,16 @@ def kill_session(session_name, run_key, pid, reason):
     - 项目铁律"绝不kill无DONE.md的session"管的就是这里——dead_session
       分支是唯一例外（DONE.md已出现但无proof）。
 
-    放行前Master Agent应检查：
-    1. reason=completed/truncated时：DONE.md已出现、export已落盘
-       （export文件存在且mtime属于本轮）；
-    2. reason=dead_session时：judge事件的reason成立（devin确实退出了）；
-    3. 该session_name确实是注册表里登记的那个（防误杀）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. reason=completed/truncated时成果已落地 → 查法：ls DONE.md存在 + export文件mtime属于本轮
+    2. reason=dead_session时判定成立 → 查法：observability --run-key看judge事件reason
+    3. session_name匹配注册表 → 查法：DB p27_sessions查该session_name的run_key一致
+
+    【论证依据——放行/不放行判定】
+    可放行：(1✓或2✓)+3✓。理由：kill的是已完成(成果已归档)或已死(devin已退出无proof)的session，
+       且确认是正确session——不违反铁律"绝不kill无DONE.md的session"(dead_session是唯一例外:DONE.md已出现但无proof)
+    不可放行：1✗(无DONE.md)且非dead_session→违反铁律；3✗(session_name不匹配)→误杀风险
     """
     tmux_kill(session_name)
 
@@ -789,12 +827,18 @@ def requeue_truncated(r, run_key, pid, round_num):
     - 重入队前run被标回prepared、rounds_log已append——放行前这些都是
       可查的。
 
-    放行前Master Agent应检查：
-    1. 截断判定成立：judge事件reason里comp tokens≥24000、rc>1000、
-       msg=0（is_truncated的完整条件）；
-    2. rounds_log最后一条是本轮（round_num）且export路径有效；
-    3. round_num < max_rounds（到max走TRUNCATED_AT_MAX分支不重入队）；
-    4. 重入队score=round_num未被feeder重置（NX模式保证）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. 截断判据完整 → 查法：observability --run-key看judge事件的comp≥24000+rc>1000+msg=0
+    2. rounds_log+export正确 → 查法：DB run的rounds_log最后一条round==round_num且export路径存在
+    3. 未到max → 查法：round_num < DB batch的max_rounds(默认3)
+    4. score未被feeder重置 → 查法：ZRANGE p27:pending查该key的score==round_num(非0)
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓+2✓+3✓+4✓。理由：多轮续传正常流转——截断判定有据、轮次记录完整、
+       未到上限、优先级正确排队尾。重入队后该题等下一轮启动，不产生016循环
+    不可放行：1✗(截断判据不完整)→016核心根因(误判截断→失控)；3✗(到max)→应走TRUNCATED_AT_MAX不重入队；
+       4✗(score被重置回0)→016 P0-3根因重现(NX失效)
     """
     enqueue_pending(r, run_key, priority=round_num)
 
@@ -813,11 +857,19 @@ def finalize_run_completed(db, r, run_key, pid, round_num, done_reason,
     - COMPLETED是整题终态，直接影响通过率统计和POC-2.5选题；
     - 写入后只有人工改DB才能翻案。误判完成=该题永远失去续传机会。
 
-    放行前Master Agent应检查：
-    1. proof.md有\\boxed且mtime晚于本轮启动（P0-2已校验，双保险）；
-    2. export已落盘（devin退出后export才完整）；
-    3. rounds_log条目齐全（本轮的中间产物路径都在）；
-    4. 若是抽样题：C类AI抽查过数学正确性（无幻觉/无泄漏）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. proof有boxed且是本轮产出 → 查法：grep boxed proof.md + stat mtime>started_at
+    2. export已落盘 → 查法：ls export文件存在且mtime属于本轮
+    3. rounds_log齐全 → 查法：DB run的rounds_log每条都有export/prompt/proof路径
+    4. 抽样题C类PASS → 查法：DB run的ai_review_result(抽样题时SOP_04已查)
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓+2✓+3✓+(抽样题时4✓)。理由：整题终态写入前置全满足——proof是本轮产出
+       非残留(016 P0-2)、export完整可审计、轮次记录完整、(抽样题)数学正确性已抽查。
+       写COMPLETED后该题正确进入选题池
+    不可放行：1✗(proof旧残留/mtime早于本轮)→016 P0-2根因(旧proof误判完成)，
+       误判COMPLETED=该题永远失去续传机会；4✗(抽样题C类FAIL)→数学错误/幻觉，不可判完成
     """
     completed_list = []
     archived_proof = Path(archived_proof)

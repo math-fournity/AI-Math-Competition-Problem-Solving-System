@@ -44,7 +44,7 @@ Master Agent操作（CLI）：
   python -m src.step_gate --list         # 查看所有门闸：位置/文档/模式/触发次数
   python -m src.step_gate --hold GATE-ID # 切到hold（下一个该动作会被冻结）
   python -m src.step_gate --auto GATE-ID # 切回auto
-  python -m src.step_gate --step GATE-ID # 放行（proceed置1，代码执行后自清零）
+  python -m src.step_gate --step GATE-ID --reason '...' # 放行（附理由，落盘flow流水；代码执行后自清零）
   python -m src.step_gate --pending      # 查看正在等待放行的门闸（含完整checklist）
   python -m src.step_gate --hold-all / --auto-all
   python -m src.step_gate --hold-resource tmux  # 按resource分类批量hold
@@ -254,16 +254,19 @@ def _gate_pass_or_wait(gate_id, ctx):
             except Exception:
                 pass  # DB瞬断——继续轮询（不能因为DB抖动漏执行动作）
             if doc and doc.get("proceed") == 1:
-                # 放行信号到了——代码自己reset为0，然后继续执行
+                # 放行信号到了——读取放行理由（落盘论证），reset proceed，继续执行
+                reason = doc.get("release_reason", "")
                 try:
                     _get_db().collection(COLLECTION).update({
                         "_key": gate_id, "proceed": 0,
                         "waiting_for": None, "waiting_since": None,
+                        "release_reason": "",  # 已记入flow流水，清空避免残留
                     })
                 except Exception:
                     pass
                 log_flow("gate_release", run_key=ctx.get("run_key"),
-                         gate_id=gate_id, waited_seconds=round(time.time() - start, 1))
+                         gate_id=gate_id, waited_seconds=round(time.time() - start, 1),
+                         reason=reason)
                 return
             # 心跳——Master Agent在行为流水里能看到"还卡着"
             if time.time() - last_heartbeat >= HOLD_HEARTBEAT_SECONDS:
@@ -356,6 +359,8 @@ def _main():
                     help="按resource分类批量hold（redis/db/file/tmux/action）")
     ap.add_argument("--auto-resource", metavar="RES",
                     help="按resource分类批量auto")
+    ap.add_argument("--reason", default="",
+                    help="放行理由（落盘到gate_release流水+DB，--step时必填）")
     args = ap.parse_args()
 
     if not any([args.register, args.list, args.hold, args.auto, args.step,
@@ -393,9 +398,16 @@ def _main():
         if not doc:
             print(f"  ❌ 门闸不存在: {args.step}")
             return
-        col.update({"_key": args.step, "proceed": 1})
+        if not args.reason:
+            print("  ⚠️ 未附放行理由——落盘论证是门闸机制的核心要求")
+            print("  ⚠️ 建议: --step GATE-ID --reason '看到1✓+2✓+3✓+4✓，理由：前置条件满足'")
+            print("  ⚠️ 仍将放行（兼容测试），但生产中必须附理由")
+        col.update({"_key": args.step, "proceed": 1,
+                    "release_reason": args.reason or "(未附理由)"})
         wf = doc.get("waiting_for") or {}
         print(f"  ✅ 已放行 {args.step}（等待中的run: {wf.get('run_key', '无')}）")
+        if args.reason:
+            print(f"  📝 放行理由（已落盘flow流水）: {args.reason}")
     elif args.pending:
         _list_pending(col)
     elif args.hold_resource or args.auto_resource:
@@ -456,7 +468,7 @@ def _list_pending(col):
             found = True
             print(f"  ⏳ {doc['_key']} (自 {doc.get('waiting_since')})")
             print(f"     上下文: {doc['waiting_for']}")
-            print(f"     放行: python -m src.step_gate --step {doc['_key']}")
+            print(f"     放行: python -m src.step_gate --step {doc['_key']} --reason '看到1✓+2✓...理由...'")
             print(f"     维持hold: python -m src.step_gate --auto {doc['_key']} 不放行则一直冻结")
             print(f"     --- 认知闭包 / 放行前检查清单 ---")
             for line in extract_checklist(doc.get("doc") or "").splitlines():

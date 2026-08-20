@@ -39,11 +39,17 @@ def feed_enqueue(r, key, batch_id):
     - 016前此动作不进行为流水黑匣子（只写debug日志），Master Agent
       看不见——现在每次入队写log_flow。
 
-    放行前Master Agent应检查：
-    1. 该key在DB里确实是prepared状态（AQL刚查过，但取到排队首可能有延迟）；
-    2. 若返回0（已在队列）：ZRANK p27:pending <key> 的score应为非0旧值
-       （round_num或9999）——NX不覆盖score的直接证据，016根因的复核点；
-    3. pending总量无异常膨胀（ZCARD p27:pending 对比上一轮feed_batch计数）。
+    放行前Master Agent应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. 该key确实是prepared → 查法：DB p27_continuation_runs查该run_key的status==prepared
+    2. 返回0时score未被重置 → 查法：ZRANK p27:pending <key>看score(应为round_num或9999，非0)
+    3. pending总量正常 → 查法：ZCARD p27:pending对比上一轮feed_batch计数
+
+    【论证依据——放行/不放行判定】
+    可放行：1✓(确实是prepared)+3✓(pending总量正常)。理由：feeder初次入队是所有题
+       进入调度的唯一正门，入队的是真正prepared的题、pending正常——不产生016"feeder高频重喂→队列永远清不空"
+    不可放行：2返回0时score被重置为0→016 P0-3根因重现(NX失效，feeder重置优先级导致失控循环)；
+       3✗(pending异常膨胀)→016现象(feeder死循环重喂)
     """
     added = enqueue_pending(r, key, priority=0)
     log_flow("enqueue", run_key=key, batch_id=batch_id, priority=0,

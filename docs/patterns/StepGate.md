@@ -122,9 +122,12 @@ docstring 里有一段自包含的**认知闭包**——但闭包放在哪里、
    是对的"，随代码写随代码改）。如果 SOP 枚举各闸 checklist，每加一个闸
    改一份 SOP，N 闸 × 7 文档的漂移矩阵。
 3. **"放行前"标题是机器可提取的接口**：所有闸的 docstring 固定写
-   `放行前Master Agent应检查：` 段落（checklist 约定是 docstring 的最后
-   一段），`extract_checklist()` 按这个标题截取，`--pending` 和 SOP_01
+   `放行前Master Agent应检查并论证：` 段落（约定是 docstring 的最后
+   一段），含【检查项】（每项含查法）+【论证依据】（可放行+理由/不可放行+理由）。
+   `extract_checklist()` 按这个标题截取，`--pending` 和 SOP_01
    检查脚本输出完整闭包。没这段的闸是半成品。
+   **放行用 `--step GATE-ID --reason '...'` 附理由**——理由落盘到 gate_release
+   流水，grep 可回溯。没有理由的放行=审计断点。
 
 ### 2.4 定位用"函数名+docstring"，不用行号
 
@@ -210,8 +213,8 @@ launcher 和 feeder 以触发所有装饰器收集）——代码加新门闸只
 python -m src.step_gate --register    # 注册/刷新门闸目录到DB
 python -m src.step_gate --list        # 目录：按resource分组/文档/模式/等待状态
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE    # 卡住下一次解题启动
-python -m src.step_gate --pending     # 谁在等——完整输出checklist闭包（单步时刻）
-python -m src.step_gate --step GATE-LAUNCH-SOLVE    # 放行一次（proceed置1）
+python -m src.step_gate --pending     # 谁在等——完整输出checklist+论证依据闭包（单步时刻）
+python -m src.step_gate --step GATE-LAUNCH-SOLVE --reason '看到1✓+2✓...理由...'    # 放行（附理由，落盘flow流水）
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE    # 恢复自动
 python -m src.step_gate --hold-all / --auto-all     # 批量切换
 python -m src.step_gate --hold-resource tmux        # 按分类批量hold
