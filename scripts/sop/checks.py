@@ -205,6 +205,176 @@ def check_02_data_integrity(batch_id):
             print(f"  ⚠️ {proof_exists - proof_has_boxed} 个 proof.md 没有 boxed 答案（未完成的证明）")
         print()
 
+        # === 数据库集合级完整性检查 ===
+
+        # --- results 集合检查（缺口1）---
+        from src.continuation_config import CONTINUATION_RESULTS_COLLECTION
+        results_count = db.collection(CONTINUATION_RESULTS_COLLECTION).count()
+        print(f"--- results 集合检查 ---")
+        print(f"  results 集合文档数: {results_count}")
+        print(f"  runs 中 COMPLETED 数: {completed}")
+        if completed > 0 and results_count < completed:
+            print(f"  ⚠️ results 集合为空或不满——{completed - results_count} 个 COMPLETED 的结果未归档到 results（数据丢失风险）")
+        elif results_count == 0 and completed == 0:
+            print(f"  （无 COMPLETED run，results 为空属正常）")
+        else:
+            print(f"  results 归档完整")
+        print()
+
+        # --- events 完整性检查（缺口5）---
+        from src.continuation_config import CONTINUATION_EVENTS_COLLECTION
+        aql_events = (
+            f"FOR e IN {CONTINUATION_EVENTS_COLLECTION} "
+            f"FILTER e.batch_id == @bid "
+            f"COLLECT rk = e.run_key INTO events = e.event_type "
+            f"RETURN {{run_key: rk, events: events}}"
+        )
+        cursor_events = db.aql.execute(aql_events, bind_vars={"bid": batch_id}, ttl=120)
+        all_events = list(cursor_events)
+        incomplete_events = []
+        for e in all_events:
+            rk = e.get("run_key", "")
+            evs = e.get("events", [])
+            has_launched = any("launched" in x for x in evs)
+            has_end = any("completed" in x or "failed" in x for x in evs)
+            if has_launched and not has_end:
+                incomplete_events.append(rk)
+        print(f"--- events 完整性检查 ---")
+        print(f"  有事件的 run 数: {len(all_events)}")
+        print(f"  有 launched 无 completed/failed: {len(incomplete_events)} 个")
+        if incomplete_events:
+            print(f"  ⚠️ 以下 run 事件不完整（可能还在运行或崩溃未写完成事件）：")
+            for rk in incomplete_events[:10]:
+                print(f"    {rk}")
+            if len(incomplete_events) > 10:
+                print(f"    ... 还有 {len(incomplete_events) - 10} 个")
+        print()
+
+        # --- prepared 堆积检查（缺口3）---
+        aql_prepared = (
+            f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+            f"FILTER run.batch_id == @bid "
+            f"FILTER run.status == 'prepared' "
+            f"COLLECT WITH COUNT INTO cnt RETURN cnt"
+        )
+        prepared_count = list(db.aql.execute(aql_prepared, bind_vars={"bid": batch_id}, ttl=60))[0]
+        print(f"--- prepared 堆积检查 ---")
+        print(f"  prepared 状态的 run 数: {prepared_count}")
+        try:
+            from src.continuation_redis_queue import get_redis, pending_count
+            r = get_redis()
+            redis_pending = pending_count(r)
+            print(f"  Redis pending 数: {redis_pending}")
+            if prepared_count > 0 and redis_pending == 0:
+                print(f"  ⚠️ {prepared_count} 个 prepared 但 Redis pending=0——feeder 可能没在入队")
+            elif prepared_count > redis_pending * 10:
+                print(f"  ⚠️ prepared({prepared_count}) 远大于 pending({redis_pending})——入队速度可能跟不上")
+            else:
+                print(f"  prepared/pending 比例正常")
+        except Exception as re:
+            print(f"  Redis 查询失败: {re}")
+        print()
+
+        # --- 按题源完成率统计（缺口2）---
+        from collections import defaultdict
+        aql_src = (
+            f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+            f"FILTER run.batch_id == @bid "
+            f"RETURN {{pid: run.problem_id, fs: run.final_status}}"
+        )
+        cursor_src = db.aql.execute(aql_src, bind_vars={"bid": batch_id}, ttl=120, batch_size=500)
+        src_stats = defaultdict(lambda: {"total": 0, "completed": 0})
+        for r in cursor_src:
+            src = r["pid"].split("_")[0]
+            src_stats[src]["total"] += 1
+            if r["fs"] == "COMPLETED":
+                src_stats[src]["completed"] += 1
+        print(f"--- 按题源完成率统计 ---")
+        zero_sources = []
+        for src in sorted(src_stats.keys()):
+            s = src_stats[src]
+            rate = s["completed"] / s["total"] if s["total"] > 0 else 0
+            rate_str = f"{rate:.1%}"
+            flag = ""
+            if rate == 0:
+                flag = " ⚠️ 全0%"
+                zero_sources.append(src)
+            print(f"  {src}: {s['completed']}/{s['total']} = {rate_str}{flag}")
+        if zero_sources:
+            print(f"  ⚠️ {len(zero_sources)} 个题源完成率为0%——系统性问题（prompt不适用？model不胜任？还是没跑到？）")
+        print()
+
+        # --- 标准文件检查（缺口6）---
+        aql_files = (
+            f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+            f"FILTER run.batch_id == @bid "
+            f"LIMIT 100 "
+            f"RETURN {{_key: run._key, pid: run.problem_id, work_dir: run.work_dir, "
+            f"traj_dir: run.trajectory_dir, status: run.status, fs: run.final_status}}"
+        )
+        cursor_files = db.aql.execute(aql_files, bind_vars={"bid": batch_id}, ttl=60)
+        file_issues = []
+        checked_runs = 0
+        for r in cursor_files:
+            checked_runs += 1
+            wd = Path(r.get("work_dir", ""))
+            td = Path(r.get("traj_dir", ""))
+            pid = r.get("pid", "?")
+            # problem.txt
+            if wd.exists() and not (wd / "problem.txt").exists():
+                file_issues.append(f"  [{pid}] problem.txt 缺失")
+            # completed 的 proof.md
+            if r.get("fs") == "COMPLETED" and wd.exists() and not (wd / "proof.md").exists():
+                file_issues.append(f"  [{pid}] COMPLETED 但 work_dir/proof.md 缺失")
+            # round 1 的 export（不在 rounds_log 中）
+            if td.exists():
+                r1_export = td / "round1" / "exports" / "conversation.json"
+                if not r1_export.exists():
+                    # 也检查 exports/ 目录
+                    r1_export2 = td / "exports" / "conversation.json"
+                    if not r1_export2.exists():
+                        file_issues.append(f"  [{pid}] round1 export 缺失（不在rounds_log中）")
+        print(f"--- 标准文件检查（{checked_runs}个run）---")
+        if file_issues:
+            print(f"  发现 {len(file_issues)} 个问题：")
+            for issue in file_issues[:15]:
+                print(issue)
+            if len(file_issues) > 15:
+                print(f"  ... 还有 {len(file_issues) - 15} 个问题")
+        else:
+            print(f"  标准文件完整性正常")
+        print()
+
+        # --- round 编号连续性检查（缺口4）---
+        aql_rounds = (
+            f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+            f"FILTER run.batch_id == @bid "
+            f"FILTER LENGTH(run.rounds_log) > 0 "
+            f"LIMIT 50 "
+            f"RETURN {{_key: run._key, rounds: run.rounds_log[*].round}}"
+        )
+        cursor_rounds = db.aql.execute(aql_rounds, bind_vars={"bid": batch_id}, ttl=60)
+        discontinuous = []
+        starts_from_2 = 0
+        for r in cursor_rounds:
+            rounds = r.get("rounds", [])
+            if not rounds:
+                continue
+            if rounds[0] == 2:
+                starts_from_2 += 1
+            expected = list(range(rounds[0], rounds[0] + len(rounds)))
+            if rounds != expected:
+                discontinuous.append(f"  {r['_key']}: rounds={rounds}")
+        print(f"--- round 编号连续性检查（50个run）---")
+        print(f"  从 round=2 开始的 run: {starts_from_2}/50")
+        if discontinuous:
+            print(f"  编号不连续: {len(discontinuous)} 个")
+            for d in discontinuous[:5]:
+                print(d)
+        else:
+            print(f"  编号连续（但全部从 round=2 开始——需AI确认是否 by design）")
+        print()
+
     except Exception as e:
         print(f"⚠️ 数据完整性检查失败: {e}")
         print()

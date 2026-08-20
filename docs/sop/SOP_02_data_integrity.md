@@ -66,9 +66,21 @@
   - prompt 内容是否过短（<100字符）
 - **proof.md 质量统计（RUN-05）**——全量统计 COMPLETED 数 / proof.md 存在数 / 有 boxed 数，计算存在率和 boxed 率
 
+自动化检查还包含以下**数据库集合级和跨题目级别**的检查：
+
+- **results 集合检查**——results 集合文档数 vs runs 中 COMPLETED 数。results < COMPLETED → 结果未归档（critical）
+- **events 完整性检查**——有 launched 但无 completed/failed 的 run。可能是还在运行或崩溃未写完成事件（warning）
+- **prepared 堆积检查**——prepared 状态的 run 数 vs Redis pending 数。prepared > 0 但 pending = 0 → feeder 没在入队（critical）
+- **按题源完成率统计**——按 problem_id 前缀分组统计完成率。完成率 = 0% 的题源 → 系统性问题（critical）
+- **标准文件检查**——problem.txt / proof.md / round1 export 是否存在（rounds_log 之外的文件）
+- **round 编号连续性检查**——rounds_log 的 round 字段是否连续。当前全部从 round=2 开始——需确认是否 by design
+
 重点关注：
 - COMPLETED 的 run 缺少 proof.md → 数据丢失风险（critical）
 - proof.md 存在但没有 `\boxed` → 未完成的证明（warning）
+- results 集合为空但有 COMPLETED → 结果未归档（critical）
+- 某些题源完成率全 0% → 系统性问题，需诊断原因（critical）
+- prepared 堆积但 pending=0 → feeder 没在入队（critical）
 
 如果发现问题，逐个确认是否是真实问题（不是路径格式变化导致的误报）。
 
@@ -116,7 +128,31 @@ for s in sessions:
 - `continuation_launched`（每轮启动时）
 - `continuation_completed` 或 `continuation_failed`（每轮结束时）
 
-抽查几个 run，确认事件流完整——没有"启动了但没有完成/失败事件"的轮次（除非还在 running）。
+自动化检查已输出有 launched 无 completed/failed 的 run 列表。确认这些 run：
+- 如果 status=running → 正常（还在跑）
+- 如果 status=completed/dead_session → 异常（事件丢失）
+
+#### 2e. 跨题目模式分析（AI 必须做）
+
+自动化检查已输出按题源分组的完成率统计。这是**脚本给数据、AI 看趋势**的检查项：
+
+1. **完成率全 0% 的题源**——诊断原因：
+   - 这些题源的 run 是否都是 prepared？（还没跑到）
+   - 还是跑了但都失败了？（prompt 不适用？model 不胜任？）
+   - 还是跑了但都 truncated？（token 不够？题太难？）
+   - 用 AQL 按题源分组查 status 和 final_status 分布
+
+2. **完成率差异大的题源**——分析是否有共同特征：
+   - 题目类型（几何/代数/数论/组合）
+   - 题目难度
+   - 题目来源（竞赛题/教材题/生成题）
+
+3. **失败模式分布**——统计 truncated / no_proof / timeout / stall 各占多少：
+   - 全截断（5轮全 truncated）→ 可能是 token 不够
+   - 有 proof 但无 boxed → 可能是能力不足
+   - dead_session → 可能是基础设施问题
+
+**这是 AI 的核心价值**——脚本能统计分组数据，但只有 AI 能判断"为什么 oda 和 polymath 全 0%"是系统性问题还是还没跑到。
 
 ### 3. 记录发现的问题
 

@@ -114,5 +114,6 @@ cognitive-closure,views/cognitive-closure.md,basement/015-README-view-unificatio
 运行操作,docs/specs/README.md,scripts/monitor_check.sh,script,Pipe 1/2检查脚本
 运行操作,docs/specs/README.md,scripts/monitor_check_continuation.sh,script,Pipe 4检查脚本
 运行操作,docs/specs/README.md,scripts/monitor_check_selection.sh,script,Pipe 3检查脚本
+运行操作,docs/specs/README.md,scripts/sop/checks.py,code,SOP自动化检查逻辑（7个check函数）
 需求,checklist/README.md,checklist/ExecDevin.md,document,Monitor Exec Devin必读子集
 需求,checklist/README.md,checklist/README.md,document,需求点清单索引
