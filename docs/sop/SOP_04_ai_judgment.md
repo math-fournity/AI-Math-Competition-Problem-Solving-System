@@ -43,7 +43,7 @@ C类检查是**你作为AI的核心价值**——Python只能检查文件存在�
 
 上方 checks.py 已经查询了 `needs_ai_review=True` 且 `ai_review_done != true` 的 run（最多10个）。
 
-### 2. 逐个做 C1-C5 判断
+### 2. 逐个做 C1-C6 判断
 
 对每个条目：
 
@@ -124,7 +124,7 @@ python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL
 
 ## 你需要建立的 todo list
 
-- 每个待判断条目一个 todo（读文件+做C1-C5判断+记录结果）
+- 每个待判断条目一个 todo（读文件+做C1-C6判断+记录结果）
 - 需步骤05修复的（如续传方向错误是代码bug）
 - **填写 report.md 报表**（read加载→打勾填发现→edit写回）
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`

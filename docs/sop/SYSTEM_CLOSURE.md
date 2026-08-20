@@ -78,10 +78,55 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 
 DB 集合：p27_continuation_runs（每题续传记录，含rounds_log/status/final_status）/
 p27_continuation_events（事件流）/ p27_continuation_results（最终结果，含proof文本双写）/
-p27_sessions（session注册表）/ p27_step_gates（门闸状态）/ p27_monitor_alerts（alert）
+p27_sessions（session注册表）/ p27_step_gates（门闸状态）/ p27_monitor_alerts（alert）/
+p27_continuation_batches（批次记录，存concurrency等批次级配置）
 
 rounds_log 每条7字段：export/truncated/completed/reason/method + handover_path/map_path/
 prompt_path/prev_export/proof_path。round-1 只有 export（5基础字段）。
+
+**p27_sessions 文档字段**（session_registry.py:148-178，SOP_02 2c 检查依据）：
+`_key`(p27-s{seq}) / `seq`(全局序号，unique) / `session_name`(tmux名，unique) /
+`type`(solve/handover/monitor_exec) / `batch_id` / `started_at`/`started_at_ts` /
+`done_md`(bool)/`done_md_at` / `export_path`/`work_dir`/`tmux_log_path`/`report_path`/
+`worklog_path`/`prev_worklog_path` / `status`(running/done/stuck/cleaned) /
+`tmux_alive`(bool) / `pid`/`exit_code` / `notes` /
+可选：`run_key`/`round`(solve/handover) / `exec_seq`/`triggered_by_alert`(monitor_exec)
+> session_counter 文档（_key=p27_session_counter）存 counter 字段（原子递增分配 seq）。
+
+**Redis 队列 key 结构**（continuation_config.py:115-129）：
+- v2 方案（当前使用）：`p27:pending_handover`/`p27:pending_solve`（ZSET，score=优先级）/
+  `p27:running_handover`/`p27:running_solve`/`p27:completed_handover`/`p27:completed_solve`/
+  `p27:failed_handover`/`p27:failed_solve`/`p27:stats`(hash)
+- v1 方案（备用）：`p27:pending`/`p27:running`/`p27:completed`/`p27:failed`
+> feeder 入队用 NX 模式（016 P0-3：已存在不覆盖 score），priority=0 最高；
+> 截断/防抖重入队 priority=round_num 或 9999（排队尾）。
+
+**关键配置参数**（continuation_config.py，SOP_01/05 判断依据）：
+| 参数 | 值 | 含义 |
+|---|---|---|
+| `DEFAULT_CONCURRENCY` | 5 | 默认并发数（可被 DB batch 记录覆盖） |
+| `DEFAULT_MAX_RUNTIME_SECONDS` | 1800 | 单轮最大运行时间（30分钟） |
+| `DEFAULT_STALL_SECONDS` | 600 | 无活动判定 stall 阈值（10分钟） |
+| `DEFAULT_POLL_SECONDS` | 15 | launcher 轮询间隔 |
+| `DEFAULT_MAX_ROUNDS` | 5 | 最多续传轮次 |
+| `HANDOVER_TIMEOUT_SECONDS` | 600 | handover devin cli 超时（10分钟） |
+| `TRUNC_COMP_TOKENS_MIN` | 24000 | completion_tokens≥此值判定截断 |
+| `DEVIN_MODEL` | glm-5-2 | devin cli 模型（必须显式指定） |
+| `SIM_MODE` | env=1 开启 | 全流程模拟开关（生产绝不设） |
+
+**门闸 ID 全清单**（9个，step_gate.py + continuation_launcher.py + continuation_feeder.py）：
+| gate_id | 模块 | 动作 |
+|---|---|---|
+| `GATE-FEED-ENQUEUE` | feeder | 初次入队（priority=0，NX模式） |
+| `GATE-REMOVE-OLD-PROOF` | launcher | 删旧 proof.md（新一轮清场） |
+| `GATE-START-HANDOVER` | launcher | 启动 handover devin cli |
+| `GATE-LAUNCH-SOLVE` | launcher | 启动解题 devin cli（最重动作） |
+| `GATE-REQUEUE-SKIP` | launcher | 防抖拦截后低优先级重入队（9999） |
+| `GATE-OVERWRITE-ROUND1-SEED` | launcher | 覆盖 round1_export.json |
+| `GATE-KILL-SESSION` | launcher | kill tmux session（不可逆） |
+| `GATE-REQUEUE-TRUNCATED` | launcher | 截断轮低优先级重入队（多轮续传核心流转） |
+| `GATE-FINALIZE-RUN-COMPLETED` | launcher | 写整题终态 COMPLETED（几乎不可逆） |
+> 操作：`python -m src.step_gate --hold GATE-ID` / `--step GATE-ID --reason '...'` / `--auto GATE-ID`
 
 **HANDOFF 8章节合格标准**（HANDOVER.md，续传规范文档.md §2.1——SOP_04 C4判断依据）：
 1.题目 / 2.答案猜想(含置信度) / 3.已确认的结论(独立数学事实+推导概要) /
@@ -127,6 +172,50 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 - A13 real_concurrency: 四源一致（见上方特征3，任何不一致=critical，016新增）
 - A14 launch_churn: churn_suspects为空（同题1小时≥5次=critical，016新增）
 > 时刻推理：拿到检查输出后逐项对照——哪项偏离正常标准=那个维度有问题。
+
+**alert_type 完整清单**（SOP_03 分类依据——代码中实际产生的 alert_type 字符串，共30种）：
+
+> ⚠️ 命名映射：A9 检查项名 `stall_detection`，但代码 alert_type=`long_running`；
+> B5 检查项名 `truncation_pattern`，但代码 alert_type=`all_rounds_truncated`；
+> B7 检查项名 `rounds_log_integrity`，但代码产生 6 个细分 alert_type（见下表）。
+> SOP_03 分类时以**alert_type 字符串**为准，不是检查项名。
+
+| alert_type 字符串 | 对应检查项 | severity | 分类 | 处理方式 |
+|---|---|---|---|---|
+| `session_health` | A1 | critical/warning | 代码bug或配置 | 查launcher并发配置 |
+| `queue_stalled` | A2 | critical | 需判断 | 查launcher是否在dequeue |
+| `no_completions` | A3 | warning | 需判断 | 查completed是否在增加 |
+| `rate_limit` | A4 | critical/warning | 基础设施 | 等恢复，不修 |
+| `zombie_sessions` | A5 | warning | 需清理 | kill空session |
+| `export_missing` | A6 | critical | 代码bug | 查launcher的export路径逻辑 |
+| `export_missing_rate` | A6 | critical | 代码bug | export缺失率>10% |
+| `failure_rate` | A7 | warning | 需判断 | 查failure_breakdown |
+| `launcher_dead` | A8 | critical | 基础设施 | 重启launcher |
+| `long_running` | A9（stall_detection） | warning | 需判断 | 查具体原因（单轮超30分钟） |
+| `session_registry_inconsistency` | A10 | critical/warning | 代码bug或数据 | 查注册表vs tmux不一致 |
+| `stuck_session_accumulated` | A11 | critical/warning | 需清理 | 判断是否需清理 |
+| `done_session_uncleaned` | A12 | info | 需清理 | 清理done session |
+| `real_concurrency_mismatch` | A13 | critical | 代码bug或基础设施 | 查四源差异+observability，清理孤儿（016新增） |
+| `real_concurrency_exceeded` | A13 | critical | 代码bug或基础设施 | 实际并发>设定 |
+| `launch_churn` | A14 | critical | 代码bug | **立即按016报告§5**：kill launcher→清空Redis队列→查根因（016新增） |
+| `proof_missing` | B1 | critical | 数据问题 | 判断是模型能力还是代码bug |
+| `proof_too_small` | B2 | warning | 数据问题 | 记录 |
+| `proof_no_boxed` | B2 | warning | 数据问题 | proof存在但无boxed答案 |
+| `handover_missing` | B3 | critical | 数据问题 | 判断handover devin是否失败 |
+| `handover_too_small` | B4 | warning | 数据问题 | 记录 |
+| `all_rounds_truncated` | B5（truncation_pattern） | warning | 需判断 | 5轮全截断→可能token不够 |
+| `status_anomaly` | B6 | info | 需判断 | 分析具体异常 |
+| `rounds_log_duplicate_round` | B7 | critical | 代码bug | 重复轮号=旧数据或bug复发 |
+| `rounds_log_missing_field` | B7 | warning | 代码bug | 查make_round_log_entry |
+| `rounds_log_export_missing` | B7 | critical | 代码bug | rounds_log中export字段指向文件不存在 |
+| `rounds_log_handover_missing` | B7 | critical | 代码bug | rounds_log中handover_path指向文件不存在 |
+| `rounds_log_proof_missing` | B7 | critical | 代码bug | rounds_log中proof_path指向文件不存在 |
+| `rounds_log_no_proof_path` | B7 | warning | 代码bug | rounds_log中proof_path字段为空 |
+| `intermediate_product_collision` | B8 | critical | 代码bug | 中间产物路径重复，查路径生成逻辑 |
+| `work_dir_collision` | B9 | critical | 代码bug | work_dir路径重复 |
+| `redis_connection` | 基础设施 | critical | 基础设施 | Redis不可达，等恢复 |
+| `flow_ledger_unavailable` | 基础设施 | warning | 基础设施 | 行为流水DB不可达 |
+| `ai_review_sample` | C类抽样 | info | 需AI判断 | 抽样标记needs_ai_review，SOP_04处理 |
 
 **异常信号**（看到就警觉）：
 - 016失控循环：churn_suspects非空 / session数暴涨 / 同题高频launch → 立即kill launcher+清队列

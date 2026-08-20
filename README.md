@@ -155,34 +155,49 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ### `checklist/MasterAgentCheck.md` — Master Agent SOP 索引
 
-Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-08-19 升级**：从"按需检查清单"升级为 7x24 持续循环的 SOP 脚本机制。检查内容已迁移到 `docs/sop/SOP_01~05.md`，由 `scripts/sop/sop_01~05.py` 脚本读取并打印。本文件保留为 SOP 文档索引。
+Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-08-19 升级，2026-08-20 扩展为 8 步**：从"按需检查清单"升级为 7x24 持续循环的 SOP 脚本机制。检查内容已迁移到 `docs/sop/SOP_01~06+Z+OP.md`（8 个文档），由 `scripts/sop/run.py` 单一入口驱动（读取 `scripts/sop/checks.py` 中 8 个检查函数）。本文件保留为 SOP 文档索引。
 
 **覆盖问题场景**：
-- Master Agent 开始 7x24 监控循环时——执行 `python -m scripts.sop.sop_01_health_check` 进入循环
+- Master Agent 开始 7x24 监控循环时——执行 `python -m scripts.sop.run` 进入循环
 - 查找某个 SOP 步骤的内容时——看 `docs/sop/SOP_XX.md`
 - 查看当前 SOP 流程状态时——`python -m scripts.sop._set_next status`
 
-**依赖关系**：SOP 文档见 `docs/sop/`；SOP 脚本见 `scripts/sop/`；检查规范见 `docs/specs/p27_monitor_spec.md`；需求来源见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
+**依赖关系**：SOP 文档见 `docs/sop/`（8 个 + SYSTEM_CLOSURE.md 认知闭包）；SOP 脚本见 `scripts/sop/`（run/checks/sop_state/_set_next/dry_run/report/sop_log/log_search）；检查规范见 `docs/specs/p27_monitor_spec.md`；需求来源见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`；完备性审计见 `dev-docs/021-SOP认知闭包完备性审计报告.md`。
 
-### `docs/sop/` — Master Agent SOP 文档（5个）
+### `docs/sop/` — Master Agent SOP 文档（8个+1个认知闭包）
 
-5 步 SOP 循环的自包含执行指令文档，每个对应一个 SOP 脚本。脚本运行时读取并完整打印到 stdout——内容进入 Master Agent 最近上下文，不依赖 AGENTS.md always-on 注入。
+8 步 SOP 循环的自包含执行指令文档（01-06 工作 + Z 元检查 + OP 运营知识），加 1 个系统级认知闭包（SYSTEM_CLOSURE.md，每步前置注入）。脚本运行时读取并完整打印到 stdout——内容进入 Master Agent 最近上下文，不依赖 AGENTS.md always-on 注入。
 
-| 文档 | 脚本 | 职责 |
+| 文档 | 脚本检查函数 | 职责 |
 |---|---|---|
-| `SOP_01_health_check.md` | `sop_01_health_check.py` | 健康检查——运行 monitor_check_continuation.sh |
-| `SOP_02_alert_triage.md` | `sop_02_alert_triage.py` | alert 分类处理 |
-| `SOP_03_ai_judgment.md` | `sop_03_ai_judgment.py` | C 类 AI 判断 |
-| `SOP_04_code_repair.md` | `sop_04_code_repair.py` | 代码修复 |
-| `SOP_05_report_worklog.md` | `sop_05_report_worklog.py` | 报告+WORKLOG |
+| `SYSTEM_CLOSURE.md` | （每步前置注入，L0 认知闭包） | 系统级认知闭包（架构/生命周期/判定框架） |
+| `SOP_01_system_health.md` | `check_01_system_health` | 系统存活+进度+Session+门闸Y+行为流水 |
+| `SOP_02_data_integrity.md` | `check_02_data_integrity` | 数据完整性（全量文件+DB集合级+题源完成率） |
+| `SOP_03_alert_triage.md` | `check_03_alert_triage` | alert 分类处理 |
+| `SOP_04_ai_judgment.md` | `check_04_ai_judgment` | C 类 AI 判断（C1-C6） |
+| `SOP_05_code_repair.md` | `check_05_code_repair` | 代码修复+sim 发布门禁 |
+| `SOP_06_report_worklog_selfcheck.md` | `check_06_report_worklog_selfcheck` | 报告+WORKLOG+Self-check S1-S22 |
+| `SOP_Z_meta_system_review.md` | `check_Z_meta_system_review` | 元检查+整体检查+方向性判断+审计 |
+| `SOP_OP_operations_knowledge.md` | `check_OP_operations_knowledge` | 运营知识刷新+环境验证 |
 
 **覆盖问题场景**：Master Agent 在 SOP 循环的某个步骤时，脚本打印对应 SOP 文档，知道该做什么。
 
-### `scripts/sop/` — Master Agent SOP 脚本（5个+1个状态管理）
+### `scripts/sop/` — Master Agent SOP 脚本（8个模块）
 
-5 步 SOP 循环的编号化脚本 + 状态管理。脚本按顺序执行，通过 `_state.json` 记录上一个/下一个步骤，防止跳步。每个脚本输出末尾要求 Master Agent 用 `todo_write` 建立 todo list，最后一项是"执行下一个脚本"——自驱动 7x24 持续循环。
+8 步 SOP 循环的脚本模块集。`run.py` 是单一入口（读取 `_state.json` 决定当前步骤→打印 L0+L1→执行 `checks.py` 对应函数→生成报表→推进状态→打印 todo 指令）。脚本按顺序执行，通过 `_state.json` 记录上一个/下一个步骤，防止跳步。每个脚本输出末尾要求 Master Agent 用 `todo_write` 建立 todo list，最后一项是"执行 `python -m scripts.sop.run`"——自驱动 7x24 持续循环。
 
-**覆盖问题场景**：用户说"开始工作"时启动循环；流程状态查询/跳步修正时用 `_set_next.py`。
+| 脚本 | 职责 |
+|---|---|
+| `run.py` | 单一入口（每次执行当前步骤） |
+| `checks.py` | 8 个步骤的自动化检查逻辑 |
+| `sop_state.py` | 状态管理（_state.json + 顺序校验 + L0/L1 文档加载） |
+| `_set_next.py` | 强制设定下一步（跳步用） |
+| `dry_run.py` | SOP 循环完整性验证（6 项测试） |
+| `report.py` | 报表+快照生成（D盘目录） |
+| `sop_log.py` | 循环日志（500 文件×1MB） |
+| `log_search.py` | 结构化日志检索（event/problem_id/session_key/level/module/时间范围） |
+
+**覆盖问题场景**：用户说"开始工作"时启动循环（`python -m scripts.sop.run`）；流程状态查询/跳步修正时用 `_set_next.py`；完整性验证时用 `dry_run.py`；日志检索时用 `log_search.py`。
 
 ### `checklist/<编号>.md` — 单个checkpoint详情（153个）
 

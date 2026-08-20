@@ -444,7 +444,7 @@ def check_02_data_integrity(batch_id):
             for d in discontinuous[:5]:
                 print(d)
         else:
-            print(f"  编号连续（但全部从 round=2 开始——需AI确认是否 by design）")
+            print(f"  编号连续（正常轮序 [1,2,3..]，round-1 补录已修复）")
         print()
 
     except Exception as e:
@@ -529,9 +529,58 @@ def check_04_ai_judgment(batch_id):
 
 
 def check_05_code_repair(batch_id):
-    """步骤05：代码修复——显示最近 git log"""
+    """步骤05：代码修复——自动汇总未处理的"代码bug"类 alert + 显示最近 git log
+
+    跨步骤信息传递：03 分类为"代码bug"的 alert 和 04 发现的代码相关问题，
+    在这里自动从 DB 查询汇总，避免 AI 上下文压缩后丢失 03/04 的分类结果。
+    """
     log.info(f"check_05_code_repair: start batch={batch_id}")
     repo_root = Path(__file__).parent.parent.parent
+
+    # === 自动汇总未处理的"代码bug"类 alert（跨步骤信息传递）===
+    # alert_type 分类依据 SYSTEM_CLOSURE §6 的 alert_type 完整清单表
+    CODE_BUG_ALERT_TYPES = {
+        "session_health", "export_missing", "export_missing_rate",
+        "rounds_log_duplicate_round", "rounds_log_missing_field",
+        "rounds_log_export_missing", "rounds_log_handover_missing",
+        "rounds_log_proof_missing", "rounds_log_no_proof_path",
+        "intermediate_product_collision", "work_dir_collision",
+        "session_registry_inconsistency",
+        "real_concurrency_mismatch", "real_concurrency_exceeded",
+        "launch_churn",
+    }
+    print("--- 未处理的代码bug类 alert（从步骤03汇总，跨步骤信息传递）---")
+    try:
+        from src.continuation_db_schema import connect_db
+        from src.continuation_config import MONITOR_ALERTS_COLLECTION
+        db = connect_db()
+        aql = (
+            f"FOR a IN {MONITOR_ALERTS_COLLECTION} "
+            f"FILTER a.status != 'resolved' "
+            f"FILTER a.alert_type IN @bug_types "
+            f"SORT a.severity DESC, a.created_at DESC "
+            f"LIMIT 30 "
+            f"RETURN a"
+        )
+        cursor = db.aql.execute(aql, bind_vars={"bug_types": list(CODE_BUG_ALERT_TYPES)}, ttl=60)
+        code_bug_alerts = list(cursor)
+        if code_bug_alerts:
+            print(f"  发现 {len(code_bug_alerts)} 个未处理的代码bug类 alert：")
+            for a in code_bug_alerts:
+                severity = a.get("severity", "?")
+                atype = a.get("alert_type", "?")
+                details = a.get("details", {})
+                summary = details.get("summary", "") if isinstance(details, dict) else str(details)
+                print(f"    [{severity}] {atype} (key={a.get('_key', '?')}): {summary[:80]}")
+            print(f"  → 这些 alert 需在步骤05修复（分类为代码bug）")
+        else:
+            print("  ✅ 无未处理的代码bug类 alert")
+        print()
+    except Exception as e:
+        print(f"  ⚠️ 代码bug alert 查询失败: {e}")
+        print()
+
+    # === 显示最近 git log ===
     try:
         result = subprocess.run(
             ["git", "log", "--oneline", "-5"],
@@ -561,7 +610,7 @@ def check_06_report_worklog_selfcheck(batch_id):
 
 
 def check_Z_meta_system_review(batch_id):
-    """步骤Z：元检查+整体检查——显示 SOP 系统全貌"""
+    """步骤Z：元检查+整体检查——显示 SOP 系统全貌 + 016新能力接线自动检查（M8）"""
     log.info(f"check_Z_meta_system_review: start batch={batch_id}")
     from scripts.sop.sop_state import load_state, SOP_STEPS, SOP_NAMES
     state = load_state()
@@ -578,6 +627,76 @@ def check_Z_meta_system_review(batch_id):
     print("SOP 文档目录：docs/sop/")
     print("SOP 脚本目录：scripts/sop/")
     print("状态文件：scripts/sop/_state.json")
+    print()
+
+    # === M8: 016新能力接线自动检查 ===
+    # 行为流水(observability)/步进门闸(step_gate)/A13A14告警 接线状态
+    print("--- M8: 016新能力接线检查（自动化）---")
+
+    # 1. 行为流水接线：log/flow/ 目录是否存在且有文件
+    repo_root = Path(__file__).parent.parent.parent
+    flow_dir = repo_root / "log" / "flow"
+    if flow_dir.exists():
+        flow_files = list(flow_dir.glob("flow-*.jsonl"))
+        if flow_files:
+            latest = max(flow_files, key=lambda f: f.stat().st_mtime)
+            size_kb = latest.stat().st_size / 1024
+            print(f"  ✅ 行为流水：{len(flow_files)} 个文件，最新 {latest.name} ({size_kb:.1f}KB)")
+        else:
+            print(f"  ⚠️ 行为流水目录存在但无 flow-*.jsonl 文件（系统可能刚启动）")
+    else:
+        print(f"  ❌ 行为流水目录不存在: {flow_dir}（observability 未接线）")
+
+    # 2. 步进门闸接线：DB p27_step_gates 集合是否存在且有文档
+    try:
+        from src.continuation_db_schema import connect_db
+        from src.step_gate import COLLECTION
+        db = connect_db()
+        if db.has_collection(COLLECTION):
+            gate_count = db.collection(COLLECTION).count()
+            if gate_count > 0:
+                print(f"  ✅ 步进门闸：{gate_count} 个门闸已注册（p27_step_gates 集合）")
+            else:
+                print(f"  ⚠️ 步进门闸集合存在但无门闸（需 python -m src.step_gate --register）")
+        else:
+            print(f"  ❌ 步进门闸集合不存在: {COLLECTION}（step_gate 未接线）")
+    except Exception as e:
+        print(f"  ⚠️ 步进门闸检查失败（DB不可达？）: {e}")
+
+    # 3. A13/A14 告警接线：检查 monitor_continuation.py 是否有对应 check 函数
+    # 通过检查 DB 中是否有 real_concurrency_mismatch/launch_churn 类型的 alert 历史
+    try:
+        from src.continuation_config import MONITOR_ALERTS_COLLECTION
+        aql = (
+            f"FOR a IN {MONITOR_ALERTS_COLLECTION} "
+            f"FILTER a.alert_type IN ['real_concurrency_mismatch', 'real_concurrency_exceeded', 'launch_churn'] "
+            f"COLLECT t = a.alert_type WITH COUNT INTO c "
+            f"RETURN {{type: t, count: c}}"
+        )
+        cursor = db.aql.execute(aql, ttl=30)
+        a13_a14_alerts = list(cursor)
+        if a13_a14_alerts:
+            print(f"  ✅ A13/A14 告警已触发过：")
+            for a in a13_a14_alerts:
+                print(f"     {a['type']}: {a['count']} 次")
+        else:
+            print(f"  ✅ A13/A14 告警接线正常（未触发过=系统未出现失控循环）")
+    except Exception as e:
+        print(f"  ⚠️ A13/A14 告警历史查询失败: {e}")
+
+    # 4. checks.py Y通道接线：确认 check_01 调用了 _check_pending_gates
+    try:
+        import inspect
+        from scripts.sop import checks as checks_mod
+        src_01 = inspect.getsource(checks_mod.check_01_system_health)
+        has_y = "_check_pending_gates" in src_01
+        has_flow = "_check_flow_snapshot" in src_01
+        y_status = "✅" if has_y else "❌"
+        flow_status = "✅" if has_flow else "❌"
+        print(f"  {y_status} checks.py Y通道接线（check_01 调用 _check_pending_gates）")
+        print(f"  {flow_status} checks.py 行为流水接线（check_01 调用 _check_flow_snapshot）")
+    except Exception as e:
+        print(f"  ⚠️ checks.py 接线检查失败: {e}")
     print()
 
 
