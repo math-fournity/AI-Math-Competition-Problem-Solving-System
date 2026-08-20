@@ -98,12 +98,12 @@ python -m src.observability --run-key <run_key>    # 某题完整生命周期（
 ```
 python -m src.step_gate --list                    # 门闸目录
 python -m src.step_gate --hold GATE-LAUNCH-SOLVE  # 卡住下一次解题启动
-python -m src.step_gate --pending                 # 看谁在等（输出完整检查清单）
-python -m src.step_gate --step GATE-LAUNCH-SOLVE --reason '...'  # 放行（附理由，落盘flow流水）
+python -m src.step_gate --pending                 # 看谁在等（输出完整论证依据闭包）
+python -m src.step_gate --step GATE-LAUNCH-SOLVE --reason '看到1✓+2✓...理由...'  # 放行（必须附理由，落盘flow流水）
 python -m src.step_gate --auto GATE-LAUNCH-SOLVE  # 恢复自动
 ```
 
-SOP_01例程每轮自动查Y通道（有闸在等会打印检查清单）。hold是调试模式，用完记得--auto。
+SOP_01例程每轮自动查Y通道（有闸在等会打印论证依据闭包：检查项+查法+可放行/不可放行判定+理由）。**放行必须附--reason理由（落盘flow流水可grep回溯），不放行也要在report.md门闸记录区填原因——没有理由的放行=审计断点**。hold是调试模式，用完记得--auto。
 
 **③ A13/A14应急处置（016场景重演时的critical alert）**
 
