@@ -165,6 +165,7 @@ SOP 脚本目录：`scripts/sop/`（run + checks + report + sop_state + _set_nex
 | AnalysisSystemDesign.md | `docs/system/` | 错题分析系统设计总索引（§6关键设计决策） |
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
 | MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（§2.2已改为Master Agent SOP循环） |
+| StepGate.md | `docs/patterns/` | 步进门闸设计范式——DB信号单步跟踪（@gated装饰器/hold-step/函数名即日志标志） |
 | 续传规范文档.md | `docs/patterns/` | HANDOFF标准（SOP_04 C4判断依据） |
 | p27_monitor_spec.md | `docs/specs/` | A/B/C类检查详细标准（SOP_03/04引用） |
 | p27_session_management_and_polish_spec.md | `docs/specs/` | §A Session管理（有效）/ §B Exec Devin（已废弃） |

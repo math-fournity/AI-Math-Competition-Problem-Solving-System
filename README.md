@@ -62,6 +62,10 @@
 
 **依赖关系**：具体系统的检查规范是该系统的系统资产（如 `docs/specs/p27_monitor_spec.md`）；本地版见 `docs/architecture/monitor-pipe-pattern.md`。
 
+### `docs/patterns/StepGate.md` — 步进门闸设计范式（DB信号单步跟踪）
+
+让 Master Agent 能够"卡住"自动化系统的关键动作、检查之前的工作、再放行的通用设计范式。核心三条：①DB信号变量（动作前wait proceed 0→1，代码自清零再执行，信号由Master Agent置1）；②`@gated`装饰器统一封装（注册/流水/等待/DB降级）；③定位用函数名+docstring不用行号（函数名=日志标志grep直达，docstring=自包含文档经inspect自动收集进DB注册表，永不漂移）。范围铁律：只对"改变系统状态的动作"设闸，只读判定靠行为流水——全部等放行吞吐归零。起源于016事故（失控循环跑了18分钟Master Agent拦不住）。**覆盖问题场景**：需要单步调试/审计自动化系统时、给新Pipe加门闸时、理解hold/step/auto模式时。**依赖关系**：首次实现在 `src/step_gate.py`（Pipe 4的8个门闸）；配套行为流水 `src/observability.py`（hold时"检查之前的工作"的数据来源）；操作文档在 `docs/sop/SOP_01_system_health.md` §8.5。
+
 ### `docs/patterns/续传规范文档.md` — HANDOFF标准（交接文档续传方案）
 
 定义交接文档（HANDOFF.md）的标准结构、提取规则、循环操作流程。八个必填章节、续传不是"拼接thinking"而是"交接研究"的核心认知、截断/完成判定标准、prompt模板。源自POC-2.6续传机制v1方案（机械拼接reasoning_content）的改进。
