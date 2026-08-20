@@ -13,7 +13,10 @@
 | 指标 | 值 |
 |---|---|
 | 总run数 | （从snapshot.json读取） |
+| pending | （从snapshot.json读取） |
+| running | （从snapshot.json读取） |
 | COMPLETED | （从snapshot.json读取） |
+| failed | （从snapshot.json读取） |
 | 完成率 | （从snapshot.json读取） |
 | sessions总数 | （从snapshot.json读取） |
 

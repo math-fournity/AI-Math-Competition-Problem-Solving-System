@@ -4,18 +4,18 @@
 
 ### 为什么要写报告和WORKLOG
 
-- **MONITOR_EXEC_REPORT.md** — 本轮工作的正式产出（检查了什么/发现了什么/修了什么）
+- **MONITOR_REPORT.md** — 本轮工作的正式产出（检查了什么/发现了什么/修了什么）
 - **WORKLOG.md** — 跨轮连续记忆（每轮的摘要+思考）。下一轮循环的你读它就能快速恢复上下文，不用从零开始
 
-### Self-check（SELF-S1~S17）
+### Self-check（SELF-S1~S22）
 
-每轮循环结束时，你必须对自己做 17 项 self-check。这些来自 `checklist/SELF-*.md`：
+每轮循环结束时，你必须对自己做 22 项 self-check。这些来自 `checklist/SELF-*.md`：
 
 | 编号 | 检查项 | 通过标准 |
 |---|---|---|
-| S1 | export完整性 | 本轮如果有devin cli运行，export已落盘 |
-| S2 | DONE.md写入 | 本轮如果有devin cli运行，DONE.md已出现 |
-| S3 | REPORT完整性 | MONITOR_EXEC_REPORT.md包含检查/判断/修复/未修复四部分 |
+| S1 | export完整性 | 本轮如果有 devin cli 解题运行，export 已落盘（Master Agent 自己不产生 export，标 [-]） |
+| S2 | DONE.md写入 | 本轮如果有 devin cli 解题运行，DONE.md 已出现（Master Agent 自己不产生 DONE.md，标 [-]） |
+| S3 | REPORT完整性 | MONITOR_REPORT.md包含检查/判断/修复/未修复四部分 |
 | S4 | session注册 | 本轮如果启动了session，已注册到p27_sessions |
 | S5 | py_compile通过 | 本轮如果修了代码，py_compile通过 |
 | S6 | git commit成功 | 本轮如果有变更，已commit |
@@ -39,7 +39,7 @@
 ### 报告格式
 
 ```markdown
-# Monitor Exec Report · 第{cycle}轮
+# Monitor Report · 第{cycle}轮
 
 **时间**: {timestamp}
 **检查批次**: {batch_id}
@@ -60,7 +60,7 @@
 ## 未修复的问题（及原因）
 - {问题}: {原因}
 
-## Self-check结果（S1-S17）
+## Self-check结果（S1-S22）
 - S1: PASS / S2: PASS / ...
 
 ## 下一轮建议
@@ -93,23 +93,33 @@
 
 ## 执行指令
 
-### 1. 写 MONITOR_EXEC_REPORT.md
+### 1. 写 MONITOR_REPORT.md
 
-按上方格式写本轮报告。放在项目根目录或 `output/monitor_exec/` 下。
+按上方格式写本轮报告。放在项目根目录或 `output/monitor/` 下。
 
 ### 2. 续写 WORKLOG.md
 
 在项目根目录的 WORKLOG.md 末尾追加本轮记录。如果文件不存在，创建它。
 
-### 3. 执行 Self-check（S1-S17）
+### 3. 执行 Self-check（S1-S22）
 
-逐项检查上方 17 项。记录 PASS/FAIL。FAIL 的需要说明原因和改进计划。
+逐项检查上方 22 项。记录 PASS/FAIL。FAIL 的需要说明原因和改进计划。
 
 ### 4. resolve 已处理的 alert
 
-DB 中 `p27_monitor_alerts` 集合的已处理 alert，更新 `status` 为 `resolved`：
+DB 中 `p27_monitor_alerts` 集合的已处理 alert，用控制脚本标记为 resolved：
+
+```
+# 单个 resolve
+python -m monitoring.continuation_control resolve-alert <alert_key>
+
+# 批量 resolve 所有已处理的 critical alert
+python -m monitoring.continuation_control resolve-alert --all-critical
+```
+
+resolve 规则：
 - 修复了的代码bug → resolve
-- C类判定PASS的 → resolve对应needs_ai_review标记
+- C类判定PASS的 → 用 mark-ai-review 标记 PASS（不是 resolve alert）
 - C类判定FAIL的 → 不resolve（记录为数据问题）
 
 ### 5. git commit
@@ -120,9 +130,9 @@ DB 中 `p27_monitor_alerts` 集合的已处理 alert，更新 `status` 为 `reso
 
 ## 你需要建立的 todo list
 
-- 写 MONITOR_EXEC_REPORT.md
+- 写 MONITOR_REPORT.md
 - 续写 WORKLOG.md
-- 执行 Self-check S1-S17
+- 执行 Self-check S1-S22
 - resolve 已处理 alert
 - git commit
 - **填写 report.md 报表**（read加载→打勾填发现→edit写回）

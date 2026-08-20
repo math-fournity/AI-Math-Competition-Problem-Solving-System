@@ -14,7 +14,7 @@
     "alert_type": "session_health",      # 见下方类型清单
     "severity": "critical",              # critical / warning / info
     "details": {"summary": "...", ...},  # 详细信息
-    "status": "active",                  # active / resolved
+    "status": "new",                  # new / resolved
     "created_at": "2026-08-19T...",
     "resolved_at": null,
 }

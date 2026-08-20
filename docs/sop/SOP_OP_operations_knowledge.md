@@ -18,7 +18,7 @@
 
 ### 硬约束（10条基础 + 016/017/018新增4条）
 
-1. **改代码必须同步更新第一级文档**——`docs/system/*.md` + `docs/architecture/*.md` + `docs/specs/*.md`
+1. **改代码必须同步更新第一级文档**——`docs/architecture/*.md` + `docs/specs/*.md` + `docs/sop/SYSTEM_CLOSURE.md`
 2. **git显式路径add**——禁止`git add -A` / `.` / `-u`
 3. **绝不kill无DONE.md的session**（dead_session是唯一例外：DONE.md已出现但无proof）
 4. **长时间命令用tmux**——下载/编译/同步/daemon必须在tmux中运行

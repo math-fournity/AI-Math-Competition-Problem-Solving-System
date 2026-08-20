@@ -61,8 +61,10 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 
 | 模块 | 职责 | 异常时的表现 |
 |---|---|---|
-| continuation_launcher | 并发引擎：dequeue→launch→judge→requeue/done | 失控循环（016：同题高频启动） |
+| continuation_collector | 收集失败题入 DB（prepared 状态） | 题目未入 DB=管线无输入 |
 | continuation_feeder | 把 prepared 入 Redis pending（NX幂等） | 死循环重喂（016：队列永远清不空） |
+| continuation_launcher | 并发引擎：dequeue→launch→judge→requeue/done | 失控循环（016：同题高频启动） |
+| continuation_result_collector | 收集终态 run 的产出，proof 入库双写 | 结果未归档=数据丢失风险 |
 | monitor_continuation | 每120s检查写 alert（A类自动/B类质量） | 不写alert=检查失效 |
 | session_registry | session 编号化管理（p27-s{seq}） | 注册表脱节（A13：tmux vs DB vs Redis） |
 | step_gate | 9个语义动作可hold/step（DB信号单步跟踪） | — |

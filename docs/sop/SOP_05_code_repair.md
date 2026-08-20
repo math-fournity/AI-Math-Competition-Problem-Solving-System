@@ -16,7 +16,7 @@
    - `AGENTS.md`
    - `.devin/rules/*.md`
    - `docs/patterns/MonitorPipe.md` 架构定义
-   - `docs/system/AnalysisSystemDesign.md` §5设计原则 / §6关键设计决策
+   - `docs/sop/SYSTEM_CLOSURE.md` 系统级认知闭包
 3. **可以修改这些文件**（事实性文档，和代码同一commit）：
    - `src/*.py`（代码本身）
    - `monitoring/*.py`
@@ -26,7 +26,6 @@
 5. **修完必须验证** — `python -m py_compile <修改的文件>`
 6. **只修本轮发现的问题** — 不重构、不改架构、不"顺便"修其他
 7. **改代码同步更新文档** — 改了 `src/xxx.py` 就同步改 `docs/architecture/xxx.md`（如存在）
-8. **更新 trace.csv** — 新增/修改的资产要记录追溯关系
 
 ### commit message 格式
 
@@ -57,8 +56,7 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 3. **修复** — 用 edit 工具修改代码
 4. **验证** — `python -m py_compile <修改的文件>`
 5. **同步文档** — 如果改了代码的行为，同步更新 `docs/architecture/` 或 `docs/specs/` 中对应文档
-6. **更新 trace.csv** — 如果新增了文件或函数
-7. **git commit** — 显式路径 add
+6. **git commit** — 显式路径 add
 
 ### 3. 修复后确认
 
@@ -92,6 +90,6 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 
 ### 深入了解（如需）
 
-- `docs/system/AnalysisSystemDesign.md` §6 — 关键设计决策记录（修复代码前理解设计理由）
+- `docs/architecture/solve-pipeline.md` — 解题管线核心概念（修复涉及管线逻辑时参考）
 - `docs/architecture/graceful-shutdown.md` — 优雅停止设计（修复涉及停止逻辑时参考）
-- `docs/architecture/framework-checklist.md` — 新Pipe必须考虑的所有方面
+- `docs/sop/SYSTEM_CLOSURE.md` §4 — 各模块职责（修复时按职责定位文件）

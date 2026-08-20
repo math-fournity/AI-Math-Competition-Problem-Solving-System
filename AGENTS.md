@@ -127,6 +127,10 @@ python -m monitoring.continuation_control set-concurrency --batch-id p27-full --
 python -m monitoring.continuation_control sessions --status stuck       # 查看stuck session
 python -m monitoring.continuation_control sessions --clean-done         # 批量清理done session
 python -m monitoring.continuation_control sessions --consistency-check  # 注册表vs tmux一致性
+python -m monitoring.continuation_control resolve-alert <alert_key>      # 标记alert已处理（SOP_06）
+python -m monitoring.continuation_control resolve-alert --all-critical   # 批量resolve所有critical alert
+python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS  # 标记AI判断完成（SOP_04）
+python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉"
 ```
 
 ### 实战速查：016事故后新增的介入能力

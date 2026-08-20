@@ -4,7 +4,7 @@
 
 ### 为什么要检查 SOP 系统本身
 
-SOP 系统不仅能修目标系统（错题分析系统），还能修自己。这是循环的最后一步——你完成了 6 步工作后，反思整个 SOP 系统是否需要调整。
+SOP 系统不仅能修目标系统（续传解题系统），还能修自己。这是循环的倒数第二步——你完成了 6 步工作后，反思整个 SOP 系统是否需要调整。之后还有 OP（运营知识刷新）再回到 01。
 
 ### SOP 系统结构
 
@@ -24,6 +24,8 @@ docs/sop/
   SOP_05_code_repair.md
   SOP_06_report_worklog_selfcheck.md
   SOP_Z_meta_system_review.md（本文件）
+  SOP_OP_operations_knowledge.md
+  SYSTEM_CLOSURE.md（L0认知闭包，每步注入）
 ```
 
 ### 循环结构
@@ -77,13 +79,18 @@ OP 运营知识刷新（每轮末尾注入，突破AGENTS.md 16K限制）
 #### 步骤06 报告+WORKLOG+Self-check
 - 报告格式是否覆盖了需要记录的信息？
 - WORKLOG跨轮记忆是否有效？
-- S1-S17 self-check是否有效？有没有需要新增的self-check项？
+- S1-S22 self-check是否有效？有没有需要新增的self-check项？
 
 #### 016后新能力接线检查（016事故后新增，对应report M7/M8）
 - **行为流水**（`src.observability --stats`）：checks.py 是否每轮自动查了？SOP_01 §8 的"每轮必查"是否被执行？
 - **步进门闸**（`src.step_gate`）：checks.py 的 Y 通道检查是否接线？有 Y 时是否完整输出 checklist 闭包？
 - **A13/A14 告警**：SOP_03 的 alert 类型清单是否包含 `real_concurrency_mismatch`/`launch_churn`？report_step_03 是否有 T5 行？
 - **AGENTS.md 启动指令**：三块 always-on 速查（行为流水/门闸/A13A14应急）是否还在？后部截断时这些内容是否仍可见？
+
+#### 步骤OP 运营知识刷新
+- 运营知识（硬约束/外部索引/快速开始/SOP文档说明）是否每轮注入？
+- 外部文档索引是否指向当前有效文档（不是已删/已废弃的）？
+- 环境验证（ENV-01~07）是否有效执行？
 
 ### 第二部分：整体检查
 
@@ -119,8 +126,9 @@ OP 运营知识刷新（每轮末尾注入，突破AGENTS.md 16K限制）
 
 **7b. 系统产出价值判断**
 - 当前完成率（如 13.2%）是否在可接受范围？——和预期对比，和历史批次对比
-- DIRECTION_ERROR vs TOKEN_NOT_ENOUGH 的判定分布是否合理？——如果几乎全是 DIRECTION_ERROR，可能判定逻辑有偏差
-- 系统产出（判定结果）对 Mid-Hint 实验的选题是否有用？——选题阶段需要的是"哪些题值得做 Mid-Hint"
+- COMPLETED 的 proof 是否真的是正确解？——抽样验证 C1 判断结果，确认解出率可信
+- 续传是否真的比单轮更好？——对比 round 1 直接完成 vs 多轮续传完成的比例，评估续传增量价值
+- TRUNCATED_AT_MAX 的题是否值得加大 max_rounds？——如果大量题跑到 5 轮还没完成但每轮有进展，可能上限太低
 
 **7c. 系统性问题诊断**
 - 按题源完成率差异（如 oda/polymath 全 0% vs deepmath 31.7%）——是 prompt 对这些题源不适用？是 model 对这些题型不胜任？是这些 run 还没跑到？
@@ -159,9 +167,10 @@ OP 运营知识刷新（每轮末尾注入，突破AGENTS.md 16K限制）
 
 #### AUDIT-06: 通过率判定
 - 当前批次的 COMPLETED/total 通过率是多少？
-- ≥50% → 大部分是真正的思维错误 → POC-2.5 候选题基础成立
-- ≥80% → 大部分是截断错误 → POC-2.5 需要重新选题
-- <50% → 部分截断+部分思维错误 → 失败的题进入 POC-2.5b
+- 通过率高（>30%）→ 续传解题有效，管线运行正常
+- 通过率低（<10%）→ 需诊断：model 不胜任？prompt 不适用？题目太难？
+- TRUNCATED_AT_MAX 占比高 → 可能需要加大 max_rounds 或优化 handover 质量
+- FAILED（dead_session）占比高 → 可能是基础设施问题或判定逻辑问题
 
 #### AUDIT-07: 审计报告产出
 - 写一份审计报告（含上述 AUDIT-01~06 的结论）

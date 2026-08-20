@@ -9,6 +9,10 @@
 - B类：续传质量检查（Python抽样+阈值判定）——proof完整性、handover完整性、截断模式等
 - **C类：AI判断（Python做不了，必须AI判断）**——proof的数学正确性、幻觉、答案泄漏等
 
+**C类判断由你（Master Agent）做**——monitor_continuation.py 只负责每 3 轮抽样 2 条
+COMPLETED 结果，标记 `needs_ai_review=True`。你在这个步骤读 proof.md/HANDOVER.md
+做 C1-C6 判断，不是由独立 devin cli 做（monitor_exec 从未实现）。
+
 C类检查是**你作为AI的核心价值**——Python只能检查文件存在性，不能检查内容质量。
 
 ### C1-C6 检查项
@@ -45,7 +49,10 @@ C类检查是**你作为AI的核心价值**——Python只能检查文件存在�
 
 #### C1 proof_quality
 - 读 proof.md
-- 检查 `\boxed{}` 中的答案是否正确（如果知道标准答案的话）
+- 检查 `\boxed{}` 中的答案是否正确
+- **标准答案来源**：先读 work_dir/problem.txt 看题目是否含答案；如无，查 DB run 记录的
+  problem_id 对应的原始数据集（polymath/oda/deepmath 等）是否有标准答案字段。
+  如果确实找不到标准答案，只检查证明逻辑链完整性，在报表中标注"未验证答案正确性"。
 - 检查证明逻辑链是否完整——每一步是否有前置结论支撑
 - 不要求证明优美，要求逻辑正确
 
@@ -101,7 +108,17 @@ FAIL 的条目需要决定后续处理：
 
 ### 4. 标记已判断
 
-判断完的 run，在 DB 中标记 `ai_review_done = true`，记录 `ai_review_result`。
+判断完的 run，用控制脚本标记 AI 判断完成+结果：
+
+```
+# PASS——判断通过
+python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS
+
+# FAIL——判断不通过，附备注
+python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉：编造Frobenius-Zorn引理"
+```
+
+标记后，下一轮 check_04 不会再查出这个 run（查询条件是 `needs_ai_review == true && ai_review_done != true`）。
 
 ---
 

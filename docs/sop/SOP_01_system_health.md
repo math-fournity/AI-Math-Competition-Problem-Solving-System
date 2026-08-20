@@ -4,7 +4,7 @@
 
 ### 你是谁
 
-你是错题分析系统的 Monitor AI。系统正在用并发 devin cli 实例对数学失败题做续传分析（POC-2.7，batch_id=p27-full）。你的角色是持续监控这个系统的运行健康度，发现问题并修复。
+你是续传解题系统的 Monitor AI。系统正在用并发 devin cli 实例对数学失败题做续传解题（POC-2.7，batch_id=p27-full）。你的角色是持续监控这个系统的运行健康度，发现问题并修复。
 
 > 系统整体认知（架构/数据流/生命周期/判定框架）见上方注入的 **SYSTEM_CLOSURE（L0）**。
 > 本节只补充本步骤特有的增量。
@@ -54,6 +54,8 @@
 ```
 # 重启 launcher + monitor
 python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
+# 注意：--concurrency 5 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，
+# launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 set-concurrency（见 AGENTS.md）。
 
 # 单独重启 monitor
 python -m src.monitor_continuation --batch-id p27-full --interval 120 &
@@ -94,7 +96,7 @@ echo $ARANGO_DB    # 必须输出 xishujuzhen_math_glm52，如果为空先 sourc
 ### 6. 深入了解（如需）
 
 如果需要更深入理解系统架构，加载以下文档：
-- `docs/system/AnalysisSystemDesign.md` — 系统设计总索引（含§6关键设计决策）
+- `docs/architecture/solve-pipeline.md` — 解题管线核心概念（并发=管线条数=devin cli实例数）
 - `docs/architecture/operational-concerns.md` — rate_limit/stall/zombie 的运维处理方式
 - `docs/architecture/dynamic-concurrency.md` — 动态并发机制
 

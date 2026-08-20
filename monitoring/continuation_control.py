@@ -599,6 +599,84 @@ def cmd_sessions(args):
 
 
 # ============================================================
+# resolve-alert / mark-ai-review（SOP_03/04/06 操作支撑）
+# ============================================================
+
+def cmd_resolve_alert(args):
+    """标记 alert 为 resolved——SOP_06 §4 操作支撑。
+
+    用法：
+      python -m monitoring.continuation_control resolve-alert <alert_key>
+      python -m monitoring.continuation_control resolve-alert --all-critical  # 批量resolve所有critical
+    """
+    from src.continuation_config import MONITOR_ALERTS_COLLECTION
+    from datetime import datetime, timezone
+
+    db = _connect_db()
+    col = db.collection(MONITOR_ALERTS_COLLECTION)
+    now = datetime.now(timezone.utc).isoformat()
+
+    if args.all_critical:
+        # 批量 resolve 所有未处理的 critical alert
+        aql = (
+            f"FOR a IN {MONITOR_ALERTS_COLLECTION} "
+            f"FILTER a.status != 'resolved' "
+            f"FILTER a.severity == 'critical' "
+            f"RETURN a._key"
+        )
+        keys = list(db.aql.execute(aql, ttl=60))
+        if not keys:
+            print("无未处理的 critical alert")
+            return
+        for k in keys:
+            col.update({"_key": k, "status": "resolved", "resolved_at": now})
+        print(f"已批量 resolve {len(keys)} 个 critical alert: {keys}")
+        return
+
+    if not args.alert_key:
+        print("用法: resolve-alert <alert_key> 或 --all-critical")
+        return
+
+    doc = col.get(args.alert_key)
+    if not doc:
+        print(f"⚠️ alert 不存在: {args.alert_key}")
+        return
+    col.update({"_key": args.alert_key, "status": "resolved", "resolved_at": now})
+    print(f"✅ 已 resolve alert: {args.alert_key}（原 severity={doc.get('severity')} type={doc.get('alert_type')}）")
+
+
+def cmd_mark_ai_review(args):
+    """标记 run 的 AI 判断完成+结果——SOP_04 §4 操作支撑。
+
+    用法：
+      python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS
+      python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉"
+    """
+    from src.continuation_config import CONTINUATION_RUNS_COLLECTION
+
+    db = _connect_db()
+    col = db.collection(CONTINUATION_RUNS_COLLECTION)
+
+    doc = col.get(args.run_key)
+    if not doc:
+        print(f"⚠️ run 不存在: {args.run_key}")
+        return
+
+    update = {
+        "_key": args.run_key,
+        "ai_review_done": True,
+        "ai_review_result": args.result,
+    }
+    if args.note:
+        update["ai_review_note"] = args.note
+
+    col.update(update)
+    print(f"✅ 已标记 {args.run_key}: ai_review_done=True result={args.result}")
+    if args.note:
+        print(f"   note: {args.note}")
+
+
+# ============================================================
 # main
 # ============================================================
 
@@ -647,6 +725,19 @@ def main():
     p_sess.add_argument("--clean-done", action="store_true", help="批量清理所有done状态的session（安全操作）")
     p_sess.add_argument("--consistency-check", action="store_true", help="注册表 vs tmux一致性检查")
     p_sess.set_defaults(func=cmd_sessions)
+
+    # resolve-alert（SOP_06 §4 操作支撑）
+    p_ra = sub.add_parser("resolve-alert", help="标记alert为resolved（SOP_06操作支撑）")
+    p_ra.add_argument("alert_key", nargs="?", help="alert的_key")
+    p_ra.add_argument("--all-critical", action="store_true", help="批量resolve所有未处理的critical alert")
+    p_ra.set_defaults(func=cmd_resolve_alert)
+
+    # mark-ai-review（SOP_04 §4 操作支撑）
+    p_mai = sub.add_parser("mark-ai-review", help="标记run的AI判断完成+结果（SOP_04操作支撑）")
+    p_mai.add_argument("run_key", help="run的_key")
+    p_mai.add_argument("--result", required=True, choices=["PASS", "FAIL"], help="判断结果")
+    p_mai.add_argument("--note", help="判断备注（如C2幻觉/C4缺章节）")
+    p_mai.set_defaults(func=cmd_mark_ai_review)
 
     args = parser.parse_args()
     if not hasattr(args, "func"):

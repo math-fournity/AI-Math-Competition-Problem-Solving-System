@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | W1 | WORKLOG.md状态 | 读check_output.txt中"WORKLOG.md 状态"。确认WORKLOG存在且在续写 | [ ] | |
 
-### 二、Self-check S1-S17
+### 二、Self-check S1-S22
 
 | 编号 | 检查项 | 检查方法 | 结果 | 详情 |
 |---|---|---|---|---|
