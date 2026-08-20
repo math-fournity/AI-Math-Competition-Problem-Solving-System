@@ -185,6 +185,25 @@ python -m src.observability --event skip_orphan --since 2h
 | `judge_outcomes` 出现大量stale_proof/stale_export | 旧产物残留 | 检查work_dir是否混有历史文件 |
 | 事件速率≈0且pending>0 | 系统停滞 | 结合A2队列停滞检查 |
 
+### 8.5 步进门闸——单步跟踪系统（016事故后新增）
+
+行为流水让你**看见**流动，门闸让你**卡住**流动。`@gated`装饰器把launcher的
+8个状态改变动作（启动/杀session/重入队/覆盖文件/写终态）变成可单步跟踪的
+门闸。**hold住一个门闸后，系统在该动作点冻结等你放行**——每个门闸的
+docstring（进DB注册表）写明了"放行前检查什么"。
+
+```
+python -m src.step_gate --list      # 门闸目录（位置/文档/模式）
+python -m src.step_gate --hold GATE-LAUNCH-SOLVE   # 卡住下一次解题启动
+python -m src.step_gate --pending   # 看谁在等（run_key+上下文）
+python -m src.step_gate --step GATE-LAUNCH-SOLVE   # 放行一次
+python -m src.step_gate --auto GATE-LAUNCH-SOLVE   # 恢复自动
+```
+
+**使用时机**：怀疑某个动作有问题时（如A14报了launch_churn），hold住对应
+门闸逐次放行+检查；日常监控不需要hold（auto模式下每次通过都写gate_pass
+流水，事后可审计）。hold会阻塞launcher主循环，用完记得--auto。
+
 ### 9. devin cli model 参数检查（CHECKPOINT）
 
 每次启动 devin cli 解题时，日志中会记录 `event=devin_cli_launch model=xxx`。

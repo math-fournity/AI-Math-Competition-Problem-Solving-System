@@ -296,6 +296,31 @@ launcher重启恢复running dict（P1-4）、handover写DB事件流（P1-5）、
 
 测试更新：`scripts/test_016_observability.py` 27断言（+6：alert key唯一性、session分类）。
 
+---
+
+## 13. 步进门闸（2026-08-20同日实施，用户设计的单步跟踪系统）
+
+用户提议："系统任何一个关键步骤，先wait数据库中的信号变量，变量0→1后代码reset为0再继续执行；set 1的是Master Agent；定位靠独有的日志标志+自包含注释，不用行号。"
+
+实施为**装饰器模式**（用户进一步确认的形态）——`src/step_gate.py`：
+
+| 设计点 | 实现 |
+|---|---|
+| 装饰器 | `@gated`——统一完成auto通过/hold冻结/DB降级，所有门闸行为一致 |
+| 函数名=日志标志 | `launch_solve` → `GATE-LAUNCH-SOLVE`，`grep -rn launch_solve src/` 直达代码块（永不失效） |
+| docstring=自包含文档 | 注册表从函数元数据**自动收集**（inspect），永不与代码漂移；每个门闸的docstring含"做什么/为什么追踪/放行前检查什么" |
+| DB信号 | `p27_step_gates` 集合：mode(auto/hold) + proceed(0/1) + waiting_for(谁在等)；hold时代码轮询proceed，0→1后**代码自清零**再继续 |
+| Master Agent操作面 | `python -m src.step_gate --register/--list/--hold/--auto/--step/--pending/--hold-all/--auto-all` |
+| 安全 | DB不可达降级auto（门闸不能拖死系统）；模式缓存10秒；hold心跳60秒写流水 |
+
+**范围铁律**（对用户原始提议的工程化收敛）：门闸只设在**改变系统状态的动作**上——launcher 8 个门闸：launch_solve/launch_handover(启动进程)、kill_session(杀进程)、requeue_truncated/requeue_skip(重入队)、overwrite_round1_seed/remove_old_proof(文件操作)、finalize_run_completed(写终态)。只读判定不设闸（已由行为流水全量覆盖）。若每一步（含只读）都等放行，系统吞吐归零，7x24运行不存在。
+
+**副产物**：主循环内联的状态动作块被提取成带完整文档的小函数（kill/requeue/overwrite/finalize）——代码结构本身变好了。
+
+**已知代价**：hold阻塞launcher主循环（stall检测暂停），是调试/审计模式，不要长时间挂起。
+
+测试：`scripts/test_016_step_gate.py` 13断言（auto通过/hold冻结→放行→自清零全链/DB降级/注册表收集）。已知坑：`python -m src.step_gate` 的`__main__`模块与launcher import的`src.step_gate`是两个实例，注册表在后者——CLI入口必须委托（已修复并测试）。
+
 
 
 

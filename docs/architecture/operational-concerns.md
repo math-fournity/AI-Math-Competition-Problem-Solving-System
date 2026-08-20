@@ -316,6 +316,24 @@ P0 修复拦住了已知循环，但 Master Agent 仍"看不见"系统的逻辑�
 - **SOP 集成**：SOP_01 新增第8节"系统流动历史观察"（必查项），含判断标准表；`monitor_check_continuation.sh` 新增第9节输出行为流水统计。
 - **测试**：`scripts/test_016_observability.py`（27 断言：读写过滤/聚合/churn告警模拟/DB并发读取/alert key唯一性/session分类）。
 
+### 步进门闸（同日新增，用户设计的单步跟踪系统）
+
+`src/step_gate.py`——`@gated`装饰器把改变系统状态的动作（launcher 8个：
+启动solve/handover、kill session、截断/防抖重入队、round1种子覆盖、
+删旧proof、写COMPLETED终态）变成可单步跟踪门闸：
+
+- **函数名=日志标志**：`launch_solve`→`GATE-LAUNCH-SOLVE`，grep直达；
+- **docstring=自包含文档**：注册表经inspect自动收集进`p27_step_gates`
+  集合（含"做什么/为什么追踪/放行前检查什么"），永不与代码漂移；
+- **DB信号**：mode(auto/hold)+proceed(0/1)——hold时代码轮询proceed，
+  0→1后代码自清零继续（Master Agent用`--step`放行）；
+- **范围铁律**：只对状态改变动作设闸；只读判定靠行为流水。全部等放行
+  则吞吐归零；DB不可达降级auto；hold阻塞主循环，是调试模式非常态；
+- **CLI**：`python -m src.step_gate --register/--list/--hold/--step/
+  --pending/--auto`；
+- **测试**：`scripts/test_016_step_gate.py`（13断言：auto/hold全链/
+  DB降级/注册表）。
+
 ---
 
 ## 循环监控SOP（2026-08-18新增）

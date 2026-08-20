@@ -56,6 +56,7 @@ from src.continuation_redis_queue import (
 from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
 from src.observability import log_flow
+from src.step_gate import gated, sync_registry_to_db
 
 logger = get_logger("continuation_launcher")
 
@@ -125,6 +126,33 @@ def tmux_pane_text(session_name, lines=500):
 def tmux_kill(session_name):
     subprocess.run(["tmux", "kill-session", "-t", session_name],
                    capture_output=True, timeout=5)
+
+
+@gated
+def remove_old_proof(work_dir, round_num, started_at=None):
+    """【门闸: GATE-REMOVE-OLD-PROOF】删除旧proof.md——新一轮开始前的产物清场。
+
+    为什么追踪这个动作：
+    - proof.md是"整题完成"的唯一凭证（有\\boxed即COMPLETED）。上一轮残留的
+      proof.md会被本轮误判为完成（016事故P0-2根因），所以启动新一轮前必须删；
+    - 但删除文件本身不可逆——删错了就丢失解题成果证据。
+
+    放行前Master Agent应检查：
+    1. 要删的确实是旧proof：mtime早于本轮启动时间（started_at参数）；
+    2. 若上一轮完成过，proof应已归档为round{N}_proof.md（归档优先于删除）；
+    3. 该run当前没有正在运行的session可能在写proof.md。
+
+    调用点：三处（v2 handover回退分支 / v2 handover完成启动solve / v1直接启动），
+    全部在launch_batch主循环"启动新一轮"之前。
+    """
+    proof = Path(work_dir) / PROOF_FILE_NAME
+    if not proof.exists():
+        return
+    if started_at is not None and proof.stat().st_mtime >= started_at:
+        # 新proof（本轮写的）——不删，让完成判定处理它
+        return
+    proof.unlink()
+    logger.info(f"[{work_dir}] 清理旧proof.md（启动R{round_num}前）")
 
 
 def find_active_session(db, run_key, pid):
@@ -405,9 +433,26 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
     return None
 
 
+@gated
 def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL,
                    db=None, batch_id=None, run_key=None):
-    """v2方案Pipe A的异步启动——生成面包屑地图 + 启动devin cli，立即返回
+    """【门闸: GATE-START-HANDOVER】启动HANDOVER.md生成(Pipe A) devin cli。
+
+    这个函数做什么：
+    - 跑conversation_mapper.py生成上一轮对话的面包屑地图（.md）；
+    - 构造Pipe A的prompt（写HANDOVER.md的任务说明）；
+    - 用tmux启动devin -p子进程，异步生成round{N}_HANDOVER.md，立即返回。
+
+    为什么追踪这个动作：
+    - 它消耗API配额并占并发槽（handover_pending与running合计不超concurrency）；
+    - 016事故中上千个handover session全部从这里产生——旧HANDOVER.md被
+      check_handover秒判成功，导致"启动→秒判→重入队→再启动"死循环。
+
+    放行前Master Agent应检查：
+    1. prev_export存在且mtime属于本轮应引用的那一轮（非历史残留）；
+    2. 面包屑地图已生成（map_path存在且非空）；
+    3. 该run无活跃handover session；
+    4. round_num正确（生成的是round{N-1}的HANDOVER）。
 
     返回handover信息dict（含session_name/session_key和路径），或None（启动失败时）。
     主循环通过check_handover()检查是否完成。
@@ -536,9 +581,27 @@ def check_handover(hinfo, pid):
 # 启动单个devin cli（Pipe B解题）
 # =============================================================================
 
+@gated
 def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
                  db=None, batch_id=None):
-    """启动一个devin cli续传实例（Pipe B解题）
+    """【门闸: GATE-LAUNCH-SOLVE】启动解题(Pipe B) devin cli——系统最重的动作。
+
+    这个函数做什么：
+    - 用tmux启动一个devin -p子进程跑续传解题prompt；
+    - 分配全局session编号（allocate_seq），创建注册表记录（p27_sessions）；
+    - 清理上一轮的DONE.md标记；建立tmux日志管道。
+
+    为什么追踪这个动作：
+    - 启动即消耗GLM-5.2 API配额、创建session、随后主循环会把run标记为
+      running（DB+Redis）——这是系统里最重的状态改变；
+    - 016事故的失控循环就是"启动"这个动作被高频触发（18分钟上千次），
+      Master Agent当时既看不见也拦不住。
+
+    放行前Master Agent应检查：
+    1. work_dir存在且属于该run；
+    2. 该run无活跃session（P0-1防抖已做，此为双保险）；
+    3. 并发槽真的空闲（running+handover_pending < concurrency）；
+    4. prompt文件内容合理（题目文本+上轮reasoning/HANDOVER都在）。
 
     如果传了db，使用编号化管理（allocate_seq + create_session_record）。
     返回 (session_name, session_key) 元组——session_key在编号化管理时为"p27-s{seq}"，
@@ -604,10 +667,160 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
     return session_name, session_key
 
 
+# ============================================================
+# 门闸化的小动作函数——原先是主循环里的内联代码块（016后提取）
+# 每个函数名=日志标志（grep直达），docstring=自包含文档（进DB注册表）
+# ============================================================
+
+@gated
+def requeue_skip(r, run_key, pid, priority, source, session_name=""):
+    """【门闸: GATE-REQUEUE-SKIP】防抖拦截后的低优先级重入队（priority=9999）。
+
+    触发场景（source字段区分）：
+    - source=memory：该run已在launcher内存dict（running/handover_pending）
+      ——同一进程内防重复启动；
+    - source=orphan：注册表查到该run有活跃孤儿session（launcher重启后
+      内存丢失，但tmux里旧session还活着）。
+
+    为什么追踪这个动作：
+    - 频繁触发此闸=系统有结构性问题（孤儿堆积/防抖误伤/队列里只剩
+      被跳过的题）；
+    - 016事故后加的requeued_keys守卫保证同一轮poll不会无限跳过——
+      再取到已跳过的key就break等下一轮。
+
+    放行前Master Agent应检查：
+    1. source=orphan时：该session_name真的还在tmux里（tmux has-session）；
+    2. 该题不是被误伤（比如launcher重启后正常接管的题）；
+    3. 重入队后score=9999确实排在队尾（NX模式不被feeder重置）。
+    """
+    enqueue_pending(r, run_key, priority=9999)
+
+
+@gated
+def overwrite_round1_seed(work_dir, seed_export, run_key, pid):
+    """【门闸: GATE-OVERWRITE-ROUND1-SEED】用seed_export覆盖round1_export.json。
+
+    这个动作做什么：
+    round1_export.json的语义是"原始失败export的镜像"。每个run第一次被
+    取出时，从seed_export（DB里存的原始路径）拷贝一份到work_dir。
+
+    为什么追踪这个动作：
+    - 016事故根因之一：work_dir里残留8月18日手工跑的旧round1_export.json，
+      被当成有效产物参与截断/完成判定。总是覆盖=旧产物清场（P0-2修复）；
+    - 覆盖本身无损（原件在seed_export路径），但若seed_export路径失效，
+      旧文件会残留——这正是hold此闸时要检查的。
+
+    放行前Master Agent应检查：
+    1. seed_export路径存在且非空；
+    2. 该run是本轮首次取件（current_round==1）；
+    3. 覆盖前的round1_export.json若是"今天以前的旧文件"，说明它就是
+       016模式的历史残留（覆盖它是对的，不用担心）。
+    """
+    import shutil
+    round1_export = Path(work_dir) / "round1_export.json"
+    if seed_export and Path(seed_export).exists():
+        shutil.copy(seed_export, round1_export)
+    elif not round1_export.exists():
+        shutil.copy(seed_export, round1_export)
+    return round1_export
+
+
+@gated
+def kill_session(session_name, run_key, pid, reason):
+    """【门闸: GATE-KILL-SESSION】kill一个解题session的tmux（不可逆）。
+
+    触发场景（reason字段区分）：
+    - reason=completed：run完成，证明已归档，正常清理；
+    - reason=truncated：round截断转入下一轮，旧session让位；
+    - reason=dead_session：devin cli退出但无proof，判定死亡后清理。
+
+    为什么追踪这个动作：
+    - kill直接终止tmux里的devin cli进程，不可逆；
+    - 项目铁律"绝不kill无DONE.md的session"管的就是这里——dead_session
+      分支是唯一例外（DONE.md已出现但无proof）。
+
+    放行前Master Agent应检查：
+    1. reason=completed/truncated时：DONE.md已出现、export已落盘
+       （export文件存在且mtime属于本轮）；
+    2. reason=dead_session时：judge事件的reason成立（devin确实退出了）；
+    3. 该session_name确实是注册表里登记的那个（防误杀）。
+    """
+    tmux_kill(session_name)
+
+
+@gated
+def requeue_truncated(r, run_key, pid, round_num):
+    """【门闸: GATE-REQUEUE-TRUNCATED】截断round的低优先级重入队（多轮续传核心流转）。
+
+    这个动作做什么：
+    round{N}被判定截断（thinking超长被切断），把run以priority=round_num
+    重新入pending队列，等launcher再取出启动round{N+1}。
+
+    为什么追踪这个动作：
+    - 这是多轮续传的引擎，也是016事故循环的引擎——判定出错+feeder重置
+      优先级时，"截断→重入队→再启动"变成失控循环；
+    - 重入队前run被标回prepared、rounds_log已append——放行前这些都是
+      可查的。
+
+    放行前Master Agent应检查：
+    1. 截断判定成立：judge事件reason里comp tokens≥24000、rc>1000、
+       msg=0（is_truncated的完整条件）；
+    2. rounds_log最后一条是本轮（round_num）且export路径有效；
+    3. round_num < max_rounds（到max走TRUNCATED_AT_MAX分支不重入队）；
+    4. 重入队score=round_num未被feeder重置（NX模式保证）。
+    """
+    enqueue_pending(r, run_key, priority=round_num)
+
+
+@gated
+def finalize_run_completed(db, r, run_key, pid, round_num, done_reason,
+                           elapsed, archived_proof, export_path, info, batch_id):
+    """【门闸: GATE-FINALIZE-RUN-COMPLETED】写整题终态COMPLETED（几乎不可逆）。
+
+    这个动作做什么：
+    proof.md有\\boxed且devin cli已退出——把run标记为completed/
+    final_status=COMPLETED，写rounds_log终条目，从running移除，
+    入completed队列，写DB事件。
+
+    为什么追踪这个动作：
+    - COMPLETED是整题终态，直接影响通过率统计和POC-2.5选题；
+    - 写入后只有人工改DB才能翻案。误判完成=该题永远失去续传机会。
+
+    放行前Master Agent应检查：
+    1. proof.md有\\boxed且mtime晚于本轮启动（P0-2已校验，双保险）；
+    2. export已落盘（devin退出后export才完整）；
+    3. rounds_log条目齐全（本轮的中间产物路径都在）；
+    4. 若是抽样题：C类AI抽查过数学正确性（无幻觉/无泄漏）。
+    """
+    completed_list = []
+    archived_proof = Path(archived_proof)
+    run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+    rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+    rounds_log.append(make_round_log_entry(
+        round_num, export_path, False, True, done_reason,
+        info, archived_proof_path=str(archived_proof),
+    ))
+    update_run(db, run_key, {
+        "status": "completed",
+        "final_status": "COMPLETED",
+        "rounds_log": rounds_log,
+        "proof_path": str(archived_proof),
+        "ended_at": utc_now(),
+        "updated_at": utc_now(),
+        "verdict": make_verdict("completed", f"round{round_num}_proof_complete"),
+    })
+    remove_running(r, run_key)
+    add_completed(r, {"run_key": run_key, "final_status": "COMPLETED"})
+    update_stats(r)
+    insert_event(db, batch_id, "continuation_completed", {
+        "pid": pid, "round": round_num, "elapsed": elapsed,
+    }, run_key=run_key)
+    return completed_list
+
+
 # =============================================================================
 # 并发批量续传（核心——复用analysis_launcher的stall/rate_limit/zombie模式）
 # =============================================================================
-
 def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                  max_rounds=DEFAULT_MAX_ROUNDS,
                  max_runtime=DEFAULT_MAX_RUNTIME_SECONDS,
@@ -630,6 +843,11 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     log_event(logger, "info", "batch_start", batch_id=batch_id, concurrency=concurrency, method=method, max_rounds=max_rounds)
     log_flow("batch_start", run_key=None, batch_id=batch_id, concurrency=concurrency,
              method=method, max_rounds=max_rounds)
+    # 步进门闸：把@gated装饰器收集的门闸目录同步到DB（Master Agent可见）
+    try:
+        sync_registry_to_db()
+    except Exception as e:
+        logger.warning(f"step_gate注册表同步失败(继续运行): {e}")
     print(f"=== 启动续传批次 batch={batch_id} concurrency={concurrency} method={method} ===")
 
     # 注册优雅退出——SIGTERM/SIGINT只设flag，不kill devin session
@@ -775,11 +993,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
             prompt_file.write_text(prompt_text)
 
-            # 清理旧round的proof.md
-            old_proof = Path(work_dir) / PROOF_FILE_NAME
-            if old_proof.exists():
-                old_proof.unlink()
-                logger.info(f"[{pid}] 清理旧proof.md（启动R{round_num}前）")
+            # 清理旧round的proof.md（门闸GATE-REMOVE-OLD-PROOF）
+            remove_old_proof(work_dir, round_num,
+                             gate_ctx={"run_key": run_key, "pid": pid, "round": round_num})
 
             # 准备export路径
             round_traj_dir = CONTINUATION_TRAJECTORY_BASE / h_run_key / f"round{round_num}"
@@ -879,7 +1095,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 log_flow("skip_duplicate", run_key=run_key, pid=pid, source="memory",
                          priority=priority)
                 requeued_keys.add(run_key)
-                enqueue_pending(r, run_key, priority=9999)
+                requeue_skip(r, run_key, pid, priority, source="memory",
+                             gate_ctx={"run_key": run_key, "pid": pid, "source": "memory"})
                 continue
             # 检查2：注册表——该题是否有活跃孤儿session（防launcher重启后重复启动）
             active_session = find_active_session(db, run_key, pid)
@@ -891,7 +1108,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 log_flow("skip_orphan", run_key=run_key, pid=pid,
                          session_name=active_session, priority=priority)
                 requeued_keys.add(run_key)
-                enqueue_pending(r, run_key, priority=9999)
+                requeue_skip(r, run_key, pid, priority, source="orphan",
+                             session_name=active_session,
+                             gate_ctx={"run_key": run_key, "pid": pid,
+                                       "source": "orphan", "session_name": active_session})
                 continue
 
             work_dir = run_doc.get("work_dir", "")
@@ -924,16 +1144,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
 
             # 确定本轮的seed export和prev_export
             if current_round == 1:
-                round1_export = Path(work_dir) / "round1_export.json"
-                # 016事故P0-2修复：总是从seed_export覆盖拷贝。
+                # 门闸GATE-OVERWRITE-ROUND1-SEED：总是从seed_export覆盖拷贝。
                 # 残留的旧round1_export.json（历史手工运行产物，如8月18日的）内容
                 # 未必是本题的原始失败export，用它判定round1截断/完成会误判。
                 # round1_export的语义就是seed_export的镜像，覆盖无损（原件在seed_export路径）。
-                import shutil
-                if seed_export and Path(seed_export).exists():
-                    shutil.copy(seed_export, round1_export)
-                elif not round1_export.exists():
-                    shutil.copy(seed_export, round1_export)
+                round1_export = overwrite_round1_seed(
+                    work_dir, seed_export, run_key, pid,
+                    gate_ctx={"run_key": run_key, "pid": pid, "round": 1})
 
                 trunc, trunc_reason = is_truncated(str(round1_export))
                 # 016事故P0-2：产物归属校验——残留的旧proof.md（mtime早于刚拷贝的
@@ -984,9 +1201,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
                     prompt_file.write_text(prompt_text)
 
-                    old_proof = Path(work_dir) / PROOF_FILE_NAME
-                    if old_proof.exists():
-                        old_proof.unlink()
+                    # 门闸GATE-REMOVE-OLD-PROOF：清理旧proof防误判完成
+                    remove_old_proof(work_dir, round_num,
+                                     gate_ctx={"run_key": run_key, "pid": pid, "round": round_num})
 
                     round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
                     round_traj_dir.mkdir(parents=True, exist_ok=True)
@@ -1054,9 +1271,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 prompt_file = Path(work_dir) / f"round{round_num}_prompt.txt"
                 prompt_file.write_text(prompt_text)
 
-                old_proof = Path(work_dir) / PROOF_FILE_NAME
-                if old_proof.exists():
-                    old_proof.unlink()
+                # 门闸GATE-REMOVE-OLD-PROOF：清理旧proof防误判完成
+                remove_old_proof(work_dir, round_num,
+                                 gate_ctx={"run_key": run_key, "pid": pid, "round": round_num})
 
                 round_traj_dir = CONTINUATION_TRAJECTORY_BASE / run_key / f"round{round_num}"
                 round_traj_dir.mkdir(parents=True, exist_ok=True)
@@ -1167,7 +1384,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                                  round=round_num, reason="dead_session")
                         failed.append({"pid": pid, "round": round_num, "reason": "dead_session"})
                         to_remove.append(run_key)
-                        tmux_kill(session_name)
+                        kill_session(session_name, run_key, pid, reason="dead_session",
+                                     gate_ctx={"run_key": run_key, "pid": pid,
+                                               "reason": "dead_session", "elapsed": elapsed_sec})
                         # 记录到rounds_log
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
@@ -1204,35 +1423,21 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     archived_proof = Path(work_dir) / f"round{round_num}_proof.md"
                     completed.append({"pid": pid, "round": round_num, "proof": str(archived_proof)})
                     to_remove.append(run_key)
-                    tmux_kill(session_name)
+                    # 门闸GATE-KILL-SESSION（reason=completed：证明已归档，正常清理）
+                    kill_session(session_name, run_key, pid, reason="completed",
+                                 gate_ctx={"run_key": run_key, "pid": pid,
+                                           "reason": "completed", "round": round_num})
 
-                    # 更新rounds_log——包含完整中间产物路径
-                    run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                    rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                    rounds_log.append(make_round_log_entry(
-                        round_num, export_path, False, True, done_reason,
-                        info, archived_proof_path=str(archived_proof),
-                    ))
-
-                    update_run(db, run_key, {
-                        "status": "completed",
-                        "final_status": "COMPLETED",
-                        "rounds_log": rounds_log,
-                        "proof_path": str(archived_proof),  # 指向归档路径，不会被覆盖
-                        "ended_at": utc_now(),
-                        "updated_at": utc_now(),
-                        "verdict": make_verdict("completed", f"round{round_num}_proof_complete"),
-                    })
+                    # 门闸GATE-FINALIZE-RUN-COMPLETED：写整题终态COMPLETED
                     log_flow("round_done", run_key=run_key, pid=pid, round=round_num,
                              outcome="completed", reason=done_reason, elapsed=elapsed)
+                    finalize_run_completed(
+                        db, r, run_key, pid, round_num, done_reason, elapsed,
+                        archived_proof, export_path, info, batch_id,
+                        gate_ctx={"run_key": run_key, "pid": pid,
+                                  "round": round_num, "reason": done_reason})
                     log_flow("run_completed", run_key=run_key, pid=pid,
                              round=round_num, final_status="COMPLETED")
-                    remove_running(r, run_key)
-                    add_completed(r, {"run_key": run_key, "final_status": "COMPLETED"})
-                    update_stats(r)
-                    insert_event(db, batch_id, "continuation_completed", {
-                        "pid": pid, "round": round_num, "elapsed": elapsed,
-                    }, run_key=run_key)
                 else:
                     # 有输出但无proof.md——检查是否截断
                     # 016事故P0-2：since_ts校验——旧残留export不算本轮产物
@@ -1253,10 +1458,14 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                             "updated_at": utc_now(),
                         })
                         to_remove.append(run_key)
-                        tmux_kill(session_name)
+                        kill_session(session_name, run_key, pid, reason="truncated",
+                                     gate_ctx={"run_key": run_key, "pid": pid,
+                                               "reason": "truncated", "round": round_num})
                         remove_running(r, run_key)
-                        # 重新入队（低优先级，避免阻塞新题）
-                        enqueue_pending(r, run_key, priority=round_num)
+                        # 重新入队（低优先级，避免阻塞新题）——门闸GATE-REQUEUE-TRUNCATED
+                        requeue_truncated(r, run_key, pid, round_num,
+                                          gate_ctx={"run_key": run_key, "pid": pid,
+                                                    "round": round_num, "reason": trunc_reason})
                         log_flow("judge", run_key=run_key, pid=pid, round=round_num,
                                  outcome="truncated", reason=trunc_reason)
                         log_flow("requeue", run_key=run_key, pid=pid,
@@ -1285,7 +1494,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                             "verdict": make_verdict("truncated_at_max", "max_rounds_reached"),
                         })
                         to_remove.append(run_key)
-                        tmux_kill(session_name)
+                        kill_session(session_name, run_key, pid, reason="truncated_at_max",
+                                     gate_ctx={"run_key": run_key, "pid": pid,
+                                               "reason": "truncated_at_max", "round": round_num})
                         remove_running(r, run_key)
                         add_completed(r, {"run_key": run_key, "final_status": "TRUNCATED_AT_MAX"})
                         update_stats(r)
@@ -1298,7 +1509,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         print(f"  [unknown] {pid} R{round_num} — 既没截断也没完成")
                         failed.append({"pid": pid, "round": round_num, "reason": "unknown_state"})
                         to_remove.append(run_key)
-                        tmux_kill(session_name)
+                        kill_session(session_name, run_key, pid, reason="unknown_state",
+                                     gate_ctx={"run_key": run_key, "pid": pid,
+                                               "reason": "unknown_state", "round": round_num})
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                         rounds_log.append(make_round_log_entry(
