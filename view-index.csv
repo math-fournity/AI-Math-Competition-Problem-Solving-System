@@ -1,4 +1,5 @@
 taxonomy,view_file,asset_path,asset_type,asset_title
+cognitive-closure,views/cognitive-closure.md,basement/015-README-view-unification.md,document,README 与 view 的统一
 历史,dev-docs/README.md,dev-docs/001-目录结构扁平化重组方案.md,document,目录结构扁平化重组方案
 历史,dev-docs/README.md,dev-docs/002-checklist-working-packages拆分.md,document,checklist/working-packages拆分
 历史,dev-docs/README.md,dev-docs/003-README三层架构与分类法设计.md,document,README三层架构与分类法设计
