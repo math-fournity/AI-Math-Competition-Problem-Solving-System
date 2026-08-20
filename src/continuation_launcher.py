@@ -55,6 +55,7 @@ from src.continuation_redis_queue import (
 )
 from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
+from src.observability import log_flow
 
 logger = get_logger("continuation_launcher")
 
@@ -405,13 +406,14 @@ def generate_handover(export_path, pid, round_num, problem_text, work_dir, model
 
 
 def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DEVIN_MODEL,
-                   db=None, batch_id=None):
+                   db=None, batch_id=None, run_key=None):
     """v2方案Pipe A的异步启动——生成面包屑地图 + 启动devin cli，立即返回
 
     返回handover信息dict（含session_name/session_key和路径），或None（启动失败时）。
     主循环通过check_handover()检查是否完成。
 
     如果传了db，使用编号化管理（allocate_seq + create_session_record）。
+    run_key用于行为流水（observability）——不传则fallback用pid。
     """
     export_path = str(export_path)
     work_dir = Path(work_dir)
@@ -479,6 +481,8 @@ def start_handover(export_path, pid, round_num, problem_text, work_dir, model=DE
         "--export", str(handover_export),
     ]
     log_event(logger, "info", "devin_cli_launch", problem_id=pid, round=round_num, session_type="handover", model=model, permission_mode=DEVIN_PERMISSION_MODE, batch_id=batch_id or "p27-full")
+    log_flow("launch_handover", run_key=run_key or pid, pid=pid, round=round_num,
+             session_name=tmux_sess, model=model, batch_id=batch_id or "p27-full")
     tmux_cmd = " ".join(cmd)
     subprocess.run(
         ["tmux", "new-session", "-d", "-s", tmux_sess,
@@ -573,6 +577,9 @@ def launch_solve(run_key, work_dir, prompt_file, export_path, round_num, pid,
         f"sleep 999999"
     )
     log_event(logger, "info", "devin_cli_launch", problem_id=pid, round=round_num, session_type="solve", model=DEVIN_MODEL, permission_mode=DEVIN_PERMISSION_MODE, batch_id=batch_id or "p27-full")
+    log_flow("launch_solve", run_key=run_key, pid=pid, round=round_num,
+             session_name=session_name, model=DEVIN_MODEL,
+             batch_id=batch_id or "p27-full")
 
     full_cmd = f"cd {work_dir} && {devin_cmd} 2>&1 | tee {tmux_log_path}"
     subprocess.run(
@@ -621,6 +628,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     """
     logger.info(f"启动续传批次 batch={batch_id} concurrency={concurrency} method={method}")
     log_event(logger, "info", "batch_start", batch_id=batch_id, concurrency=concurrency, method=method, max_rounds=max_rounds)
+    log_flow("batch_start", run_key=None, batch_id=batch_id, concurrency=concurrency,
+             method=method, max_rounds=max_rounds)
     print(f"=== 启动续传批次 batch={batch_id} concurrency={concurrency} method={method} ===")
 
     # 注册优雅退出——SIGTERM/SIGINT只设flag，不kill devin session
@@ -690,6 +699,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
         if should_stop():
             if not running:
                 print(f"  [graceful_shutdown] running已全部完成，launcher退出")
+                log_flow("graceful_stop", run_key=None, batch_id=batch_id,
+                         reason="running全空，launcher退出")
                 break
             else:
                 print(f"  [graceful_shutdown] 不再启动新run，等待{len(running)}个running自然完成...")
@@ -843,6 +854,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
             if not items:
                 break
             run_key, priority = items[0]
+            log_flow("dequeue", run_key=run_key, priority=priority)
 
             run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
             if not run_doc:
@@ -857,6 +869,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 print(f"  [skip_duplicate] {pid} 已在内存跟踪中(running/handover_pending)，低优先级重入队")
                 log_event(logger, "warning", "duplicate_launch_blocked",
                           problem_id=pid, run_key=run_key, source="memory", batch_id=batch_id)
+                log_flow("skip_duplicate", run_key=run_key, pid=pid, source="memory",
+                         priority=priority)
                 enqueue_pending(r, run_key, priority=9999)
                 continue
             # 检查2：注册表——该题是否有活跃孤儿session（防launcher重启后重复启动）
@@ -866,6 +880,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 log_event(logger, "warning", "orphan_session_detected",
                           problem_id=pid, run_key=run_key,
                           session_name=active_session, batch_id=batch_id)
+                log_flow("skip_orphan", run_key=run_key, pid=pid,
+                         session_name=active_session, priority=priority)
                 enqueue_pending(r, run_key, priority=9999)
                 continue
 
@@ -917,6 +933,9 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     str(round1_export), work_dir,
                     since_ts=round1_export.stat().st_mtime,
                 )
+                log_flow("judge", run_key=run_key, pid=pid, round=1,
+                         outcome="round1_precheck",
+                         reason=f"trunc={trunc}({trunc_reason}), comp={comp}({comp_reason})")
                 if comp and not trunc:
                     update_run(db, run_key, {
                         "status": "completed",
@@ -940,7 +959,7 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                 print(f"  [handover_start] {pid} R{round_num} (生成round{round_num-1}的HANDOVER.md)")
                 hinfo = start_handover(
                     prev_export, pid, round_num - 1, problem_text, Path(work_dir),
-                    db=db, batch_id=batch_id,
+                    db=db, batch_id=batch_id, run_key=run_key,
                 )
                 if hinfo is None:
                     # start_handover失败（地图生成失败等）——直接用v1
@@ -1100,6 +1119,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                     print(f"  [{pid}] 忽略旧残留proof.md (mtime早于本轮启动)")
                     log_event(logger, "warning", "stale_proof_ignored",
                               problem_id=pid, round=round_num, batch_id=batch_id)
+                    log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                             outcome="stale_proof_ignored", reason="mtime早于本轮启动")
 
             # 检查devin cli退出——只有退出后才处理完成/失败
             # 方式1: tmux session消失
@@ -1124,11 +1145,17 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         is_done = True
                         done_reason = f"session ended: {comp_reason}"
                         proof_found = PROOF_FILE_NAME in comp_reason
+                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                 outcome="completed_by_export", reason=comp_reason)
                     else:
                         # dead_session
                         elapsed_sec = int(time.time() - info["started_at"])
                         print(f"  [dead_session] {pid} R{round_num} ({elapsed_sec}s)")
                         log_event(logger, "warning", "dead_session", problem_id=pid, round=round_num, elapsed=elapsed_sec, batch_id=batch_id)
+                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                 outcome="dead_session", reason=f"devin退出无proof, elapsed={elapsed_sec}s")
+                        log_flow("run_failed", run_key=run_key, pid=pid,
+                                 round=round_num, reason="dead_session")
                         failed.append({"pid": pid, "round": round_num, "reason": "dead_session"})
                         to_remove.append(run_key)
                         tmux_kill(session_name)
@@ -1187,6 +1214,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         "updated_at": utc_now(),
                         "verdict": make_verdict("completed", f"round{round_num}_proof_complete"),
                     })
+                    log_flow("round_done", run_key=run_key, pid=pid, round=round_num,
+                             outcome="completed", reason=done_reason, elapsed=elapsed)
+                    log_flow("run_completed", run_key=run_key, pid=pid,
+                             round=round_num, final_status="COMPLETED")
                     remove_running(r, run_key)
                     add_completed(r, {"run_key": run_key, "final_status": "COMPLETED"})
                     update_stats(r)
@@ -1217,6 +1248,10 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         remove_running(r, run_key)
                         # 重新入队（低优先级，避免阻塞新题）
                         enqueue_pending(r, run_key, priority=round_num)
+                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                 outcome="truncated", reason=trunc_reason)
+                        log_flow("requeue", run_key=run_key, pid=pid,
+                                 priority=round_num, reason=f"truncated_r{round_num}")
                         update_stats(r)
                         insert_event(db, batch_id, "continuation_truncated", {
                             "pid": pid, "round": round_num, "reason": trunc_reason,
@@ -1225,6 +1260,8 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
                         # 截断且已达最大轮次——TRUNCATED_AT_MAX
                         print(f"  [truncated_max] {pid} R{round_num} — 达到max_rounds={max_rounds}")
                         log_event(logger, "info", "truncated_max", problem_id=pid, round=round_num, max_rounds=max_rounds, batch_id=batch_id)
+                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                 outcome="truncated_at_max", reason=f"达到max_rounds={max_rounds}")
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
                         rounds_log = run_doc.get("rounds_log", []) if run_doc else []
                         rounds_log.append(make_round_log_entry(

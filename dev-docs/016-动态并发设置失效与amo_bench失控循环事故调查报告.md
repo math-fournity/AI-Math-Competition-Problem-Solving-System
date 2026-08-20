@@ -256,6 +256,27 @@ continuation 进程 0 / p27 tmux session 0 / devin -p 进程 0
 
 launcher重启恢复running dict（P1-4）、handover写DB事件流（P1-5）、launcher日志落盘（P1-6）、脏数据清理（P1-7）、watchdog缺位（P2-9）、`p27_sessions.type`字段统计口径（P2-10，注：注册表字段实际叫`type`不是`session_type`，§4.4的"全null"是取证脚本用错字段名，字段本身有值）、tmux_session双前缀（P2-11）。
 
+---
+
+## 11. 可观测性补强（2026-08-20同日实施）
+
+针对"SOP为什么看不见"的复盘：所有检查都是**存量快照**，看不到**流动过程**。实施四层：
+
+| 层 | 内容 |
+|---|---|
+| 行为流水 | `src/observability.py`——launcher每个状态转移写JSONL到`log/flow/`（含judge判定理由）。CLI：`--stats/--tail/--run-key/--event/--clean-days` |
+| launcher插桩 | dequeue/skip/launch/judge/requeue/done 全打点（`log_flow`调用，写失败静默） |
+| monitor新检查 | **A13**真实并发四源审计（tmux vs DB vs Redis vs 设定）；**A14**启动抖动（行为流水中同run 1小时≥5次launch→critical，事故场景下第5次启动即报警）；**A1修复**（并发从DB读+补"实际>设定"分支） |
+| SOP集成 | SOP_01新增第8节"系统流动历史观察"（每轮必查`--stats --since 1h`，含判断标准表和处置路径） |
+
+**事后回放能力**：若016事故在有此层的情况下重演，Master Agent 执行
+`python -m src.observability --stats --since 1h` 会看到：
+`churn_suspects: {p27-full-amo_bench_00000006: 900+}`——失控循环3秒内可见；
+`--run-key` 能看到每次 judge 的 stale 判定理由，直接定位"旧产物秒判"根因。
+
+测试：`scripts/test_016_observability.py`（21断言全过，含016事故场景模拟——
+同一题6次handover启动触发launch_churn critical告警）。
+
 
 
 

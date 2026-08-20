@@ -152,7 +152,40 @@ python -m scripts.sop.log_search --event launch_solve --stats
 日志文件位置：`log/`（项目本地，循环覆盖，最多500个文件/500MB）
 日志格式：`[时间戳] [级别] [模块] event=事件名 problem_id=xxx round=x session_key=xxx`
 
-### 8. devin cli model 参数检查（CHECKPOINT）
+### 8. 系统流动历史观察（行为流水，016事故后新增——必查项）
+
+日志是"事件流"，但**看不到系统的逻辑流动**——谁被取出、为什么被跳过、判定为什么失败、
+为什么重入队。016事故（`dev-docs/016`）中失控循环跑了18分钟上千次，所有存量检查
+（队列数/session数）都看不见，因为存量没变化，**流动是病态的**。
+
+行为流水（`log/flow/flow-YYYYMMDD.jsonl`）记录 launcher 的每个状态转移：
+dequeue → skip/launch → judge → requeue/done。**每轮SOP_01必查**：
+
+```
+# 一眼视图：聚合统计（启动速率/每题启动次数Top10/失控嫌疑/判定分布/重入队原因）
+python -m src.observability --stats --since 1h
+
+# 看最近的系统行为（最近50条状态转移）
+python -m src.observability --tail 50
+
+# 深挖某道题的完整生命周期（含所有判定理由）
+python -m src.observability --run-key p27-full-amo_bench_00000006
+
+# 只看某一类事件（如所有防抖拦截）
+python -m src.observability --event skip_orphan --since 2h
+```
+
+**判断标准**：
+
+| 现象 | 判定 | 后续 |
+|---|---|---|
+| `churn_suspects` 非空（1小时内某题启动≥5次） | **失控循环正在发生** | 立即按016报告§5处置：kill launcher→清队列→查根因 |
+| 启动速率异常高（如>10/分钟，并发≤5时） | 可疑 | 看`--tail`找循环模式 |
+| `requeue_reasons` 大量同类原因 | 判定逻辑可疑 | 查对应judge事件的reason |
+| `judge_outcomes` 出现大量stale_proof/stale_export | 旧产物残留 | 检查work_dir是否混有历史文件 |
+| 事件速率≈0且pending>0 | 系统停滞 | 结合A2队列停滞检查 |
+
+### 9. devin cli model 参数检查（CHECKPOINT）
 
 每次启动 devin cli 解题时，日志中会记录 `event=devin_cli_launch model=xxx`。
 **model 参数必须是 `devin models list` 中的有效值**。

@@ -39,6 +39,7 @@ from src.session_registry import (
     list_sessions as _list_sessions,
     update_tmux_alive_status as _update_tmux_alive,
 )
+from src.observability import read_flow
 from monitoring.shared_logger import get_logger, log_event
 
 logger = get_logger("monitor_continuation")
@@ -56,6 +57,9 @@ PROOF_TOO_SMALL_BYTES = 1024
 HANDOVER_TOO_SMALL_BYTES = 500
 SAMPLE_SIZE = 2
 AI_REVIEW_INTERVAL = 3              # 每3轮抽样一次
+# A14启动抖动阈值（016事故复盘：失控循环18分钟上千次启动，正常一轮只需1-2次）
+LAUNCH_CHURN_WINDOW_MINUTES = 60    # 统计窗口
+LAUNCH_CHURN_THRESHOLD = 5          # 同一run窗口内launch次数≥此值 → critical
 
 # A10-A12阈值（来自specs/p27_session_management_and_polish_spec.md §A.7）
 STUCK_SESSION_WARNING_THRESHOLD = 5
@@ -129,15 +133,36 @@ def resolve_alert(db, alert_key, resolution="fixed"):
 # A类自动检查
 # ============================================================
 
-def check_session_health(db, batch_id, expected_concurrency):
-    """A1: p27- session数 vs DB running数 vs 设定并发"""
-    # 排除服务session——它们不是devin cli实例
+def _tmux_p27_sessions():
+    """列出tmux中的p27工作session（排除服务session）"""
     SERVICE_SESSIONS = {"p27-launcher", "monitor-p27", "p27-watchdog"}
     result = subprocess.run(
         ["tmux", "list-sessions"], capture_output=True, text=True, timeout=5
     )
-    p27_sessions = [l for l in result.stdout.split("\n")
-                    if l.startswith("p27-") and l.split(":")[0] not in SERVICE_SESSIONS]
+    return [l for l in result.stdout.split("\n")
+            if l.startswith("p27-") and l.split(":")[0] not in SERVICE_SESSIONS]
+
+
+def _batch_concurrency(db, batch_id, fallback):
+    """从DB读batch并发设定（016事故教训：CLI参数是启动值，DB才是当前值）"""
+    try:
+        from src.continuation_config import CONTINUATION_BATCHES_COLLECTION
+        doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
+        if doc and "concurrency" in doc:
+            return int(doc["concurrency"])
+    except Exception:
+        pass
+    return fallback
+
+
+def check_session_health(db, batch_id, expected_concurrency):
+    """A1: p27- session数 vs DB running数 vs 设定并发
+
+    016事故修复：①并发设定从DB读（CLI参数是启动值，set-concurrency后DB才是真相）
+    ②补"实际>设定"告警分支——事故中实际6个进程>设定1，原代码只报"少于"不报"超出"
+    """
+    expected_concurrency = _batch_concurrency(db, batch_id, expected_concurrency)
+    p27_sessions = _tmux_p27_sessions()
     actual = len(p27_sessions)
 
     aql = (
@@ -156,11 +181,115 @@ def check_session_health(db, batch_id, expected_concurrency):
             "db_running": db_running,
             "tmux_sessions": actual,
         }))
+    elif actual > expected_concurrency:
+        alerts.append(("session_health", "critical", {
+            "summary": f"tmux session数({actual})超过并发设定({expected_concurrency})"
+                       f"——可能有孤儿session或重复启动（016事故模式）",
+            "expected": expected_concurrency,
+            "actual": actual,
+            "sessions": [l.split(":")[0] for l in p27_sessions][:10],
+        }))
     elif actual < expected_concurrency and actual > 0:
         alerts.append(("session_health", "warning", {
             "summary": f"tmux session数({actual})少于并发数({expected_concurrency})",
             "expected": expected_concurrency,
             "actual": actual,
+        }))
+    return alerts
+
+
+def check_real_concurrency(db, batch_id):
+    """A13: 真实并发四源审计（016事故新增）
+
+    对比四个"并发"视角，任何一个不一致都说明系统状态脱节：
+      tmux实际p27-s*数 vs DB running数 vs Redis running hash数 vs batch并发设定
+
+    事故中：tmux=6, DB running=2, Redis running=1, 设定=1——四源三个数，
+    全都不一致，但没有任何检查对比过它们。
+    """
+    alerts = []
+    try:
+        import redis
+        r = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+        redis_running = r.hlen("p27:running")
+    except Exception as e:
+        return [("redis_connection", "critical", {"summary": f"Redis连接失败: {e}"})]
+
+    tmux_actual = len(_tmux_p27_sessions())
+
+    aql = (
+        f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
+        f"FILTER run.batch_id == @bid "
+        f"FILTER run.status == 'running' "
+        f"COLLECT WITH COUNT INTO c RETURN c"
+    )
+    cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=60)
+    db_running = list(cursor)[0] if cursor.batch else 0
+
+    batch_conc = _batch_concurrency(db, batch_id, None)
+
+    sources = {
+        "tmux": tmux_actual,
+        "db_running": db_running,
+        "redis_running": redis_running,
+        "batch_concurrency": batch_conc,
+    }
+    # tmux是物理真相——以它为锚，其他源和它不一致就告警
+    if tmux_actual != db_running:
+        alerts.append(("real_concurrency_mismatch", "critical", {
+            "summary": f"真实并发脱节: tmux={tmux_actual} vs DB running={db_running}"
+                       f"——孤儿session或DB状态滞后（016事故模式）",
+            **sources,
+        }))
+    if tmux_actual != redis_running:
+        alerts.append(("real_concurrency_mismatch", "critical", {
+            "summary": f"真实并发脱节: tmux={tmux_actual} vs Redis running={redis_running}"
+                       f"——launcher内存态与进程脱节",
+            **sources,
+        }))
+    if batch_conc is not None and tmux_actual > batch_conc:
+        alerts.append(("real_concurrency_exceeded", "critical", {
+            "summary": f"tmux并发({tmux_actual})超过设定({batch_conc})"
+                       f"——孤儿session或防抖失效（016事故模式）",
+            **sources,
+        }))
+    return alerts
+
+
+def check_launch_churn(db, batch_id):
+    """A14: 启动抖动检测（016事故新增，基于行为流水log/flow/）
+
+    统计最近窗口内每run_key的launch次数（launch_solve+launch_handover）。
+    同一run被启动>=LAUNCH_CHURN_THRESHOLD次 = 失控循环正在发生。
+    事故中amo_bench_00000006一小时被启动上千次——这个检查在第5次启动时就报警。
+
+    注意：行为流水由launcher写入。launcher没跑过就没有流水（返回空，不告警）。
+    """
+    try:
+        from datetime import timedelta
+        since = datetime.now(timezone.utc) - timedelta(
+            minutes=LAUNCH_CHURN_WINDOW_MINUTES)
+        entries = read_flow(since=since)
+    except Exception as e:
+        # 流水不可用不阻塞监控——但要有痕迹
+        return [("flow_ledger_unavailable", "warning", {
+            "summary": f"行为流水读取失败: {e}"})]
+
+    per_run = Counter()
+    for e in entries:
+        if e.get("event") in ("launch_solve", "launch_handover") and e.get("run_key"):
+            per_run[e["run_key"]] += 1
+
+    alerts = []
+    churn = {rk: n for rk, n in per_run.items() if n >= LAUNCH_CHURN_THRESHOLD}
+    if churn:
+        alerts.append(("launch_churn", "critical", {
+            "summary": f"启动抖动：最近{LAUNCH_CHURN_WINDOW_MINUTES}分钟内"
+                       f"{len(churn)}个run被启动≥{LAUNCH_CHURN_THRESHOLD}次"
+                       f"——失控循环正在发生，立即查行为流水",
+            "churn_detail": churn,
+            "command": f"python -m src.observability --stats --since "
+                       f"{LAUNCH_CHURN_WINDOW_MINUTES}m",
         }))
     return alerts
 
@@ -855,6 +984,13 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=5):
 
         # A类自动检查
         alerts = check_session_health(db, batch_id, expected_concurrency)
+        all_alerts.extend(alerts)
+
+        # A13/A14: 真实并发四源审计 + 启动抖动检测（016事故新增）
+        alerts = check_real_concurrency(db, batch_id)
+        all_alerts.extend(alerts)
+
+        alerts = check_launch_churn(db, batch_id)
         all_alerts.extend(alerts)
 
         alerts, last_queue_state = check_queue_progress(db, batch_id, last_queue_state)

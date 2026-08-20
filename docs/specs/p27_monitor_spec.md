@@ -42,6 +42,9 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | A10. session_registry_consistency | session_registry_inconsistency | critical/warning | — | 注册表 vs tmux实际session不一致（见`p27_session_management_and_polish_spec.md` §A.7） |
 | A11. stuck_sessions | stuck_session_accumulated | warning/critical | >5 warning, >10 critical | stuck状态session数量（无DONE.md但超时/rate_limit的session） |
 | A12. done_sessions_uncleaned | done_session_uncleaned | info | >20个 | done状态但未清理的session（占tmux资源） |
+| A13. real_concurrency | real_concurrency_mismatch / real_concurrency_exceeded | critical | 任何不一致 | 真实并发四源审计：tmux实际 vs DB running vs Redis running vs batch设定（016事故新增） |
+| A14. launch_churn | launch_churn | critical | 同题1小时内≥5次launch | 启动抖动检测，基于行为流水log/flow/（016事故新增） |
+| A1修订 | session_health | critical | 实际>设定 | A1补"超过"分支+并发从DB读（原只报"少于"；016事故修复） |
 
 ### 2.2 B类：续传质量检查（POC-2.7特有，脚本判定）
 
@@ -117,6 +120,19 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 #### A9. stall_detection
 - **检查方法**：DB中`status='running'`的run的`started_at`时间
 - **warning条件**：单个run运行>30分钟（DEFAULT_MAX_RUNTIME_SECONDS=1800）
+
+#### A13. real_concurrency（016事故新增）
+- **检查方法**：四源对比——`tmux list-sessions`的p27-s*数 vs DB `status='running'`数 vs Redis `p27:running` hlen vs batch文档concurrency
+- **critical条件**：tmux（物理真相）与DB/Redis/设定任一不一致，或tmux数超过batch设定
+- **背景**：016事故中四源分别为 6/2/1/1，三个不同数字，无一检查对比过它们。以tmux为锚——它是物理真相，其他都是"记账"
+- **处置**：不一致=孤儿session或状态脱节，查行为流水`python -m src.observability --tail 50`找模式
+
+#### A14. launch_churn（016事故新增）
+- **检查方法**：读行为流水`log/flow/`（`src/observability.py`），统计最近60分钟内每run_key的launch_solve+launch_handover次数
+- **critical条件**：同一run被启动≥5次（正常一轮只需1-2次launch）
+- **背景**：016事故中amo_bench_00000006一小时被启动上千次，存量检查全看不见。此检查在第5次启动时报警
+- **处置**：立即查`python -m src.observability --stats --since 1h`看churn_detail，按016报告§5处置（kill launcher→清队列→查根因）
+- **依赖**：launcher的行为流水插桩（`log_flow`调用）。launcher没跑过就没有流水，此时不告警
 
 ### 3.2 B类续传质量检查标准
 

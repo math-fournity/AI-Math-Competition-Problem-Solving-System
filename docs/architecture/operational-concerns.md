@@ -299,6 +299,26 @@ launcher dequeue 后先做两个检查，命中则低优先级（priority=9999�
 `scripts/test_016_p0_fixes.py` —— 14 个断言覆盖 since_ts 校验/NX 幂等/
 feeder 计数/队首顺序，运行：`source .env && python -m scripts.test_016_p0_fixes`
 
+### 行为流水可观测性层（同日新增）
+
+P0 修复拦住了已知循环，但 Master Agent 仍"看不见"系统的逻辑流动。新增
+`src/observability.py`（行为流水/黑匣子）：
+
+- **写侧**：launcher 每个状态转移（dequeue/skip_duplicate/skip_orphan/
+  launch_solve/launch_handover/judge/requeue/round_done/run_completed/
+  run_failed/graceful_stop）追加 JSONL 到 `log/flow/flow-YYYYMMDD.jsonl`，
+  含判定理由（judge事件的reason）。写失败静默，绝不影响launcher主流程。
+- **读侧**：`python -m src.observability --stats --since 1h`（聚合：启动速率/
+  每题启动Top10/失控嫌疑/判定分布/重入队原因）、`--tail N`、
+  `--run-key <key>`（单题完整生命周期）、`--event <type>`、
+  `--clean-days 14`（保留14天）。
+- **monitor 新检查**：A13 真实并发四源审计（tmux vs DB vs Redis vs 设定，
+  tmux为物理锚）+ A14 启动抖动（行为流水中同 run 1小时≥5次 launch → critical，
+  事故中第5次启动即报警）。A1 修复：并发从DB读 + 补"实际>设定"分支。
+- **SOP 集成**：SOP_01 新增第8节"系统流动历史观察"（必查项），含判断标准表。
+- **测试**：`scripts/test_016_observability.py`（21 断言：读写过滤/聚合/
+  churn告警模拟/DB并发读取）。
+
 ---
 
 ## 循环监控SOP（2026-08-18新增）
