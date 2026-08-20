@@ -1,7 +1,7 @@
 # DOC-05: `MonitorPipe.md` 新增 Monitor Exec Devin 工作循环说明
 
 > **门类**: DOC · 文档同步
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-08
 > **来源**: spec §C.3
 > **所属章节**: §DOC · 文档同步（阶段3）

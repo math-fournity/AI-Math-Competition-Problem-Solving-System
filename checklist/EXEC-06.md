@@ -1,7 +1,7 @@
 # EXEC-06: `p27_sessions` 的 type 字段支持 `monitor_exec` 值
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.1
 > **所属章节**: §EXEC-CONF · 配置与模板

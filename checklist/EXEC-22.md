@@ -1,7 +1,7 @@
 # EXEC-22: `continuation_control.py` 新增 `view-exec <session_key>` 命令——展示 REPORT + git log -3
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.4
 > **所属章节**: §EXEC-VIEW · export 与 report 查看

@@ -1,7 +1,7 @@
 # EXEC-25: prompt 约束生效：不改 AGENTS.md/specs/、不 push 代码
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.5
 > **所属章节**: §EXEC-VERIFY · 阶段2 端到端验证

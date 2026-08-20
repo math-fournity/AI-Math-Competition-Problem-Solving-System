@@ -1,7 +1,7 @@
 # EXEC-04: `MONITOR_EXEC_MAX_RUNTIME_SECONDS = 900` 常量（一轮最多 15 分钟）
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.1
 > **所属章节**: §EXEC-CONF · 配置与模板

@@ -1,7 +1,7 @@
 # DOC-02: `AnalysisSystemDesign.md` §5 设计原则更新——Monitor Pipe 执行层包含 Python+devin cli 两部分
 
 > **门类**: DOC · 文档同步
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-08
 > **来源**: spec §C.3
 > **所属章节**: §DOC · 文档同步（阶段3）

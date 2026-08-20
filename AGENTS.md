@@ -151,18 +151,22 @@ SOP 脚本目录：`scripts/sop/`（run + checks + sop_state + _set_next + _stat
 | 文档 | 位置 | 用途 |
 |---|---|---|
 | AnalysisSystem.md | `docs/system/` | 新Session接手AI的完整加载指南 |
-| AnalysisSystemDesign.md | `docs/system/` | 错题分析系统设计总索引 |
+| AnalysisSystemDesign.md | `docs/system/` | 错题分析系统设计总索引（§6关键设计决策） |
 | AnalysisSystemOps.md | `docs/system/` | 错题分析系统运行操作手册 |
-| MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（跨项目元范式） |
-| 续传规范文档.md | `docs/patterns/` | HANDOFF标准（交接文档续传方案） |
-| continuation_control.py | `monitoring/` | **解题系统控制脚本**——start/stop/status/health/set-concurrency/sessions 子命令。启动和停止系统都用这个，不写inline代码 |
-| monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01 调用它获取系统状态） |
-| SOP_01~06 + Z | `docs/sop/` | Master Agent SOP 文档（7个，自包含+认知闭包，被脚本读取打印） |
+| MonitorPipe.md | `docs/patterns/` | Monitor Pipe设计范式（§2.2已改为Master Agent SOP循环） |
+| 续传规范文档.md | `docs/patterns/` | HANDOFF标准（SOP_04 C4判断依据） |
+| p27_monitor_spec.md | `docs/specs/` | A/B/C类检查详细标准（SOP_03/04引用） |
+| p27_session_management_and_polish_spec.md | `docs/specs/` | §A Session管理（有效）/ §B Exec Devin（已废弃） |
+| ~~p27_monitor_pipe_operations.md~~ | `docs/specs/` | 已废弃（Exec Devin认知资产入口） |
+| architecture/*.md | `docs/architecture/` | 9个架构文档（运维/优雅停止/动态并发/框架检查清单等，SOP_01/05引用） |
+| continuation_control.py | `monitoring/` | **解题系统控制脚本**——start/stop/status/health/set-concurrency/sessions |
+| monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01 调用它） |
+| SOP_01~06 + Z | `docs/sop/` | Master Agent SOP 文档（7个，自包含+认知闭包） |
 | run + checks + sop_state + _set_next | `scripts/sop/` | Master Agent SOP 脚本（单入口+检查逻辑库+状态管理） |
 | 013-Master-Agent-SOP流程控制机制方案 | `dev-docs/` | SOP机制方案文档（理念/架构/决策理由） |
 | README.md | `checklist/` | 需求点清单索引（14门类134个checkpoint） |
 | MasterAgentCheck.md | `checklist/` | Master Agent SOP 索引（内容已迁移到 docs/sop/） |
-| ExecDevin.md | `checklist/` | Monitor Exec Devin必读子集（历史参考） |
+| ExecDevin.md | `checklist/` | ~~历史参考~~（Exec Devin已废弃） |
 | README.md | `working-packages/` | 工作包目录说明 |
 | INDEX.md | `working-packages/` | 工作包跟踪表（动态） |
 

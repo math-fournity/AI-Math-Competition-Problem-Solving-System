@@ -1,7 +1,7 @@
 # EXEC-16: 每轮调 `check_monitor_exec_completion`，完成的写 `monitor_exec_completed` alert（含 REPORT 路径 + commit hash）
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.3
 > **所属章节**: §EXEC-INTEGRATION · Pipe 集成

@@ -1,7 +1,7 @@
 # EXEC-07: `create_session_record` 的 extra 参数可传 `exec_seq` 和 `triggered_by_alert` 字段
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.1
 > **所属章节**: §EXEC-CONF · 配置与模板

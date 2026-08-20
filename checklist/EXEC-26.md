@@ -1,7 +1,7 @@
 # EXEC-26: 防重复启动：running 时不启动新的
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.5
 > **所属章节**: §EXEC-VERIFY · 阶段2 端到端验证

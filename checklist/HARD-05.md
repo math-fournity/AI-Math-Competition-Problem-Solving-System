@@ -1,7 +1,7 @@
 # HARD-05: Monitor Pipe 执行 devin 的 cwd 在外部目录（`/Volumes/data/p27-monitor-exec/{exec_seq}/`）
 
 > **门类**: HARD · 硬约束
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: 全部
 > **来源**: §7-5
 > **所属章节**: §HARD · 硬约束（贯穿全程）

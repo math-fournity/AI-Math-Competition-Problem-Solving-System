@@ -1,7 +1,7 @@
 # EXEC-20: `monitor_check_continuation.sh` 行动清单精简——去掉"AI_REVIEW 需 Master Agent 检查"，改为"有 monitor_exec_completed 时可选读 REPORT"
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.3
 > **所属章节**: §EXEC-INTEGRATION · Pipe 集成

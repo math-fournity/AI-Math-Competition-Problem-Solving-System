@@ -1,7 +1,7 @@
 # EXEC-21: `monitor_check_continuation.sh` 第 2 项 alerts 中 `monitor_exec_completed` 显示 REPORT 路径 + commit hash + 修复 alert 数
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.4
 > **所属章节**: §EXEC-VIEW · export 与 report 查看

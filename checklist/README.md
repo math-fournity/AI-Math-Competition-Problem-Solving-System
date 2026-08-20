@@ -40,14 +40,14 @@
 | MON-A | Monitor Pipe A 类自动检查 | 12 | WP-02, WP-05 | `MON-A` |
 | MON-B | Monitor Pipe B 类续传质量检查 | 9 | WP-02, WP-05 | `MON-B` |
 | MON-C | Monitor Pipe C 类 AI 判断 | 5 | WP-05, WP-07 | `MON-C` |
-| EXEC | Monitor Exec Devin（阶段2） | 14 | WP-03, WP-04, WP-05 | `EXEC-` |
-| SELF | Monitor Exec Devin self-check | 17 | WP-04, WP-07 | `SELF-` |
+| EXEC | ~~Monitor Exec Devin~~（已废弃[-]） | 28 | ~~WP-03~07~~ | `EXEC-` |
+| SELF | Master Agent self-check | 17 | WP-13 | `SELF-` |
 | CTRL | 控制命令与查看支持 | 9 | WP-01, WP-06 | `CTRL-` |
 | RUN | POC-2.7 运行与监控 | 8 | WP-09 | `RUN-` |
 | AUDIT | 系统审计 | 7 | WP-10 | `AUDIT-` |
 | DOC | 文档同步（阶段3） | 8 | WP-08 | `DOC-` |
 | HARD | 硬约束（贯穿全程） | 10 | 全部 | `HARD-` |
-| DECISION | 待决策问题 | 7 | — | `DEC-` |
+| DECISION | ~~待决策问题~~（已废弃[-]，多数关于Exec Devin） | 7 | — | `DEC-` |
 
 **合计**：14 个门类，134 个需求点。
 

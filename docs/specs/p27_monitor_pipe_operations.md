@@ -1,6 +1,8 @@
-# POC-2.7 Monitor Pipe操作规范（认知资产入口）
+# ~~POC-2.7 Monitor Pipe操作规范（认知资产入口）~~（已废弃 2026-08-19）
 
-**用途**：这份文档是Monitor Pipe执行devin（Monitor Exec Devin）的**认知资产入口**。Monitor Exec Devin启动时读这一份文档，就能找到所有它需要的认知资产、知道要检查什么（系统+self）、知道自己的运行资产怎么保留。
+> **废弃说明**：本文件是给 Monitor Exec Devin（独立 devin cli）的认知资产入口。Monitor Exec Devin 已废弃，由 Master Agent SOP 流程控制机制取代。Master Agent 的认知资产入口改为 `docs/sop/SOP_01~06+Z.md`（被 `scripts/sop/run.py` 读取打印）。
+>
+> 本文件保留作为历史参考。如果要了解当前 Monitor Pipe 的 AI 检查+修复工作方式，看 `docs/sop/` 和 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
 
 **为什么有这份文档**：认知资产曾经散落在多个位置（docs/patterns/MonitorPipe.md、docs/system/AnalysisSystemDesign.md、docs/patterns/续传规范文档.md、docs/specs/、docs/architecture/）。Monitor Exec Devin不知道该读哪些、读了过时的会出错。本文档把所有认知资产的入口归集在一处，并完整记录检查项目（系统检查+self检查）。这份文档会持续迭代。
 

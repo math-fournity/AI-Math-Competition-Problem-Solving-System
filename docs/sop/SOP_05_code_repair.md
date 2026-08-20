@@ -89,3 +89,9 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤06（报告+WORKLOG+Self-check）。
+
+### 深入了解（如需）
+
+- `docs/system/AnalysisSystemDesign.md` §6 — 关键设计决策记录（修复代码前理解设计理由）
+- `docs/architecture/graceful-shutdown.md` — 优雅停止设计（修复涉及停止逻辑时参考）
+- `docs/architecture/framework-checklist.md` — 新Pipe必须考虑的所有方面

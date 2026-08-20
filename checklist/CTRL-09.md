@@ -1,7 +1,7 @@
 # CTRL-09: `view-exec <session_key>` 展示 Monitor Exec Devin 的 REPORT + git log -3
 
 > **门类**: CTRL · 控制命令与查看支持
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-01, WP-06
 > **来源**: spec §C.2.4
 > **所属章节**: §CTRL · 控制命令与查看支持

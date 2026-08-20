@@ -1,12 +1,14 @@
-# RUN-06: 阶段2 集成后：Monitor Exec Devin 自动启动
+# RUN-06: ~~阶段2 集成后：Monitor Exec Devin 自动启动~~
 
 > **门类**: RUN · POC-2.7运行与监控
-> **状态**: [ ]
-> **负责的WP**: WP-09
-> **来源**: WP-09 §4
+> **状态**: [-]
+> **负责的WP**: ~~WP-09~~
+> **来源**: ~~WP-09 §4~~
 > **所属章节**: §RUN · POC-2.7 运行与监控
 
 ## 需求描述
+
+**已废弃**——Monitor Exec Devin（独立devin cli）不再实现。由 Master Agent SOP 流程控制机制取代（`scripts/sop/run.py`）。用户说"启动监控"时 Master Agent 自己执行 SOP 循环，不需要独立 devin cli。
 
 阶段2 集成后：Monitor Exec Devin 自动启动
 

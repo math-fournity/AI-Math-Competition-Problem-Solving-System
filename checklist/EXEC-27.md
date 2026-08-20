@@ -1,7 +1,7 @@
 # EXEC-27: C 类 AI 判断真正发生（读 proof.md 做判断，不是只写标记）
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.5
 > **所属章节**: §EXEC-VERIFY · 阶段2 端到端验证

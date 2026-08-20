@@ -100,3 +100,8 @@ FAIL 的条目需要决定后续处理：
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤05（代码修复）。
+
+### 深入了解（如需）
+
+- `docs/specs/p27_monitor_spec.md` §3.3 — C1-C5 AI review 抽样标准的权威定义
+- `docs/patterns/续传规范文档.md` — HANDOVER.md 的标准格式（C4 handover_quality 判断依据）

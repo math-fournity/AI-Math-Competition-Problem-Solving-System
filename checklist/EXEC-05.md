@@ -1,7 +1,7 @@
 # EXEC-05: `templates/monitor_exec_prompt.md` 创建——自包含 SOP prompt
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §B.5/§C.2.1
 > **所属章节**: §EXEC-CONF · 配置与模板

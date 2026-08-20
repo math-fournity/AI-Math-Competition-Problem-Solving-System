@@ -87,6 +87,29 @@ python -m monitoring.continuation_control sessions --status done
 - stuck session 数量和时长
 - done 未清理 session 数量（占 tmux 资源）
 
+### 5. 环境检查（ENV-01~07 需求点）
+
+在检查系统进程之前，先确认基础设施正常：
+
+```
+echo $ARANGO_DB    # 必须输出 xishujuzhen_math_glm52，如果为空先 source .env
+```
+
+检查项：
+- **ArangoDB 连接**——`python3 -c "from src.continuation_db_schema import connect_db; db=connect_db(); print(db.properties())"` 能连接
+- **Redis 连接**——`python3 -c "from src.continuation_redis_queue import ping; print(ping())"` 输出 True
+- **D盘挂载**——`ls /Volumes/data/` 能列出内容（解题数据在D盘）
+- **.env 已 source**——`echo $ARANGO_DB` 不为空
+
+如果任何基础设施不正常，记录为 critical 问题——系统无法正常运行。
+
+### 6. 深入了解（如需）
+
+如果需要更深入理解系统架构，加载以下文档：
+- `docs/system/AnalysisSystemDesign.md` — 系统设计总索引（含§6关键设计决策）
+- `docs/architecture/operational-concerns.md` — rate_limit/stall/zombie 的运维处理方式
+- `docs/architecture/dynamic-concurrency.md` — 动态并发机制
+
 ---
 
 ## 你需要建立的 todo list

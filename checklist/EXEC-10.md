@@ -1,7 +1,7 @@
 # EXEC-10: `launch_monitor_exec(db, batch_id) -> session_name`——分配 seq + 创建 work_dir + 写 prompt + 创建注册表记录 + 启动 devin cli
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.2
 > **所属章节**: §EXEC-LAUNCH · 启动器

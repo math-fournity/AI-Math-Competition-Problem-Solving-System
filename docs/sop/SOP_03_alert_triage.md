@@ -92,3 +92,8 @@
 - **最后一项固定是**：`执行下一个脚本: python -m scripts.sop.run`
 
 完成所有 todo 后，自动触发步骤04（C类AI判断）。
+
+### 深入了解（如需）
+
+- `docs/specs/p27_monitor_spec.md` — A/B/C 类检查的详细标准（alert类型的权威来源）
+- `docs/architecture/operational-concerns.md` — rate_limit/stall/zombie 的运维处理方式

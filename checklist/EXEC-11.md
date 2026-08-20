@@ -1,7 +1,7 @@
 # EXEC-11: `check_monitor_exec_completion(db, batch_id) -> list[completed]`——检查 DONE.md 出现
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.2
 > **所属章节**: §EXEC-LAUNCH · 启动器

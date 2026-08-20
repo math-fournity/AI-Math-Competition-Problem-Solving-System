@@ -1,7 +1,7 @@
 # EXEC-12: 复用 `launch_solve` 的 DONE.md 检测机制和 tmux log 机制
 
 > **门类**: EXEC · Monitor Exec Devin
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: WP-03, WP-04, WP-05
 > **来源**: spec §C.2.2
 > **所属章节**: §EXEC-LAUNCH · 启动器

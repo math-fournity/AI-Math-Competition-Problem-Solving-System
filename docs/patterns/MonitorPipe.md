@@ -79,33 +79,31 @@ Master AI（你——正在读这个文档的AI）在系统运行时的角色是
 
 **为什么提前落盘**：检查规范是系统资产（第2级资产，见`six-asset-grading.md`）。Monitor Pipe代码按规范实现，查询脚本按规范输出。规范文件和代码是"标准-实现"关系。Master AI处理alert时也参照规范中的检查标准。
 
-### 2.2 执行层——Monitor Pipe守护进程（两层架构）
+### 2.2 执行层——Python检查 + Master Agent SOP循环（两层架构）
 
 **执行层包含两部分**：
 
 | 部分 | 承载 | 职责 |
 |---|---|---|
-| **Python部分** | `src/monitor_{system}.py`，Python脚本在tmux中持续运行 | A类自动检查 + B类质量检查 → 写alert到DB；定时启动devin cli部分 |
-| **devin cli部分** | devin cli非交互模式（`devin -p`），由Python部分定时启动 | C类AI智能性检查 + 发现问题的修复 + 写MONITOR_EXEC_REPORT.md |
+| **Python部分** | `src/monitor_{system}.py`，Python脚本在tmux中持续运行 | A类自动检查 + B类质量检查 → 写alert到DB；C类抽样标记 |
+| **Master Agent SOP循环** | Master Agent通过`scripts/sop/run.py`自驱动循环 | C类AI智能性检查 + 发现问题的修复 + 写报告+WORKLOG |
 
-**为什么执行层要包含devin cli**（用户原意）：
-- Master Agent监控整个系统运行时，有些检查可以通过Python程序完成，有些检查需要AI的智能性
-- 把需要AI智能性的检查，放入Monitor Pipe——**Monitor Pipe应该启动一个devin cli，替Master Agent对整个系统做智能性检查**
-- devin cli部分不仅做C类AI检查，还做**发现问题的修复**——这是Monitor Pipe执行devin的自然延伸
-- Master Agent退出这个检查+修复的日常循环——Master Agent只在用户主动询问时介入，或自愈循环长时间无法解决问题时介入
+**为什么执行层是 Python + Master Agent 而不是 Python + 独立 devin cli**：
+
+> **架构变更记录（2026-08-19）**：原本设计为 Python + 独立 devin cli（Monitor Exec Devin），但已废弃。原因：本 repo 上下文负担小（无 .devin/rules/，AGENTS.md 聚焦），Master Agent 直接做比独立 cli 更简单且能力更强（能交互、能 spawn subagent、能利用 trace.csv 认知体系）。7x24 持续循环通过 Master Agent 的自驱动 todo list 机制实现——每个 SOP 脚本输出末尾要求建 todo list，最后一项是"执行下一个脚本"，完成 todo 自动触发下一阶段。详见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
 
 **Python部分**在tmux中持续运行：
-- 在tmux中持续运行，不依赖Master AI的session保持
-- 独立于Master AI的上下文窗口——检查逻辑在代码中，不在prompt中
+- 在tmux中持续运行，不依赖Master Agent的session保持
+- 独立于Master Agent的上下文窗口——检查逻辑在代码中，不在prompt中
 - 所有任务完成后自动退出
+- C类检查只做抽样标记（`needs_ai_review=True`），不做真正AI判断
 
-**devin cli部分**由Python部分定时启动（每N分钟一轮）：
-- 在独立tmux session中运行，工作目录在外部（避免worktree AGENTS.md劫持）
-- 运行检查脚本获取系统状态 → 做C类AI判断 → 修复发现的问题 → 写报告 → 退出
-- export完整保留（DONE.md机制，见`specs/p27_session_management_and_polish_spec.md` §A.5）
-- 详见`specs/p27_session_management_and_polish_spec.md` §B
+**Master Agent SOP循环**由用户说"启动监控"触发，通过自驱动机制持续运行：
+- 7步循环（系统健康→数据完整性→alert分类→AI判断→代码修复→报告+WORKLOG+self-check→元/整体检查）
+- 每步打印自包含SOP文档到stdout（含认知闭包），不依赖AGENTS.md always-on注入
+- 详见 `docs/sop/` 和 `scripts/sop/`
 
-> **历史说明**：本节曾有一个"澄清"段落，声称"Monitor Pipe不是devin cli实例——它是一个普通的Python守护进程"。这个澄清是对用户原意的降级——用户最初提出Monitor Pipe时，明确要求它启动一个devin cli做AI智能性检查。当前规范已修正，执行层恢复为Python+devin cli两层架构。
+> **历史说明**：本节经历了三次设计变更：(1) 最初声称"Monitor Pipe不是devin cli实例"；(2) 后改为"Python+devin cli两层架构"（Monitor Exec Devin）；(3) 最终改为"Python+Master Agent SOP循环"——废弃独立 devin cli，由 Master Agent 自身承载 AI 检查+修复工作。
 
 **Python部分的核心逻辑**（每轮循环）：
 ```

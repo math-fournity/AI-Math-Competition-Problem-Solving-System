@@ -1,7 +1,7 @@
 # DEC-01: Monitor Exec Devin 的 model
 
 > **门类**: DEC · 待决策问题
-> **状态**: [ ]
+> **状态**: [-]
 > **负责的WP**: 实施时确定
 > **来源**: p27_session_management_and_polish_spec.md §G
 > **所属章节**: §DECISION · 待决策问题

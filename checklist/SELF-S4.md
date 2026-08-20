@@ -1,6 +1,6 @@
 # SELF-S4: session 注册
 
-> **门类**: SELF · Exec Devin self-check
+> **门类**: SELF · Master Agent self-check
 > **状态**: [ ]
 > **负责的WP**: WP-04, WP-07
 > **来源**: p27_monitor_pipe_operations.md §4

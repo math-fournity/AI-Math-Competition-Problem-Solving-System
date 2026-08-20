@@ -1,3 +1,5 @@
+**⚠️ 已废弃（2026-08-19）**：Monitor Exec Devin（独立devin cli）不再实现。由 Master Agent SOP 流程控制机制取代（scripts/sop/run.py）。本工作包保留作为历史参考。
+
 # WP-04: 阶段2 Monitor Exec Devin启动器
 
 > **依据**：p27_session_management_and_polish_spec.md §C.2.2
