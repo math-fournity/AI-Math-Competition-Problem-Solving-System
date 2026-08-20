@@ -63,6 +63,8 @@ python -m monitoring.continuation_control start --batch-id p27-full --concurrenc
 python -m src.monitor_continuation --batch-id p27-full --interval 120 &
 ```
 
+> **这两条都是短命令，可以直接在 shell 里裸跑**：`continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor/watchdog 三个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。`sop.run` 同理，每次只跑一个 SOP 步骤就退出（`scripts/sop/run.py:48-113`），7x24 循环是 Master Agent 用 `todo_write` 自驱动一次次执行 `sop.run`，承载者是 AI 本身。
+
 ### 4. Session 注册表深度检查（SESS-01~12 需求点）
 
 除了检查脚本的输出，你还需要用以下命令检查 session 注册表：

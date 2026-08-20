@@ -75,6 +75,10 @@ launcher 下次 poll 自动生效（通常 15 秒内）。只影响后续新启�
    确认 launcher/monitor/watchdog 三个 tmux session 都在运行。
    **注意**：`--concurrency 5` 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 `set-concurrency`（见上方"并发控制"），不要重启 launcher。
 
+   > **这两条命令都是短命令，可以直接在 shell 里裸跑**：
+   > - `continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor/watchdog 三个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。
+   > - `python -m scripts.sop.run` 每次只跑**一个 SOP 步骤**就退出（`scripts/sop/run.py:48-113`，读 `_state.json` 决定步骤→执行检查→推进状态→退出）。所谓"7x24 持续循环"是 Master Agent 用 `todo_write` 自驱动一次次执行 `sop.run`，循环的承载者是 AI 本身，不是某个后台脚本。
+
 2. **启动 SOP 监控循环**：
    ```
    python -m scripts.sop.run
