@@ -70,10 +70,10 @@ launcher 下次 poll 自动生效（通常 15 秒内）。只影响后续新启�
 1. **启动解题系统**（如果尚未运行）：
    ```
    source .env
-   python -m monitoring.continuation_control start --batch-id p27-full --concurrency 5
+   python -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
    ```
    确认 launcher/monitor/watchdog 三个 tmux session 都在运行。
-   **注意**：`--concurrency 5` 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 `set-concurrency`（见上方"并发控制"），不要重启 launcher。
+   **注意**：`--concurrency 1` 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 `set-concurrency`（见上方"并发控制"），不要重启 launcher。
 
    > **这两条命令都是短命令，可以直接在 shell 里裸跑**：
    > - `continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor/watchdog 三个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。
