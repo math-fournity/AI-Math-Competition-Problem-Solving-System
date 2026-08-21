@@ -147,7 +147,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-U3 | WP-U3-tmux依赖影响面与sim适配.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U3-执行记录.md（报告044：35行影响面清单+sim 470行评估） |
 | WP-U4 | WP-U4-双管线架构设计.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U4-执行记录.md（045：接口+8点适配+切换机制+三方案对比） |
 | WP-U5 | WP-U5-OpenCode管线详细设计.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U5-执行记录.md（报告046：response驱动完成检测+注入实测+错误三层；配额2/3） |
-| WP-U6 | WP-U6-OxAlpha数学能力评估.md | ☐ 未开始 | | | | |
+| WP-U6 | WP-U6-OxAlpha数学能力评估.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U6-执行记录.md（报告047：续传收敛实证，有条件可作默认） |
 | WP-U7 | WP-U7-Devin备用管线与切换回退.md | ☐ 未开始 | | | | |
 | WP-U8 | WP-U8-双管线调查总报告.md | ☐ 未开始 | | | | |
 | ★ 用户拍板 049 决策点 | （V 系列启动闸门） | ☐ 待用户 | — | — | — | 用户回复记录 |
