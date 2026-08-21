@@ -142,11 +142,12 @@ python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS
 python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉"
 ```
 
-### 硬约束：判断系统状态必须查过程证据
+### 硬约束：判断系统状态必须查过程证据 + 直接检查
 
-> **详见** `.devin/rules/verify-with-logs.md`（always-on rule）
+> **详见** `.devin/rules/verify-with-logs.md`（always-on rule——过程证据三层法）
+> **详见** `.devin/rules/direct-verification-ironlaw.md`（always-on rule——最底层实物直接检查）
 
-**任何判断系统状态时，必须查过程证据（日志+行为流水），不能只看 DB 结果。** DB 是"结果"，日志是"过程"——只看结果不看过程会漏掉状态同步 bug、得出错误结论。
+**任何判断系统状态时，必须查过程证据（日志+行为流水），不能只看 DB 结果。** DB 是"结果"，日志是"过程"——只看结果不看过程会漏掉状态同步 bug、得出错误结论。**且结论必须有最底层实物的直接证据**（硬盘文件/tmux/进程实物）——DB 与 Redis 是转述不是事实（028 教训：DB 说 138 题完成、硬盘仅 14 个 proof.md）。两条规则叠加：查 DB→查日志/流水→查实物，下结论三层都要有。
 
 触发时机：接手时确认状态 · 用户问"做题成功吗" · commit 前验证 · DB 与文件不一致时。
 
