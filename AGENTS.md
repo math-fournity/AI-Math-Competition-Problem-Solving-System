@@ -214,6 +214,39 @@ python -m src.observability --stats --since 1h
 - ❌ 为了"完美"在代码中堆砌大量边缘终态判定逻辑——臃肿且易出错
 - ✅ 代码做可靠判定，不可靠的标记"待人工"+创建 alert，Master Agent 通过 SOP 收场
 
+### 硬约束：解题运行结果资产保留铁律
+
+**原则**：整个系统运行的所有解题结果，无论是最终做出来了还是没有做出来的，都是宝贵的运行结果资产。**每一个 round 都必须全部保留目录、文件、export 出来的 conversation.json 等数据。禁止删除、覆盖、清理任何 round 的产出。**
+
+**为什么**：
+- 没做出来的 round 的 conversation.json 包含 AI 的完整推理过程（尝试了什么、为什么失败、走到哪一步）——这是分析 AI 能力边界的宝贵数据，比做出来的 round 更有价值
+- 每轮的 export/proof/prompt/HANDOVER 都是 run 的完整生命周期证据——删除任何一环都会破坏可审计性
+- 系统是数据采集器 + 可靠判定器，不是全知全能的自动机——保留所有数据是 Master Agent / 人类 / 未来 AI 分析的前提
+
+**必须保留的产出**（每个 round）：
+| 产出 | 位置 | 保留要求 |
+|---|---|---|
+| `conversation.json`（export） | `{TRAJECTORY_BASE}/p27-continuation/{run_key}/round{N}/exports/` | **必须保留**——含 thinking/reasoning_content，是最核心的资产 |
+| `proof.md` 归档 | work_dir/`round{N}_proof.md` | **成功轮必须归档**——`shutil.copy2` 在判定完成时执行 |
+| `round{N}_prompt.txt` | work_dir | **必须保留**——每轮的提示词是复现条件 |
+| `HANDOVER.md` | work_dir | **必须保留**——续传交接信息 |
+| tmux pipe log | `round{N}/tmux/` | **必须保留**——tmux 原始输出 |
+| DB rounds_log | `p27_continuation_runs.rounds_log` | **必须完整**——每轮的 export_path/prompt_path/proof_path/reason |
+
+**审计系统同样适用**：审计的 `conversation.json` 无论审计是否成功，都必须保留——审计失败的 conversation.json 包含审计 AI 的推理过程，是分析审计质量的数据。
+
+**唯一允许的删除**：`remove_old_proof()`（`continuation_launcher.py:133`）在启动新一轮前清理上一轮残留的 `proof.md`——这是防止旧 proof 被误判为完成的必要操作（016 事故 P0-2 根因）。**但前提是上一轮的 proof 已归档为 `round{N}_proof.md`**（门闸检查项 2）。export/prompt/HANDOVER/tmux log 不在此列——它们永远不会被删除。
+
+**当前存在的问题**（032 §七点六调查）：
+1. **round1 的 export 存放位置不统一**——round1 的 export 只存在于 work_dir 的 `round1_export.json`，不在 `round1/exports/conversation.json`（其他轮的存放位置）。需要统一（WP-S 行动项 1）
+2. 需要验证是否有手动清理脚本会误删 work_dir 或 round 目录
+
+**反模式**：
+- ❌ 为了"节省磁盘空间"清理失败轮的 export——失败轮的 export 是最有价值的资产
+- ❌ 为了"干净"在 run 完成后清理 work_dir——work_dir 包含 prompt/HANDOVER/归档 proof，是 run 的完整生命周期证据
+- ❌ 覆盖上一轮的 export 文件——每个 round 的 export 是独立的，不应覆盖
+- ✅ `remove_old_proof` 清理旧 proof.md（前提是已归档）——这是防止误判的必要操作，不是"清理资产"
+
 ### 实战速查：016事故后新增的介入能力
 
 > 016事故（失控循环空转18分钟、上千个session）后系统新增三种能力，SOP_01 §8/§8.5详述。这里放always-on速查——后部可能被截断，实战中你必须知道这些武器存在。
