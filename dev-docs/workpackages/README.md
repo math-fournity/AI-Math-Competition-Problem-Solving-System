@@ -144,7 +144,7 @@ git commit（显式路径 add）→ 领下一个。
 | **线 2·U 系列（调查）** | | | | | | |
 | WP-U1 | WP-U1-ACP能力基线复验.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | c310171/b211945 | exec-log/WP-U1-执行记录.md（含跑错模型勘误弧线，042 勘误节为准） |
 | WP-U2 | WP-U2-内容完整性三路对比.md | ✅ 完成（B路推迟） | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U2-执行记录.md（C路组装100%无损；报告043） |
-| WP-U3 | WP-U3-tmux依赖影响面与sim适配.md | ☐ 未开始 | | | | |
+| WP-U3 | WP-U3-tmux依赖影响面与sim适配.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U3-执行记录.md（报告044：35行影响面清单+sim 470行评估） |
 | WP-U4 | WP-U4-双管线架构设计.md | ☐ 未开始 | | | | |
 | WP-U5 | WP-U5-OpenCode管线详细设计.md | ☐ 未开始 | | | | |
 | WP-U6 | WP-U6-OxAlpha数学能力评估.md | ☐ 未开始 | | | | |
