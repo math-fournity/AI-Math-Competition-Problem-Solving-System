@@ -350,6 +350,39 @@ HANDOVER_PROMPT_TEMPLATE = """你的任务：为{pid}的round{round_num} convers
 """
 
 
+# 防作弊约束——加到所有解题prompt末尾（见 dev-docs/029 §3.0）
+# 解题AI可以用工具（Python/Lean/计算器）和网络搜索，但题目必须靠AI自己的
+# 数学推理能力解决，不能靠"找到答案"解决。如果搜到/查到题目解答相关内容，
+# 必须在proof.md开头主动声明"作弊风险声明"，让审计AI可以检查。
+ANTI_CHEATING_CLAUSE = """
+
+=== 工具使用与防作弊约束 ===
+
+你可以使用工具（Python代码、Lean代码、计算器）辅助解题，也可以进行网络搜索。
+但本题必须靠你自己的数学推理能力解决——不能靠"找到答案"解决。
+
+合法使用：
+- 用Python做数值计算/符号计算验证你的猜想
+- 用Lean形式化验证你的推理步骤
+- 搜索通用数学知识（如"群的定义""Hausdorff空间性质"）
+
+作弊行为（禁止）：
+- 搜索题目文本本身（可能搜到标准解答）
+- 翻找硬盘上的trajectory目录或数据库中的解题记录
+- 搜索后直接引用搜到的完整证明
+- 查资料时找到关键定理的完整证明后直接抄（你自己推不出来的部分）
+
+主动声明义务：
+如果你在搜索/查资料过程中遇到了和题目解答直接相关的内容，你必须在proof.md
+开头加一个"作弊风险声明"章节，说明：
+1. 你通过什么方式接触到了什么相关内容
+2. 你对这些内容的使用情况（直接引用/参考/虽然看到但独立推导）
+
+不声明但被审计AI发现作弊 = 该题作废。
+声明了但确实独立推导 = 该题有效但附注。
+"""
+
+
 CONTINUE_PROMPT_TEMPLATE = """{original_problem}
 
 === 你之前的思考过程（Round {prev_round}，被截断）===
@@ -367,7 +400,7 @@ CONTINUE_PROMPT_TEMPLATE = """{original_problem}
 3. 最终答案用 \\boxed{{答案}} 格式给出
 4. 数学公式用LaTeX
 5. 把证明写到proof.md文件中，不要在对话里输出完整证明
-"""
+""" + ANTI_CHEATING_CLAUSE
 
 
 INITIAL_PROMPT_TEMPLATE = """{original_problem}
@@ -379,7 +412,7 @@ INITIAL_PROMPT_TEMPLATE = """{original_problem}
 2. 最终答案用 \\boxed{{答案}} 格式给出
 3. 数学公式用LaTeX
 4. 把证明写到proof.md文件中，不要在对话里输出完整证明
-"""
+""" + ANTI_CHEATING_CLAUSE
 
 
 def build_continue_prompt(original_problem, previous_reasoning, prev_round):
@@ -412,7 +445,7 @@ def build_v2_continue_prompt(original_problem, handover_path, prev_round):
 3. 最终答案用 \\boxed{{答案}} 格式给出
 4. 数学公式用LaTeX
 5. 把证明写到proof.md文件中，不要在对话里输出完整证明
-"""
+""" + ANTI_CHEATING_CLAUSE
 
 
 # =============================================================================
