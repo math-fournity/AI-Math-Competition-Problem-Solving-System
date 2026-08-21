@@ -53,7 +53,7 @@
 | ~~selfrun-workflow.md~~ | `docs/architecture/` | 已废弃（selfrun代码已删） |
 | continuation_control.py | `monitoring/` | 解题系统控制脚本（start/stop/status/health/set-concurrency/sessions） |
 | monitor_check_continuation.sh | `scripts/` | 续传检查脚本（SOP_01调用） |
-| SOP_01~06+Z+OP | `docs/sop/` | Master Agent SOP文档（8个，自包含+认知闭包） |
+| SOP_01~06+Z+OP | `docs/sop/` | Master Agent SOP文档（9个，自包含+认知闭包） |
 | SYSTEM_CLOSURE.md | `docs/sop/` | 系统级认知闭包L0（run.py每次前置注入） |
 | run+checks+sop_state+_set_next+dry_run+sop_log | `scripts/sop/` | SOP脚本（单入口+检查+状态+dry-run+日志） |
 | log/ | `log/` | SOP日志（循环覆盖，最多500文件/500MB） |
@@ -86,7 +86,7 @@
 - `snapshot_runs.json` — 全量per-run数据
 - `check_output.txt` — 脚本输出原文
 
-报表模板在`docs/sop/templates/report_step_{XX}.md`（8个模板）。**每次检查必须填写report.md**——审计痕迹，不填写=检查没完成。
+报表模板在`docs/sop/templates/report_step_{XX}.md`（9个模板）。**每次检查必须填写report.md**——审计痕迹，不填写=检查没完成。
 
 ---
 

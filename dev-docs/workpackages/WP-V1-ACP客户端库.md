@@ -20,7 +20,10 @@
 | start() 断言链 | model→断言回显→effort→断言回显，fail-fast（铁律15）；model/effort 从 DB batch 读 | 铁律15/045 |
 | 截断检测语义修正 | finish_reason 仅信息性；成败分界=组装后 message 非空；comp 条件辅助（实测校准阈值） | 045§三/043 |
 | **工作量实数** | **~800 行**（接口200+opencode后端150+devin后端150+组装器120+detection80+export兜底60+测试） | 049§三 |
-| **启动条件** | 用户批准 049 决策点（D1-D7） | 红线 |
+| **启动条件** | 用户批准 049 决策点（D1-D7） |
+
+| **v2 架构补充（054）** | 静默阈值 300s（非120s）；detection 增加 BUDGET_STARVED 指纹（outputTokens==整数上限）；trajectory jsonl 兼容对方 {t,mid,text} 格式；oc_traj 工具集成位预留；三模板轮替驱动器接口预留 | 参考：`dev-docs/053-v2续传编排技术说明书.md` §6.3/§4 + 本地模板 `053a-prompt_*.md` |
+| **启动条件（修订）** | 用户批准 049 决策点（D1-D7+D8 v2架构采纳） | 红线 |
 
 ## 0. 给执行 AI 的第一句话
 

@@ -19,7 +19,9 @@
 | proof.md 适配器 | **组装 message 落盘为 work_dir/proof.md**（047 兼容性缺口：ox-alpha 不写文件）——判定链无需改动 |
 | model/effort 来源 | DB batch（铁律15/WP-G 同构）；effort 默认值待 D1/D2 拍板 |
 | **工作量实数** | **~300 行薄接入** |
-| **启动条件** | V3 完成；D2 effort 策略已拍板 |
+| **v2 架构补充（054）** | 接力逻辑按 v2 观察者/解题者两阶段重写：三模板轮替（round1/observer/solver）+ 递归消化链目录结构 + oc_traj 工具集成 + budget_starved 判定（outputTokens==上限整数值）。静默阈值 300s。参考：`dev-docs/053-v2续传编排技术说明书.md` 全文 + `053a-*` 系列 |
+| **工作量修订** | ~300 行 → ~500 行（增加观察者/解题者轮替逻辑+trajectory 工具） |
+| **启动条件（修订）** | V3 完成；D2 effort 策略已拍板；**D8 v2 架构已采纳** |
 
 ---
 
