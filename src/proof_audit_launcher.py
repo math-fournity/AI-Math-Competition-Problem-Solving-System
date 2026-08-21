@@ -95,14 +95,12 @@ def prepare_audit_work_dir(audit_run_key, problem_text, standard_answer, proof_t
     template_path = PROJECT_ROOT / "templates" / "proof_audit_agents_md.md"
     template = template_path.read_text()
 
-    # 替换占位符
-    agents_md = template.format(
-        problem_id=audit_run_key.replace("paudit-", ""),
-        problem_text=problem_text or "（题目文本缺失）",
-        standard_answer=standard_answer or "（标准答案缺失）",
-        proof_text=proof_text or "（proof文本缺失）",
-        solver_trajectory_summary="（暂未提供解题AI的工具调用记录）",
-    )
+    # 用 replace 替换占位符（不用 .format() 因为模板中有 LaTeX 大括号会被误解析）
+    agents_md = template.replace("{problem_id}", audit_run_key.replace("paudit-", ""))
+    agents_md = agents_md.replace("{problem_text}", problem_text or "（题目文本缺失）")
+    agents_md = agents_md.replace("{standard_answer}", standard_answer or "（标准答案缺失）")
+    agents_md = agents_md.replace("{proof_text}", proof_text or "（proof文本缺失）")
+    agents_md = agents_md.replace("{solver_trajectory_summary}", "（暂未提供解题AI的工具调用记录）")
 
     agents_md_path = work_dir / "AGENTS.md"
     agents_md_path.write_text(agents_md)

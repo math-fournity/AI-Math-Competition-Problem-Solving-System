@@ -25,14 +25,24 @@ continuation_collector → continuation_feeder → continuation_launcher → con
                                                ↑ 并发解题                    ↑ 结果
                          monitor_continuation（监控Pipe，每120s检查写alert到DB）
                          session_registry（session编号化管理）
-                         step_gate（步进门闸，9个语义动作可hold/step）
+                         step_gate（步进门闸，13个语义动作可hold/step）
                          observability（行为流水黑匣子，log/flow/）
+
+=== Pipe 5 审计 Pipe（dev-docs/029）===
+proof_audit_collector → proof_audit_launcher → proof_audit_result_collector
+  收集completed题入审计队列  并发启动devin cli审计   解析审计结果更新DB
+                             ↑ 并发审计               ↑ audit_passed=True/False
+  审计AI不受防作弊约束，严格审计解题AI的数学正确性+作弊检测
+  审计通过=进入选题池；审计失败=排除或重做（FAIL_INCOMPLETE→prepared）
 ```
 
 支撑模块（不在主管线上但被各模块依赖）：
 - `continuation_config` — 全局配置常量（DB集合名/Redis key/模型/路径/门闸ID/判定阈值）
 - `continuation_db_schema` — DB连接+集合管理+AQL封装
 - `continuation_redis_queue` — Redis队列操作（pending/running/原子转移）
+- `proof_audit_config` — 审计Pipe配置常量（集合名/Redis key/门闸ID/审计结果枚举）
+- `proof_audit_db_schema` — 审计Pipe DB集合管理（p27_proof_audit_runs/p27_proof_audits）
+- `proof_audit_redis_queue` — 审计Pipe Redis队列操作（paudit:前缀）
 
 数据流：collector 把失败题入 DB(prepared) → continuation_feeder 入 Redis pending →
 launcher 并发 dequeue 启动 devin cli → result_collector 汇总。本系统只有这一条
@@ -75,8 +85,11 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 | continuation_redis_queue | Redis队列操作（pending/running/原子转移） | 队列原子性破坏=重复启动 |
 | monitor_continuation | 每120s检查写 alert（A类自动/B类质量） | 不写alert=检查失效 |
 | session_registry | session 编号化管理（p27-s{seq}） | 注册表脱节（A13：tmux vs DB vs Redis） |
-| step_gate | 9个语义动作可hold/step（DB信号单步跟踪） | — |
+| step_gate | 13个语义动作可hold/step（9续传+4审计，DB信号单步跟踪） | — |
 | observability | 行为流水黑匣子（log/flow/flow-*.jsonl） | 无记录=看不见流动（016根因） |
+| **proof_audit_collector** | 收集completed题入审计队列（p27_proof_audit_runs） | completed题未入审计=选题池准入失效 |
+| **proof_audit_launcher** | 并发启动devin cli审计proof.md（门闸GATE-AUDIT-LAUNCH/KILL） | 审计失控=API配额浪费 |
+| **proof_audit_result_collector** | 解析审计XML，写audit_passed，更新选题池准入（门闸GATE-AUDIT-FINALIZE-PASS/FAIL） | 审计结果未归档=选题池无准入门槛 |
 
 ## 5. 数据产出全景
 
@@ -84,10 +97,13 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 含boxed）/ round{N}_HANDOVER.md（交接文档）/ round{N}_conversation_map.md（面包屑地图）
 / round{N}_prompt.txt / DONE.md（退出标记）/ tmux.log
 
-DB 集合：p27_continuation_runs（每题续传记录，含rounds_log/status/final_status）/
+DB 集合：p27_continuation_runs（每题续传记录，含rounds_log/status/final_status/audit_status/audit_passed）/
 p27_continuation_events（事件流）/ p27_continuation_results（最终结果，含proof文本双写）/
-p27_sessions（session注册表）/ p27_step_gates（门闸状态）/ p27_monitor_alerts（alert）/
-p27_continuation_batches（批次记录，存concurrency等批次级配置）
+p27_sessions（session注册表）/ p27_step_gates（门闸状态，13个门闸）/ p27_monitor_alerts（alert，含审计6种alert_type）/
+p27_continuation_batches（批次记录，存concurrency等批次级配置）/
+p27_proof_audit_runs（审计run记录）/ p27_proof_audits（审计结果，含check_results/cheating_analysis/proof_text备份）
+
+> **完整 DB schema 文档**：`/Users/user/database/AI-Math-Competition-Problem-Solving-System.md`（全局rule database-schema-doc 要求）
 
 rounds_log 每条=5基础字段（round/export/truncated/completed/reason）+R2起补
 method/handover_success + 6个路径字段（export/prompt_path/proof_path/handover_path/
@@ -133,7 +149,7 @@ map_path/prev_export）。round-1 只有5基础字段。
 | `DEVIN_MODEL` | glm-5-2 | devin cli 模型（必须显式指定） |
 | `SIM_MODE` | env=1 开启 | 全流程模拟开关（生产绝不设） |
 
-**门闸 ID 全清单**（9个，step_gate.py + continuation_launcher.py + continuation_feeder.py）：
+**门闸 ID 全清单**（13个，step_gate.py + continuation_launcher.py + continuation_feeder.py + proof_audit_launcher.py + proof_audit_result_collector.py）：
 | gate_id | 模块 | 动作 |
 |---|---|---|
 | `GATE-FEED-ENQUEUE` | feeder | 初次入队（priority=0，NX模式） |
@@ -145,6 +161,10 @@ map_path/prev_export）。round-1 只有5基础字段。
 | `GATE-KILL-SESSION` | launcher | kill tmux session（不可逆） |
 | `GATE-REQUEUE-TRUNCATED` | launcher | 截断轮低优先级重入队（多轮续传核心流转） |
 | `GATE-FINALIZE-RUN-COMPLETED` | launcher | 写整题终态 COMPLETED（几乎不可逆） |
+| `GATE-AUDIT-LAUNCH` | proof_audit_launcher | 启动审计 devin cli（dev-docs/029） |
+| `GATE-AUDIT-KILL-SESSION` | proof_audit_launcher | kill 审计 session（不可逆） |
+| `GATE-AUDIT-FINALIZE-PASS` | proof_audit_result_collector | 写 audit_passed=True（进入选题池） |
+| `GATE-AUDIT-FINALIZE-FAIL` | proof_audit_result_collector | 写 audit_passed=False + 改 status |
 > 操作：`python -m src.step_gate --hold GATE-ID` / `--step GATE-ID --reason '...'` / `--auto GATE-ID`
 
 **HANDOFF 8章节合格标准**（HANDOVER.md，续传规范文档.md §2.1——SOP_04 C4判断依据）：
@@ -173,7 +193,13 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 - running：不超concurrency；每个running有对应tmux session和DB记录
 - 截断重入队：判定有据（comp≥24000+rc>1000+msg=0）；score=round_num排队尾
   （NX不被feeder重置）
-- completed：proof有boxed+mtime本轮；proof文本已入库（双写）
+- completed：proof有boxed+mtime本轮；proof文本已入库（双写）；audit_passed决定是否进入选题池
+
+**审计 Pipe 正常状态**（dev-docs/029，SOP_01 A15-A18检查）：
+- paudit:pending：不该无限堆积（collector该入队后launcher该dequeue）
+- paudit:running：不超concurrency；每个running有对应tmux session
+- p27_proof_audits：审计完成后持续增长；失败率<20%
+- GATE-AUDIT-* 门闸：auto模式静默通过；hold模式时SOP_01会提醒Y在等
 
 **Monitor A类检查14项的正常标准**（monitor_continuation每120s自动执行，alert写DB p27_monitor_alerts）：
 - A1 session_health: session数≈DB running≈设定并发（不匹配=launcher挂/孤儿）
@@ -244,6 +270,12 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 | `redis_connection` | 基础设施 | critical | 基础设施 | Redis不可达，等恢复 |
 | `flow_ledger_unavailable` | 基础设施 | warning | 基础设施 | 行为流水DB不可达 |
 | `ai_review_sample` | C类抽样 | info | 需AI判断 | 抽样标记needs_ai_review，SOP_04处理 |
+| `audit_queue_stalled` | 审计Pipe | critical | 需判断 | paudit:pending 15分钟无变化（dev-docs/029） |
+| `audit_completion_slow` | 审计Pipe | warning | 需判断 | 审计完成慢，可能需加并发 |
+| `audit_failure_rate_high` | 审计Pipe | warning | 需判断 | 审计失败率>20%，检查AGENTS.md模板 |
+| `cheating_detected` | 审计Pipe | critical | 数据问题 | FAIL_CHEATING的题需人工复查 |
+| `audit_parse_error` | 审计Pipe | warning | 需判断 | 审计AI无法解析proof，人工处理 |
+| `audit_gate_waiting` | 审计Pipe | info | 需AI判断 | 审计门闸在等放行，Master Agent查看--pending |
 
 **异常信号**（看到就警觉）：
 - 016失控循环：churn_suspects非空 / session数暴涨 / 同题高频launch → 立即kill launcher+清队列
@@ -272,6 +304,10 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 12. 改调度逻辑后跑 sim 发布门禁（solve3+chaos_016——016 P0-1引入新死循环的教训）
 13. Gate 放行必须附 --reason 理由（落盘flow流水，没有理由=审计断点）
 14. 每轮 SOP_01 必查行为流水（observability --stats，016根因：存量没变但流动病态）
+
+**029新增2条（审计Pipe+防作弊）**：
+15. completed题必须审计后才能进入选题池（audit_passed=True是选题池准入条件——dev-docs/029）
+16. 解题AI受防作弊约束（可用工具但不能靠"找到答案"解题，遇到解答相关内容须在proof.md主动声明作弊风险；审计AI不受此约束，严格审计数学正确性+作弊检测）
 
 ---
 
