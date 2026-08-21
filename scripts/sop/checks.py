@@ -678,12 +678,13 @@ def check_04_ai_judgment(batch_id):
 
 
 def _check_audit_quality_review(db):
-    """步骤04例行：审计质量复核——抽查审计 AI 的判断质量（C7-C9）。
+    """步骤04例行：审计质量复核——C7/C8 直接检查升级（WP-E）+ C9 移交说明。
 
-    审计 Pipe 上线后，SOP_04 从"Master Agent 人工判断 C1-C6"升级为
-    "审计 Pipe 自动判断 + Master Agent 复核审计质量 C7-C9"。
+    C9（作弊证据复核）已移交 SOP_07 检查项 6（同源数据归并——SOP_04 专注
+    proof 质量/审计质量的 C7/C8）。
     """
-    print("--- 审计质量复核（C7-C9）---")
+    print("--- 审计质量复核（C7/C8，直接检查版——WP-E）---")
+    print("  （C9 作弊复核已移交步骤 07 检查项 6）")
     try:
         from src.proof_audit_config import PROOF_AUDITS_COLLECTION
 
@@ -692,56 +693,85 @@ def _check_audit_quality_review(db):
             print()
             return
 
-        # C7: 抽查审计判 PASS 的题——proof 真的对吗？
+        # JOIN 带出实物路径：export（审计AI完整输出）+ proof（被审对象）
+        base_return = (
+            " _key: a._key, source_run_key: a.source_run_key, "
+            "problem_id: a.problem_id, audit_status: a.audit_status, "
+            "audit_summary: a.audit_summary, "
+            "export_path: ar.export_path, "
+            "proof_path: LENGTH(cr.rounds_log) > 0 ? "
+            "cr.rounds_log[LENGTH(cr.rounds_log)-1].proof_path : null, "
+            "work_dir: cr.work_dir"
+        )
+        join = (
+            " LET ar = DOCUMENT('p27_proof_audit_runs', "
+            "CONCAT('paudit-', a.source_run_key)) "
+            " LET cr = DOCUMENT('p27_continuation_runs', a.source_run_key) "
+        )
+
+        # C7: 审计判 PASS 的题——proof 真的对吗？（四步复核法）
         pass_aql = (
             f"FOR a IN {PROOF_AUDITS_COLLECTION} "
             f"FILTER a.audit_status IN ['PASS', 'PASS_WITH_CAVEAT'] "
             f"FILTER a.ai_review_done != true "
             f"SORT RAND() LIMIT 5 "
-            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
-            f"problem_id: a.problem_id, audit_status: a.audit_status, "
-            f"audit_summary: a.audit_summary}}"
+            f"{join}"
+            f"RETURN {{{base_return}}}"
         )
         pass_candidates = list(db.aql.execute(pass_aql, ttl=60))
 
-        # C8: 抽查审计判 FAIL 的题——proof 真的错吗？
+        # C8: 审计判 FAIL 的题——proof 真的错吗？
         fail_aql = (
             f"FOR a IN {PROOF_AUDITS_COLLECTION} "
-            f"FILTER a.audit_status LIKE 'FAIL_%' "
+            f"FILTER LIKE(a.audit_status, 'FAIL_%') "
             f"FILTER a.ai_review_done != true "
             f"SORT RAND() LIMIT 5 "
-            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
-            f"problem_id: a.problem_id, audit_status: a.audit_status, "
-            f"audit_summary: a.audit_summary, cheating_analysis: a.cheating_analysis}}"
+            f"{join}"
+            f"RETURN {{{base_return}}}"
         )
         fail_candidates = list(db.aql.execute(fail_aql, ttl=60))
 
-        # C9: 作弊检测题——复查作弊证据是否充分
-        cheat_aql = (
-            f"FOR a IN {PROOF_AUDITS_COLLECTION} "
-            f"FILTER a.audit_status IN ['FAIL_CHEATING', 'FAIL_CHEATING_DECLARED'] "
-            f"FILTER a.ai_review_done != true "
-            f"LIMIT 5 "
-            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
-            f"problem_id: a.problem_id, audit_status: a.audit_status, "
-            f"cheating_analysis: a.cheating_analysis}}"
-        )
-        cheat_candidates = list(db.aql.execute(cheat_aql, ttl=60))
+        def resolve_proof(c):
+            """proof 实物路径解析（存在性回退链）：rounds_log 记录路径 →
+            work_dir/proof.md → work_dir/round*_proof.md。全失败返回 None。"""
+            import glob as _glob
+            candidates = [c.get("proof_path")]
+            wd = c.get("work_dir")
+            if wd:
+                candidates += [f"{wd}/proof.md"]
+            for cand in candidates:
+                if cand and Path(cand).exists():
+                    return cand
+            if wd:
+                hits = sorted(_glob.glob(f"{wd}/round*_proof*.md"))
+                if hits:
+                    return hits[-1]
+            return None
 
-        print(f"  C7 审计判PASS的题（抽查proof是否确实正确）: {len(pass_candidates)}条")
+        def guide(c):
+            """单条复核指引块——把实物路径与四步法送到 Master Agent 眼前。"""
+            proof = resolve_proof(c) or "⚠️ 未找到（人工排查 work_dir）"
+            export = c.get("export_path")
+            export_ok = export and Path(export).exists()
+            export_disp = f"{export}" if export_ok else f"{export} ⚠️文件不存在"
+            return (f"    [{c['problem_id']}] {c['audit_status']} "
+                    f"(audit记录key={c['_key']})\n"
+                    f"      ① 读 export（审计AI完整推理，grep '<proof_audit>' 定位块）: "
+                    f"{export_disp}\n"
+                    f"      ② 读 proof 原文（被审对象）: {proof}\n"
+                    f"      ③ 独立判断：boxed 答案与解题逻辑是否支撑结论——不要只信 summary\n"
+                    f"      ④ 判完标记: python -m monitoring.continuation_control "
+                    f"mark-ai-review <key> --result PASS/FAIL --scope audit")
+
+        print(f"  C7 审计判PASS的题（复核 proof 是否确实正确）: {len(pass_candidates)}条")
         for c in pass_candidates:
-            print(f"    [{c['problem_id']}] {c['audit_status']}: {c['audit_summary'][:80]}")
+            print(guide(c))
 
-        print(f"  C8 审计判FAIL的题（抽查proof是否确实错误）: {len(fail_candidates)}条")
+        print(f"  C8 审计判FAIL的题（复核 proof 是否确实错误）: {len(fail_candidates)}条")
         for c in fail_candidates:
-            print(f"    [{c['problem_id']}] {c['audit_status']}: {c['audit_summary'][:80]}")
+            print(guide(c))
 
-        print(f"  C9 作弊检测题（复查作弊证据是否充分）: {len(cheat_candidates)}条")
-        for c in cheat_candidates:
-            analysis = c.get("cheating_analysis", "")[:100]
-            print(f"    [{c['problem_id']}] {c['audit_status']}: {analysis}")
-
-        if not pass_candidates and not fail_candidates and not cheat_candidates:
+        if not pass_candidates and not fail_candidates:
             print("  ✅ 无待复核的审计结果")
 
     except Exception as e:

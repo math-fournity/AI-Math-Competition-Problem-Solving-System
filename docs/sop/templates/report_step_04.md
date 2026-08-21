@@ -37,6 +37,12 @@
 | C4 | HANDOVER质量 | 读HANDOVER.md。检查：是否准确总结上一轮思考/有无遗漏关键结论/有无编造上一轮没有的内容 | [ ] | |
 | C5 | 续传方向 | 读export的thinking(reasoning_content字段)。判断AI是在上一轮基础上继续还是从头重复。第一轮跳过此项。 | [ ] | |
 | C6 | export语义检查 | 读export的conversation.json(前5000行)。判断thinking是否真的在解这道题——不是跑题/循环废话/无实质推理/中途崩溃。 | [ ] | |
+### 三、审计质量复核（C7/C8，WP-E 直接检查版）
+
+> C9 作弊复核已移交步骤07检查项6。对每条候选按四步复核法：①读export XML ②读proof原文 ③独立判断 ④mark-ai-review --scope audit 标记。
+
+| C7 | 审计PASS复核 | 读export的<proof_audit>块+proof.md原文。独立判断boxed答案与逻辑是否支撑PASS。记录audit记录key与两路径。 | [ ] | |
+| C8 | 审计FAIL复核 | 同法复核FAIL判定是否有据（如FAIL_WRONG_ANSWER时proof答案是否其实正确）。 | [ ] | |
 
 ---
 

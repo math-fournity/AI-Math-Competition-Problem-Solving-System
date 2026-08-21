@@ -653,16 +653,22 @@ def cmd_resolve_alert(args):
 
 
 def cmd_mark_ai_review(args):
-    """标记 run 的 AI 判断完成+结果——SOP_04 §4 操作支撑。
+    """标记 AI 判断完成+结果——SOP_04 §4 操作支撑。
 
     用法：
       python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS
-      python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉"
+      python -m monitoring.continuation_control mark-ai-review <audit_key> --result FAIL --note "C2幻觉" --scope audit
+
+    scope=runs（默认）：更新 p27_continuation_runs（续传题的 C1-C6 复核）
+    scope=audit：更新 p27_proof_audits（审计记录的 C7/C8 复核——WP-E）
     """
     from src.continuation_config import CONTINUATION_RUNS_COLLECTION
+    from src.proof_audit_config import PROOF_AUDITS_COLLECTION
 
     db = _connect_db()
-    col = db.collection(CONTINUATION_RUNS_COLLECTION)
+    collection_name = (PROOF_AUDITS_COLLECTION if args.scope == "audit"
+                       else CONTINUATION_RUNS_COLLECTION)
+    col = db.collection(collection_name)
 
     doc = col.get(args.run_key)
     if not doc:
@@ -745,6 +751,8 @@ def main():
     p_mai.add_argument("run_key", help="run的_key")
     p_mai.add_argument("--result", required=True, choices=["PASS", "FAIL"], help="判断结果")
     p_mai.add_argument("--note", help="判断备注（如C2幻觉/C4缺章节）")
+    p_mai.add_argument("--scope", choices=["runs", "audit"], default="runs",
+                       help="标记对象：runs=续传题复核 / audit=审计记录复核（WP-E）")
     p_mai.set_defaults(func=cmd_mark_ai_review)
 
     args = parser.parse_args()

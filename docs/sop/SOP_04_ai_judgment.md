@@ -122,6 +122,30 @@ python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL
 
 ---
 
+## 审计质量复核（C7/C8，WP-E 直接检查版）
+
+### 认知增量：三层都要看
+
+审计 AI 的 `audit_summary` 是"它的说法"；export 里的 `<proof_audit>` XML 是
+"它的推理"；proof.md 才是"事实"。复核 C7/C8 时三层都要看——只看 summary 就是
+间接检查（违反直接检查铁律）。
+
+### 四步复核法
+
+对 check_04 输出的每条候选（已带实物路径与回退解析）：
+
+1. **读 export**——grep `<proof_audit>` 定位审计 AI 的完整推理块；
+2. **读 proof 原文**——被审对象本身（指引给出的路径已经过存在性回退解析）；
+3. **独立判断**——boxed 答案与解题逻辑是否支撑审计结论；不要只信 summary；
+4. **标记**——`python -m monitoring.continuation_control mark-ai-review <audit记录key> --result PASS/FAIL --scope audit`
+
+### C9 已移交
+
+作弊证据复核（FAIL_CHEATING 清单+cheating_analysis 全文）→ **步骤 07 检查项 6**
+（同源数据归并，SOP_04 专注 C1-C8）。
+
+---
+
 ## 你需要建立的 todo list
 
 - 每个待判断条目一个 todo（读文件+做C1-C6判断+记录结果）
