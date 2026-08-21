@@ -133,7 +133,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-S | WP-S-资产保留.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-S-执行记录.md（六项全做；盘点报告050：export缺45%/handover缺92%） |
 | WP-I | WP-I-共享终态检测模块.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-I-执行记录.md（模块+单测39PASS+re-export兼容层） |
 | WP-J | WP-J-审计终态补全.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-J-执行记录.md（四类检测+超时改名+误伤检查10样本零命中） |
-| WP-K | WP-K-续传终态补全.md | ☐ 未开始 | | | | |
+| WP-K | WP-K-续传终态补全.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 0d32dbb | exec-log/WP-K-执行记录.md（ai_gave_up分支+sim门禁8断言过） |
 | WP-L | WP-L-基础设施失败自动重试.md | ☐ 未开始 | | | | |
 | WP-C | WP-C-SOP07新STEP.md | ☐ 未开始 | | | | |
 | WP-D | WP-D-SOP01精简.md | ☐ 未开始 | | | | |
