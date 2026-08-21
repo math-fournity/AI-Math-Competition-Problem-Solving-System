@@ -9,6 +9,19 @@
 
 ---
 
+## ★ U8 任务书修订（2026-08-21 填实——049 §三，与本文冲突处以本块为准）
+
+| 槽位 | 填实值 | 来源 |
+|---|---|---|
+| 通知日志格式 | 每行 `{ts, dir:"→\|←", msg}`（U1/U2/U5 探针同款） | 046§五 |
+| comp 取数路径 | prompt response 的 usage.outputTokens（流内 usage_update 为空——043） | 043 |
+| set_config 方法名 | 兼容探测 `session/set_config_option`(0.16.x) / `session/set_config`(新版) | skill§3.8 |
+| export 兜底 | **文件重定向**（非管道捕获——64KB 管道限制实证）+ JSON 校验 + 重试 | 049§零 |
+| start() 断言链 | model→断言回显→effort→断言回显，fail-fast（铁律15）；model/effort 从 DB batch 读 | 铁律15/045 |
+| 截断检测语义修正 | finish_reason 仅信息性；成败分界=组装后 message 非空；comp 条件辅助（实测校准阈值） | 045§三/043 |
+| **工作量实数** | **~800 行**（接口200+opencode后端150+devin后端150+组装器120+detection80+export兜底60+测试） | 049§三 |
+| **启动条件** | 用户批准 049 决策点（D1-D7） | 红线 |
+
 ## 0. 给执行 AI 的第一句话
 
 把 U 系列的设计变成代码：`src/acp/` 包——后端抽象基类、OpenCode/Devin 两个适配器、

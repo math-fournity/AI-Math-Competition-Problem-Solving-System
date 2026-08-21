@@ -9,6 +9,18 @@
 
 ---
 
+## ★ U8 任务书修订（2026-08-21）
+
+| 槽位 | 填实值 |
+|---|---|
+| 迁移边界 | 044 #1/2/7/8/13/14（启动层+存活判定+kill 门闸+force 清场）——逐函数清单见 044 表 |
+| trunc_threshold 参数化 | PtmuxDevinBackend 返回 24000（行为零变化）；is_truncated 改读 backend 属性 |
+| 铁律15 接口预留 | start() 签名按 045 BackendTask（model/reasoning_effort 字段就位但 -p 后端忽略） |
+| **工作量实数** | **~400 行重构**（迁移为主） |
+| **启动条件** | V2 完成（sim ACP 化门禁就位） |
+
+---
+
 ## 0. 给执行 AI 的第一句话
 
 把现有 -p+tmux 启动路径**原样搬进** PtmuxDevinBackend（U4 接口的第三个实现），launcher

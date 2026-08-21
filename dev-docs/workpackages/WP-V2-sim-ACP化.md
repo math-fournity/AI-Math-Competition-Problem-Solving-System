@@ -8,6 +8,18 @@
 
 ---
 
+## ★ U8 任务书修订（2026-08-21）
+
+| 槽位 | 填实值 |
+|---|---|
+| fake_acp_server 规格 | 044§三：JSON-RPC 骨架+5 动作（truncate/complete/dead/stall/handover）~250行；剧本映射~80；断言条件化~60；接线~80 |
+| 双后端旋钮 | run_sim --backend ptmux\|acp，默认各跑一遍=全量门禁 |
+| 断言条件化 | ptmux 查 session 残留；acp 查子进程/通知日志残留；DB/Redis/flow 断言共用 |
+| **工作量实数** | **~470 行** |
+| **启动条件** | V1 完成 |
+
+---
+
 ## 0. 给执行 AI 的第一句话
 
 铁律 12 说改调度逻辑必须过 sim 发布门禁——ACP 改造是最大的调度改动，所以 sim 必须

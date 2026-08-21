@@ -149,20 +149,23 @@ git commit（显式路径 add）→ 领下一个。
 | WP-U5 | WP-U5-OpenCode管线详细设计.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U5-执行记录.md（报告046：response驱动完成检测+注入实测+错误三层；配额2/3） |
 | WP-U6 | WP-U6-OxAlpha数学能力评估.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U6-执行记录.md（报告047：续传收敛实证，有条件可作默认） |
 | WP-U7 | WP-U7-Devin备用管线与切换回退.md | ✅ 完成（纯设计） | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U7-执行记录.md（报告048：三态健康+事件表+演练设计） |
-| WP-U8 | WP-U8-双管线调查总报告.md | ☐ 未开始 | | | | |
+| WP-U8 | WP-U8-双管线调查总报告.md | ✅ 完成（停等拍板049） | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U8-执行记录.md（049+决策点D1-D7待拍板） |
 | ★ 用户拍板 049 决策点 | （V 系列启动闸门） | ☐ 待用户 | — | — | — | 用户回复记录 |
 | **线 2·V 系列（实现，框架版文档·待 U8 填实槽位）** | | | | | | |
-| WP-V1 | WP-V1-ACP客户端库.md | ☐ 未开始 | | | | |
-| WP-V2 | WP-V2-sim-ACP化.md | ☐ 未开始 | | | | |
-| WP-V3 | WP-V3-执行后端抽象重构.md | ☐ 未开始 | | | | |
-| WP-V4 | WP-V4-OpenCode后端接入.md | ☐ 未开始 | | | | |
-| WP-V5 | WP-V5-Devin备用与回退机制.md | ☐ 未开始 | | | | |
-| WP-V6 | WP-V6-检查门闸监控文档适配.md | ☐ 未开始 | | | | |
-| WP-V7 | WP-V7-端到端验证与灰度切换.md | ☐ 未开始 | | | | |
+| WP-V1 | WP-V1-【U8任务书已填实】ACP客户端库.md | ☐ 未开始 | | | | |
+| WP-V2 | WP-V2-【U8任务书已填实】sim-ACP化.md | ☐ 未开始 | | | | |
+| WP-V3 | WP-V3-【U8任务书已填实】执行后端抽象重构.md | ☐ 未开始 | | | | |
+| WP-V4 | WP-V4-【U8任务书已填实】OpenCode后端接入.md | ☐ 未开始 | | | | |
+| WP-V5 | WP-V5-【U8任务书已填实】Devin备用与回退机制.md | ☐ 未开始 | | | | |
+| WP-V6 | WP-V6-【U8任务书已填实】检查门闸监控文档适配.md | ☐ 未开始 | | | | |
+| WP-V7 | WP-V7-【U8任务书已填实】端到端验证与灰度切换.md | ☐ 未开始 | | | | |
 | ~~WP-U（旧）~~ | WP-U-ACP改造调查.md | **已废止**（U1~U8 取代） | — | — | — | — |
 
 执行记录统一写到 `dev-docs/workpackages/exec-log/WP-{X}-执行记录.md`（模板：
 做了什么/改了哪些文件/验证结果/遗留问题）。
+
+
+> **🔴 当前状态：线 2 调查全部完成（U1-U8），停在 049 决策点闸门——等待用户对 D1-D7 拍板后方可启动 V 系列。**
 
 ## 五、执行 AI 的会话启动 checklist（每个 WP 通用）
 
