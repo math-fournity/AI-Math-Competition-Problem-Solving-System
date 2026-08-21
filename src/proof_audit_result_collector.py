@@ -153,11 +153,25 @@ def audit_finalize_pass(db, run_key, audit_run_key, audit_status, check_results,
     - audit_passed=True 是选题池的准入条件——通过=进入选题池；
     - 误通过会导致错误题目进入选题池。
 
-    放行前 Master Agent 应检查：
-    1. 审计 export 的 XML 解析成功 → 查法：check_results 字段齐全
-    2. audit_status=PASS 或 PASS_WITH_CAVEAT → 查法：读 audit_status 字段
-    3. A1 答案正确性 PASS → 查法：check_results.A1 含 PASS
-    4. 无作弊标记 → 查法：E1/E2 均 PASS 或 N/A
+    放行前 Master Agent 应检查并论证：
+    【检查项】（每项含查法+正常值；全部直接读，不依赖 DB 转述字段）
+    1. XML 解析成功 → 查法：直接读 export 文件的 <proof_audit> 块
+       （grep export 路径），不是只看 DB check_results 字段。正常值=块存在且字段齐全
+    2. audit_status ∈ {PASS, PASS_WITH_CAVEAT} → 查法：读组装产物。正常值=二者之一
+    3. A1 含 PASS → 查法：check_results.A1 以 PASS 开头。正常值=答案正确性硬门槛过
+    4. E1/E2 无 FAIL → 查法：check_results.E1/E2 不含 FAIL（作弊标记）
+    5. proof.txt 与审计对象一致 → 查法：work_dir/proof.txt 前 200 字符 vs
+       DB proof_text 抽样一致。正常值=一致
+
+    【论证依据——放行/不放行判定】
+    放行/不放行：1✓+2✓+3✓+4✓+5✓ 全过则放行——审计结果有据且对象正确，
+       audit_passed=True 让题进选题池是安全决策。
+    不可放行：3✗（答案错）→ 绝不能进池；4✗ → 应走 FINALIZE-FAIL 而非本闸；
+       XML 解析失败 → **不走本闸也不走 FAIL 闸，走 mark_parse_error 待人工**
+       （WP-N 语义："不知道"不能当"失败"）。
+
+    系统正常运行表现：PASS 后 p27_proof_audits 增长、runs.audit_passed=True 同步；
+    异常时：finalize 后两集合不一致 = 收集链断裂 → SOP_07 交叉验证发现。
     """
     # 获取审计 run 信息
     audit_run = get_audit_run(db, audit_run_key)
@@ -217,12 +231,27 @@ def audit_finalize_fail(db, run_key, audit_run_key, audit_status, check_results,
     - 改 status=prepared 会让题目重新进入做题队列；
     - 误判会浪费做题资源或错误排除正确题目。
 
-    放行前 Master Agent 应检查：
-    1. 审计 export 的 XML 解析成功 → 查法：check_results 字段齐全
-    2. audit_status 是 FAIL_* 之一 → 查法：读 audit_status 字段
-    3. FAIL_INCOMPLETE 时确认 proof 确实是截断残篇 → 查法：读 proof.md 看是否中途断裂
-    4. FAIL_CHEATING 时确认作弊证据充分 → 查法：读 cheating_analysis 字段
-    5. 改 status=audit_failed 的影响：该题退出选题池，需人工复查才能翻案
+    放行前 Master Agent 应检查并论证：
+    【检查项】（每项含查法+正常值；全部直接读，不依赖 DB 转述字段）
+    1. XML 解析成功 → 查法：直接读 export 文件的 <proof_audit> 块。正常值=块存在
+    2. audit_status ∈ FAIL_*（六种） → 查法：读组装产物。正常值=FAIL_WRONG_ANSWER/
+       FAIL_LOGIC_ERROR 等明确失败类型
+    3. FAIL_INCOMPLETE 时 proof 确为截断残篇 → 查法：直接读 work_dir/proof.txt
+       看中途断裂/无结论。正常值=确实断裂
+    4. FAIL_CHEATING 时证据充分 → 查法：cheating_analysis 非空且指明具体行为。
+       正常值=有行为描述非空话
+    5. 影响认知 → audit_failed 几乎不可逆（需人工翻案）——放行前明确知道这一点
+
+    【论证依据——放行/不放行判定】
+    放行/不放行：1✓+2✓+（3✓ 或 4✓ 按失败类型对应）。理由：失败判定有据，
+       audit_passed=False 排除出选题池是正确处置。
+    不可放行：XML 解析失败 → **走 mark_parse_error 待人工，绝不经本闸**
+       （把"不知道"当"失败"是 030~036 修的 bug——WP-N）；FAIL_INCOMPLETE 但
+       proof.txt 完整无断裂 → 审计 AI 误判，转人工复核。
+
+    系统正常运行表现：FAIL 分布以 FAIL_WRONG_ANSWER/FAIL_LOGIC_ERROR 为主、
+    失败率 <20%；异常时：FAIL_CHEATING 批量出现 → cheating_detected alert →
+    SOP_07 C9 复查；PARSE_ERROR 堆积 → mark_parse_error 的 alert 待人工。
     """
     audit_run = get_audit_run(db, audit_run_key)
     if not audit_run:

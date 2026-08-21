@@ -128,7 +128,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-P | WP-P-现场补救.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | a4c436b+见exec-log | exec-log/WP-P-执行记录.md（含收集器解析bug修复+差1根因报告） |
 | WP-H | WP-H-审计优雅停止.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-H-执行记录.md（集成测试五断言全过） |
 | WP-G | WP-G-并发治理.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-G-执行记录.md（实验按用户裁定终止，051留档） |
-| WP-A | WP-A-门控docstring重写.md | ☐ 未开始 | | | | |
+| WP-A | WP-A-门控docstring重写.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-A-执行记录.md（4门闸5/5段标识+DB注册验证通过） |
 | WP-B | WP-B-直接检查铁律rule.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 9c37209 | exec-log/WP-B-执行记录.md（rule 46行+AGENTS.md双rule引用） |
 | WP-S | WP-S-资产保留.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-S-执行记录.md（六项全做；盘点报告050：export缺45%/handover缺92%） |
 | WP-I | WP-I-共享终态检测模块.md | ☐ 未开始 | | | | |

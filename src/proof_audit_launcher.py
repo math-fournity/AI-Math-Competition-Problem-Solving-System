@@ -117,21 +117,40 @@ def prepare_audit_work_dir(audit_run_key, problem_text, standard_answer, proof_t
 
 @gated
 def audit_launch(audit_run_key, work_dir, prompt_file, export_path, db=None, batch_id=None):
-    """【门闸: GATE-AUDIT-LAUNCH】启动审计 devin cli。
+    """【门闸: GATE-AUDIT-LAUNCH】启动一个审计 devin cli。
 
     这个函数做什么：
-    - 用 tmux 启动一个 devin -p 子进程跑审计 prompt；
-    - 建立 tmux 日志管道；
+    - 用 tmux 启动一个 devin -p 子进程跑审计 prompt（proof.txt 为输入）；
+    - 建立 tmux 日志管道（pipe-pane 实时落盘）；
     - 返回 session_name。
 
     为什么追踪这个动作：
     - 启动即消耗 GLM-5.2 API 配额、创建 session；
-    - 审计是选题池的准入门槛——审计通过=进入选题池，审计失败=排除。
+    - 审计是选题池的准入门槛——审计通过=进入选题池，审计失败=排除；
+    - 028 教训：DB 有 proof_text ≠ 文件在——启动前必须直接验证输入实物。
 
-    放行前 Master Agent 应检查：
-    1. 待审计的 proof.md 存在且非空 → 查法：ls work_dir/proof.txt + wc -c > 0
-    2. 审计 work_dir 已准备好（AGENTS.md + proof.txt） → 查法：ls work_dir
-    3. 审计并发未超限 → 查法：paudit:running 的 hlen < concurrency
+    放行前 Master Agent 应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. proof.txt 存在且非空，且与 DB 一致 → 查法：ls work_dir/proof.txt && wc -c > 0，
+       且前 200 字符与 DB audit_run.proof_text 抽样一致。正常值=一致。
+       （028 教训：DB 有文本≠文件在——直接检查两者）
+    2. AGENTS.md 模板渲染正确 → 查法：grep -c "{problem_text}" work_dir/AGENTS.md
+       等占位符应为 0（未替换 = 模板 bug，审计 AI 会收到骨架）
+    3. 并发未超限 → 查法：redis-cli HLEN paudit:running < 并发数；并发数来源 =
+       p27_continuation_batches.{batch_id}.concurrency（WP-G 后无写死默认）
+    4. 该 audit_run 无活跃 session → 查法：tmux list-sessions |
+       grep <audit_run_key 后 30 字符> 应无结果
+
+    【论证依据——放行/不放行判定】
+    放行/不放行：1✓+2✓+3✓+4✓ 全过则放行。理由：审计输入真实存在且与 DB 一致、
+       模板正确、并发受控、无重复启动——启动不会白耗配额也不会重复审计。
+    不可放行：1✗（proof.txt 缺失或与 DB 不一致）→ 028 重现（审计无输入或审的是
+       旧文本）；2✗（占位符未替换）→ 审计 AI 收到模板骨架，产出必然 PARSE_ERROR；
+       3✗ → 并发失控（rate limit 风险）；4✗ → 重复启动浪费配额且状态互相污染。
+
+    系统正常运行表现：paudit:pending 持续下降 + running ≤ 并发数 + 每个审计约
+    3-10 分钟完成；异常时：pending 不降（launcher 没 dequeue——先查 launcher 进程
+    是否存活）/ 审计秒退（devin 启动失败——capture-pane 查报错）→ 交 SOP_07 处理。
     """
     session_name = tmux_session_name(audit_run_key)
     tmux_kill(session_name)  # 清理同名 session
@@ -177,16 +196,37 @@ def audit_launch(audit_run_key, work_dir, prompt_file, export_path, db=None, bat
 
 @gated(resource="tmux")
 def audit_kill_session(session_name, audit_run_key, reason="completed"):
-    """【门闸: GATE-AUDIT-KILL-SESSION】kill 审计 session 的 tmux（不可逆）。
+    """【门闸: GATE-AUDIT-KILL-SESSION】kill 该审计的 tmux session（不可逆清理）。
+
+    这个函数做什么：
+    - kill 该审计的 tmux session——devin cli 退出后 session 因命令尾部的
+      sleep 999999 设计仍存活，kill 是正常清理动作（非杀死工作中的进程）。
 
     为什么追踪这个动作：
-    - kill 是不可逆动作——kill 后审计 devin cli 进程终止；
-    - 误 kill 会导致审计中断、结果丢失。
+    - kill 直接终止 tmux 会话不可逆；
+    - E1 语义澄清：DONE.md 存在 = devin cli 已退出，**≠ 审计成功**——审计成败
+      要看 p27_proof_audits.audit_status（result_collector 解析 export 后写入）。
 
-    放行前 Master Agent 应检查：
-    1. 审计已完成 → 查法：DONE.md 存在 或 ### PROOF AUDIT COMPLETE 在 export 中
-    2. 审计 export 已落盘 → 查法：ls export 文件存在
-    3. reason=completed/stall/dead 时审计结果已提取 → 查法：p27_proof_audits 有记录
+    放行前 Master Agent 应检查并论证：
+    【检查项】（每项含查法+正常值）
+    1. **completed 的真实语义提醒**：DONE.md 存在只证明 devin cli 已退出，
+       ≠ 审计成功——审计成败查 p27_proof_audits.audit_status
+    2. 完成标记存在 → 查法：ls exports/DONE.md 存在；或 grep export 文件含
+       "### PROOF AUDIT COMPLETE"。正常值=任一存在
+    3. session 确属该 audit_run → 查法：session 名 = "paudit-" +
+       audit_run_key 后 30 字符（映射规则）。正常值=名字匹配
+    4. kill 前 export 已落盘非空 → 查法：stat -f%z export 路径 > 1000。
+       正常值=有实质内容
+
+    【论证依据——放行/不放行判定】
+    放行/不放行：2✓+3✓+4✓ 全过则放行（检查项 1 是语义提醒非放行条件）。
+    理由：devin 已退出、session 归属正确、产出已落盘——清理不丢结果。
+    不可放行：无 DONE.md 且 reason 非 dead_session → 违反"绝不 kill 无 DONE.md
+    session"铁律；export 空 → 审计产出未落盘就 kill = 结果丢失。
+
+    系统正常运行表现：completed 后 kill 干净、tmux 无 paudit- 残留 session；
+    异常时：paudit session 堆积 = 孤儿（launcher 死了无人 kill）→ SOP_07 孤儿
+    对账发现后人工清理（每个先验证 DONE.md 再 kill）。
     """
     tmux_kill(session_name)
     log_event(logger, "info", "audit_kill_session",
