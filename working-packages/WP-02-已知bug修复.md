@@ -20,7 +20,7 @@
 
 ## Bug清单
 
-### Bug-1: Monitor Pipe的expected_concurrency不从DB读
+### Bug-1: Monitor Pipe的expected_concurrency不从DB读 ✅ 已修复
 
 **现象**：Monitor Pipe用`--concurrency 5`启动参数做session_health检查，当DB并发是1或3时，误报"tmux session数少于并发数5"。
 
@@ -31,6 +31,12 @@
 **修改文件**：`src/monitor_continuation.py`
 
 **验证**：修改后启动Monitor Pipe，确认session_health检查用DB中的concurrency值而非启动参数。
+
+**修复记录**：
+- commit `edcb439`（2026-08-20 04:41，"016可观测性补强...A1修复"）已实现根本修复：
+  - 新增 `_batch_concurrency(db, batch_id, fallback)` 函数（`monitor_continuation.py:153-162`）——先从 DB 读 `batch.concurrency`，读不到才 fallback 到启动参数
+  - `check_session_health` 第 171 行调用 `_batch_concurrency(db, batch_id, expected_concurrency)`——每次检查都从 DB 动态读取
+- commit `c2be5d4`（2026-08-20）将 fallback 默认值从 5 改为 1（与当前单并发运行模式对齐，影响很小——只有 DB 无 batch 记录或读取失败时才用到 fallback）
 
 ### Bug-2: alert的_key冲突
 

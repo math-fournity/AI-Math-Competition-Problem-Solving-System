@@ -70,7 +70,7 @@ WP-02 (bug修复) ───┘
   - cafd195: 修复session_counter seq unique索引冲突
   - 7767fa8: 修复launcher重启覆盖DB concurrency
 - 已知未修复的问题：
-  - Monitor Pipe的expected_concurrency不从DB读（用启动参数5）
+  - ~~Monitor Pipe的expected_concurrency不从DB读（用启动参数5）~~ **已修复**（commit `edcb439`，2026-08-20）
   - alert的_key冲突（同一轮同类型alert timestamp相同时_key重复）
   - rounds_log_export_missing大量出现（根因未诊断）
   - export_missing大量出现（根因未诊断）
