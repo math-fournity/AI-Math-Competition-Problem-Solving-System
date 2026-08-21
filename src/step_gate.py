@@ -307,6 +307,8 @@ def sync_registry_to_db():
     """把装饰器收集的注册表upsert进DB（--register / launcher启动时调用）。"""
     import src.continuation_launcher   # noqa: F401  触发装饰器收集
     import src.continuation_feeder     # noqa: F401  feeder的闸也进注册表
+    import src.proof_audit_launcher    # noqa: F401  审计Pipe的闸也进注册表
+    import src.proof_audit_result_collector  # noqa: F401
     db = _get_db()
     _ensure_collection(db)
     col = db.collection(COLLECTION)
