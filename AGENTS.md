@@ -199,14 +199,14 @@ python -m scripts.sop.run
 
 | 步骤 | 名称 | 检查什么 |
 |---|---|---|
-| 01 | 系统存活+进度+Session | 进程状态/进度统计/session注册表一致性/stuck/done |
+| 01 | 系统存活+进度+Session | 进程状态/进度统计/session注册表一致性/stuck/done/门闸Y通道/行为流水 |
 | 02 | 数据完整性 | 产出文件存在性/rounds_log 7字段/DB-文件一致性/Redis-DB一致性 |
 | 03 | alert分类 | 读未处理alert，分类为代码bug/数据/基础设施/需重跑/需清理 |
-| 04 | C类AI判断 | 读proof.md/HANDOVER.md做C1-C5判断（数学正确性/幻觉/泄漏/质量/方向） |
+| 04 | C类AI判断 | 读proof.md/HANDOVER.md做C1-C6判断（数学正确性/幻觉/泄漏/质量/方向/语义） |
 | 05 | 代码修复 | 修分类为代码bug的问题+py_compile+git commit+文档同步 |
-| 06 | 报告+WORKLOG+Self-check | 写报告+续写WORKLOG+执行SELF-S1~S17+resolve alert |
+| 06 | 报告+WORKLOG+Self-check | 写报告+续写WORKLOG+执行SELF-S1~S22+resolve alert |
 | Z | 元检查+整体检查 | 每个SOP步骤合理性+整体系统是否需要调整 |
-| OP | 运营知识刷新 | 硬约束/外部索引/快速开始/SOP机制——每轮循环末尾注入，突破AGENTS.md 16K限制 |
+| OP | 运营知识刷新 | 硬约束/外部索引/快速开始/SOP机制/环境验证——每轮循环末尾注入，突破AGENTS.md 16K限制 |
 
 **自我进化机制**：Z 步骤检查整个 SOP 系统本身是否需要调整——SOP 系统不仅能修目标系统，还能修自己。
 
@@ -222,7 +222,7 @@ python -m scripts.sop._set_next 03        # 强制设定下一步为步骤03
 python -m scripts.sop._set_next Z         # 跳到元/整体检查
 python -m scripts.sop._set_next status    # 查看当前状态
 ```
-有效编号：`01` `02` `03` `04` `05` `06` `Z`
+有效编号：`01` `02` `03` `04` `05` `06` `Z` `OP`
 
 ### SOP 文档与运营知识
 
