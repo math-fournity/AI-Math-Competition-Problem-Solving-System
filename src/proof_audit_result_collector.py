@@ -304,6 +304,62 @@ def audit_finalize_fail(db, run_key, audit_run_key, audit_status, check_results,
               run_key=run_key, audit_status=audit_status, new_status=new_status)
 
 
+def mark_parse_error(db, run_key, audit_run_key, detail):
+    """PARSE_ERROR 处理（029 §3.3）——audit_passed=None、不改 status、创建 alert 待人工。
+
+    为什么不走 audit_finalize_fail 门闸：PARSE_ERROR 表示"审计输出无法解析"，
+    我们不知道 proof 对错——既不能进选题池也不能踢出。final 门闸是"确知结果"
+    的写入点，"不知道"没有资格过闸（适度依赖 Master Agent 硬约束）。
+    """
+    from src.continuation_db_schema import update_run
+
+    audited_at = utc_now()
+    detail_trimmed = (detail or "")[:500]
+
+    # 1. 更新审计 run
+    update_audit_run(db, audit_run_key, {
+        "audit_status": "PARSE_ERROR",
+        "audit_passed": None,
+        "audited_at": audited_at,
+        "error_message": detail_trimmed,
+    })
+
+    # 2. 更新 p27_continuation_runs——绝不写 status 字段（029 §3.3）
+    update_run(db, run_key, {
+        "audit_status": "PARSE_ERROR",
+        "audit_passed": None,
+        "audited_at": audited_at,
+        "audit_run_key": audit_run_key,
+    })
+
+    # 3. 创建 alert（格式对齐 cheating_detected 段）
+    try:
+        alert_doc = {
+            "_key": f"p27-alert-audit_parse_error-{run_key[-10:]}",
+            "alert_type": "audit_parse_error",
+            "severity": "warning",
+            "details": {
+                "summary": f"审计输出无法解析: {audit_run_key} {detail_trimmed[:100]}",
+                "run_key": run_key,
+                "audit_run_key": audit_run_key,
+            },
+            "status": "new",
+            "created_at": audited_at,
+            "first_seen_at": audited_at,
+            "last_seen_at": audited_at,
+            "occurrence_count": 1,
+        }
+        db.collection(MONITOR_ALERTS_COLLECTION).insert(alert_doc)
+    except Exception as e:
+        # alert 创建失败不影响主流程
+        log_event(logger, "warning", "create_parse_error_alert_failed",
+                  run_key=run_key, error=str(e))
+
+    log_event(logger, "warning", "audit_parse_error",
+              run_key=run_key, audit_run_key=audit_run_key,
+              detail=detail_trimmed[:200])
+
+
 # === 结果收集主逻辑 ===
 
 def collect_results(batch_id, limit=None):
@@ -350,17 +406,10 @@ def collect_results(batch_id, limit=None):
         # 解析 XML
         parsed = parse_audit_xml(audit_text)
         if not parsed:
-            # XML 解析失败——标记为 PARSE_ERROR
+            # XML 解析失败——PARSE_ERROR（029 §3.3：不改 status，待人工）
             print(f"  [parse-error] {audit_run_key}: XML 解析失败")
-            audited_at = utc_now()
-            audit_finalize_fail(
-                db, run_key, audit_run_key,
-                audit_status="PARSE_ERROR",
-                check_results={},
-                cheating_analysis="XML解析失败，无法提取审计结果",
-                audit_summary="PARSE_ERROR: XML解析失败",
-                audited_at=audited_at,
-            )
+            mark_parse_error(db, run_key, audit_run_key,
+                             "XML解析失败，无法提取审计结果")
             parse_errors += 1
             collected += 1
             continue
@@ -386,14 +435,9 @@ def collect_results(batch_id, limit=None):
                 cheating_analysis, audit_summary, audited_at)
             print(f"  [fail] {audit_run_key}: {audit_status}")
         else:
-            # PARSE_ERROR 或其他
-            audit_finalize_fail(
-                db, run_key, audit_run_key,
-                audit_status="PARSE_ERROR",
-                check_results=check_results,
-                cheating_analysis=cheating_analysis,
-                audit_summary=audit_summary or "PARSE_ERROR",
-                audited_at=audited_at)
+            # PARSE_ERROR 或其他无效状态（029 §3.3：不改 status，待人工）
+            mark_parse_error(db, run_key, audit_run_key,
+                             f"audit_status 无效: {audit_status}")
             print(f"  [parse-error] {audit_run_key}: {audit_status}")
             parse_errors += 1
 
