@@ -58,14 +58,25 @@ def extract_problem_text(problem_entry):
         if text:
             return text
 
-    # 方法2: AGENTS.md中的## Problem部分
+    # 方法2: AGENTS.md中的 Problem 部分
+    # 匹配 #/##/### Problem 标题，提取到"解题约束"或下一个同级/更高级标题为止
     agents_md_path = problem_entry.get("agents_md_path", "")
     if agents_md_path and os.path.exists(agents_md_path):
         with open(agents_md_path) as f:
             content = f.read()
-        m = re.search(r"## Problem\s*(.*?)(?:### PROOF COMPLETE|$)", content, re.DOTALL)
-        if m:
+        # 先尝试匹配到"解题约束"（最常见的终止符）
+        m = re.search(r"^#+\s*Problem\s*\n(.*?)(?:解题约束|PROOF COMPLETE|$)", content, re.DOTALL | re.MULTILINE)
+        if m and len(m.group(1).strip()) > 10:
             return m.group(1).strip()
+        # fallback: 匹配 # Problem 后到文件末尾（去掉解题约束部分）
+        m = re.search(r"^#+\s*Problem\s*\n(.*)", content, re.DOTALL | re.MULTILINE)
+        if m:
+            text = m.group(1)
+            # 截断到解题约束
+            idx = text.find("解题约束")
+            if idx > 0:
+                text = text[:idx]
+            return text.strip()
 
     # 方法3: 从export的system message中找
     export_path = problem_entry.get("seed_export", "")
@@ -75,8 +86,8 @@ def extract_problem_text(problem_entry):
         for s in d.get("steps", []):
             if s.get("source") == "system":
                 msg = s.get("message", "") or ""
-                m = re.search(r"## Problem\s*(.*?)(?:### PROOF COMPLETE|$)", msg, re.DOTALL)
-                if m:
+                m = re.search(r"^#+\s*Problem\s*\n(.*?)(?:解题约束|PROOF COMPLETE|$)", msg, re.DOTALL | re.MULTILINE)
+                if m and len(m.group(1).strip()) > 10:
                     return m.group(1).strip()
     return None
 
@@ -131,14 +142,7 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
         exp_id = p.get("exp_id", "")
         seed_export = p.get("seed_export", "")
 
-        # 验证seed_export存在
-        if not seed_export or not os.path.exists(seed_export):
-            print(f"  [skip] {pid}: seed_export不存在")
-            log_event(logger, "info", "skip_run", problem_id=pid, reason="seed_export不存在")
-            skipped += 1
-            continue
-
-        # 提取题目文本
+        # 提取题目文本（seed_export 不存在时用 AGENTS.md 作为 fallback）
         problem_text = extract_problem_text(p)
         if not problem_text:
             print(f"  [skip] {pid}: 无法提取题目文本")
