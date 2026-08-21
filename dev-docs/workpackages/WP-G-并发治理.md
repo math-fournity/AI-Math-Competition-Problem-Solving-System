@@ -110,7 +110,7 @@ python -m monitoring.continuation_control set-concurrency --batch-id paudit-p27-
    - rate limit 迹象（tmux pane/日志搜 rate limit 模式）
    - 收尾即收集正常（WP-H 生效）
 4. 中途可 SIGINT 优雅停（同样在验证 WP-H），实验分段进行没问题
-5. 写 dev-docs/037-审计并发实验记录.md：
+5. 写 dev-docs/051-审计并发实验记录.md：
    - 实验设计 / 数据（每题耗时表）/ rate limit 观察
    - 推理：按用户并发模型（审计管线并发=审计 devin cli 总数），基于实测单题耗时
      与 rate limit 表现，给出推荐并发数及依据（宁可保守起步）
@@ -123,7 +123,7 @@ python -m monitoring.continuation_control set-concurrency --batch-id paudit-p27-
 - `docs/sop/SYSTEM_CLOSURE.md` §5 配置参数表：删 DEFAULT_CONCURRENCY 行，改为
   "并发数唯一来源：DB batch.concurrency（set-concurrency 设置）"
 - `docs/architecture/dynamic-concurrency.md`：加一段"审计批次同构复用同一集合与命令"
-- `dev-docs/037`（任务 3 产出）
+- `dev-docs/051`（任务 3 产出）
 
 ### 任务 5：py_compile + 回归检查 + commit
 
@@ -152,17 +152,17 @@ grep -rn "DEFAULT_CONCURRENCY\|default=5" src/ scripts/ monitoring/ --include="*
 - [ ] DB 无记录 + 不传参 → 启动报错退出（贴输出）；DB 有记录 → 正常启动且用 DB 值（贴启动行打印）
 - [ ] set-concurrency 对 paudit-p27-full 生效且不影响 p27-full（贴两个文档的值）
 - [ ] 每轮 poll 刷新生效：运行中 set-concurrency 改值，launcher 下轮打印调整日志
-- [ ] dev-docs/037 实验记录存在，含单题耗时数据表与推荐推理
+- [ ] dev-docs/051 实验记录存在，含单题耗时数据表与推荐推理
 - [ ] AGENTS.md / SYSTEM_CLOSURE / dynamic-concurrency.md 已同步
 
 ## 7. 完成汇报要求
 
 执行记录：三处删除的 diff、报错路径与正常路径的实测输出、set-concurrency 双批次
-验证、实验数据摘要与推荐值、037 文档路径。
+验证、实验数据摘要与推荐值、051 文档路径。
 
 ## 8. 审计对照
 
 1. 我会 grep 全 repo 找任何残留的并发数值默认（包括新引入的）——**零容忍**
 2. 实测 DB-无-记录报错路径（我会故意用一个假 batch-id 启动验证报错文案）
-3. 037 的推荐值必须有数据支撑（每题耗时表），不接受"建议 5 因为感觉可以"
+3. 051 的推荐值必须有数据支撑（每题耗时表），不接受"建议 5 因为感觉可以"
 4. p27-full 的 concurrency 值前后对比未被改变
