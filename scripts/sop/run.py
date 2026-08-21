@@ -40,6 +40,7 @@ STEP_CHECKS = {
     "04": checks.check_04_ai_judgment,
     "05": checks.check_05_code_repair,
     "06": checks.check_06_report_worklog_selfcheck,
+    "07": checks.check_07_audit_health,
     "Z": checks.check_Z_meta_system_review,
     "OP": checks.check_OP_operations_knowledge,
 }

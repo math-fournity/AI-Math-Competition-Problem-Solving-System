@@ -9,6 +9,7 @@
   04  C类AI判断
   05  代码修复
   06  报告+WORKLOG+Self-check
+  07  审计系统健康检查
   Z   元检查+整体检查
   OP  运营知识刷新（每轮末尾注入）
   → 回到 01（新的一轮循环）
@@ -28,7 +29,7 @@ STATE_FILE = Path(__file__).parent / "_state.json"
 log = get_logger("state")
 
 # SOP 步骤定义——顺序即循环顺序
-SOP_STEPS = ["01", "02", "03", "04", "05", "06", "Z", "OP"]
+SOP_STEPS = ["01", "02", "03", "04", "05", "06", "07", "Z", "OP"]
 
 # 编号→步骤名称映射（用于显示）
 SOP_NAMES = {
@@ -38,6 +39,7 @@ SOP_NAMES = {
     "04": "C类AI判断",
     "05": "代码修复",
     "06": "报告+WORKLOG+Self-check",
+    "07": "审计系统健康检查",
     "Z": "元检查+整体检查",
     "OP": "运营知识刷新",
 }
@@ -50,6 +52,7 @@ SOP_DOCS = {
     "04": "SOP_04_ai_judgment.md",
     "05": "SOP_05_code_repair.md",
     "06": "SOP_06_report_worklog_selfcheck.md",
+    "07": "SOP_07_audit_health.md",
     "Z": "SOP_Z_meta_system_review.md",
     "OP": "SOP_OP_operations_knowledge.md",
 }

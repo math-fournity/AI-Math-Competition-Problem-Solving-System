@@ -89,7 +89,7 @@ launcher 下次 poll 自动生效（通常 15 秒内）。只影响后续新启�
    python -m scripts.sop.run
    ```
 
-3. **持续循环**——用 `todo_write` 建 todo list，最后一项固定是"执行 `python -m scripts.sop.run`"。完成当前阶段所有 todo 后，执行最后一项自动触发下一阶段。8 步循环（01→02→03→04→05→06→Z→OP→01...）持续运行，这就是 7x24 监控。
+3. **持续循环**——用 `todo_write` 建 todo list，最后一项固定是"执行 `python -m scripts.sop.run`"。完成当前阶段所有 todo 后，执行最后一项自动触发下一阶段。9 步循环（01→02→03→04→05→06→07→Z→OP→01...）持续运行，这就是 7x24 监控。
 
 4. **停止条件**——只有以下情况停止循环：
    - 用户说"停止"/"停"/"结束"→ 执行停止命令
@@ -125,7 +125,7 @@ python -m scripts.sop._set_next 03        # 跳到步骤03（alert分类）
 python -m scripts.sop._set_next 01        # 回到循环开始（系统健康检查）
 python -m scripts.sop._set_next Z         # 跳到元/整体检查
 ```
-有效步骤编号：`01` `02` `03` `04` `05` `06` `Z` `OP`
+有效步骤编号：`01` `02` `03` `04` `05` `06` `07` `Z` `OP`
 
 ### 其他控制命令
 
@@ -293,7 +293,7 @@ SOP_01例程每轮自动查Y通道（有闸在等会打印论证依据闭包：�
 
 ## ⚠️ Master Agent SOP 流程控制机制
 
-**你是续传解题系统的 Monitor AI。系统运行时，你通过 8 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
+**你是续传解题系统的 Monitor AI。系统运行时，你通过 9 步 SOP 循环持续检查+判断+修复+报告+自我审查。**
 
 ### 核心理念
 
@@ -306,7 +306,7 @@ Master Agent 自己（不是独立 devin cli）作为 Monitor Pipe 的承载者�
 python -m scripts.sop.run
 ```
 
-### 8 步循环（6 工作 + 1 元/整体检查 + 1 运营知识刷新）
+### 9 步循环（6 工作 + 1 审计健康 + 1 元/整体检查 + 1 运营知识刷新）
 
 | 步骤 | 名称 | 检查什么 |
 |---|---|---|
@@ -316,6 +316,7 @@ python -m scripts.sop.run
 | 04 | C类AI判断 | 读proof.md/HANDOVER.md做C1-C6判断（数学正确性/幻觉/泄漏/质量/方向/语义） |
 | 05 | 代码修复 | 修分类为代码bug的问题+py_compile+git commit+文档同步+sim发布门禁（改调度/判定逻辑时） |
 | 06 | 报告+WORKLOG+Self-check | 写报告+续写WORKLOG+执行SELF-S1~S22+resolve alert |
+| 07 | 审计系统健康检查 | 审计队列/失败分布/门闸Y通道/审计产出实物验证/通过题交叉验证/作弊复核/孤儿session对账/PARSE_ERROR堆积（8项含4项直接检查，WP-C） |
 | Z | 元检查+整体检查 | 每个SOP步骤合理性+整体调整+方向性判断+审计（AUDIT-01~07，每5轮） |
 | OP | 运营知识刷新 | 硬约束/外部索引/快速开始/SOP机制/环境验证——每轮循环末尾注入，突破AGENTS.md 16K限制 |
 

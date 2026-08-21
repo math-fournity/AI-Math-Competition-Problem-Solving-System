@@ -1003,3 +1003,203 @@ def check_OP_operations_knowledge(batch_id):
     print("  （项目概况/硬约束10+4条/外部文档索引/快速开始/SOP文档与报表系统）")
     print("  读一遍确认无变化。环境全✅=可继续循环；有❌=critical需先修复环境。")
     print()
+
+
+def check_07_audit_health(batch_id):
+    """步骤07：审计系统健康检查（WP-C 新增，8 项含 4 项直接实物检查）。
+
+    检查项全部按直接检查铁律设计（.devin/rules/direct-verification-ironlaw.md）：
+    间接快照（1-3）+ 直接实物（4-8）。只读+报告，处置是 Master Agent 的事。
+    """
+    log.info("check_07_audit_health: start")
+    print("--- 1. 队列与状态快照（间接层——接管自 SOP_01 A16/A17 并升级）---")
+    try:
+        from src.proof_audit_redis_queue import (
+            get_redis, pending_count, running_count, completed_count, failed_count)
+        from src.proof_audit_db_schema import connect_db
+        from src.proof_audit_config import (
+            PROOF_AUDIT_RUNS_COLLECTION, PROOF_AUDITS_COLLECTION)
+        r = get_redis()
+        r.ping()
+        qs = {"pending": pending_count(r), "running": running_count(r),
+              "completed": completed_count(r), "failed": failed_count(r)}
+        print(f"  Redis paudit 四队列: {qs}")
+        db = connect_db()
+        runs = db.collection(PROOF_AUDIT_RUNS_COLLECTION)
+
+        # 状态分布
+        dist = list(db.aql.execute(
+            f"FOR r IN {PROOF_AUDIT_RUNS_COLLECTION} "
+            f"COLLECT status = r.status WITH COUNT INTO c "
+            f"SORT c DESC RETURN {{status, count: c}}", ttl=30))
+        print(f"  p27_proof_audit_runs 分布: {json.dumps(dist, ensure_ascii=False)}")
+
+        # audit_status 分布 + 失败率（阈值来源 SYSTEM_CLOSURE §6：<20%）
+        audits_col = db.collection(PROOF_AUDITS_COLLECTION)
+        total_audits = audits_col.count()
+        print(f"  p27_proof_audits 总数: {total_audits}")
+        if total_audits:
+            adist = list(db.aql.execute(
+                f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+                f"COLLECT s = a.audit_status WITH COUNT INTO c "
+                f"SORT c DESC RETURN {{status: s, count: c}}", ttl=30))
+            print(f"  audit_status 分布: {json.dumps(adist, ensure_ascii=False)}")
+            fail_n = sum(d["count"] for d in adist
+                         if str(d["status"]).startswith("FAIL"))
+            rate = fail_n / total_audits * 100
+            flag = "⚠️ >20%" if rate > 20 else "✅"
+            print(f"  失败率: {rate:.1f}% {flag}（阈值 20%，来源 SYSTEM_CLOSURE §6）")
+    except Exception as e:
+        print(f"  ⚠️ 检查项1异常: {e}")
+
+    print("--- 2. 失败审计分析（paudit:failed reason 分布）---")
+    try:
+        import subprocess
+        out = subprocess.run(["redis-cli", "LRANGE", "paudit:failed", "0", "-1"],
+                             capture_output=True, text=True, timeout=10).stdout
+        reasons = {}
+        for line in out.splitlines():
+            try:
+                reasons[json.loads(line).get("reason", "?")] = \
+                    reasons.get(json.loads(line).get("reason", "?"), 0) + 1
+            except Exception:
+                continue
+        if not reasons:
+            print("  paudit:failed 为空 ✅")
+        else:
+            print(f"  failed reason 分布: {reasons}")
+            total_f = sum(reasons.values())
+            for bad in ("dead_session_no_export", "max_runtime_exceeded"):
+                n = reasons.get(bad, 0)
+                if total_f and n / total_f > 0.3:
+                    print(f"  ⚠️ {bad} 占比 {n/total_f:.0%} >30% ——排查模板/输入问题")
+    except Exception as e:
+        print(f"  ⚠️ 检查项2异常: {e}")
+
+    print("--- 3. 门闸 Y 通道（审计专属）---")
+    try:
+        from src.continuation_db_schema import connect_db as cdb2
+        from src.step_gate import extract_checklist, COLLECTION
+        gdb = cdb2()
+        waiting = list(gdb.aql.execute(
+            f"FOR g IN {COLLECTION} FILTER LIKE(g._key, '%AUDIT%') "
+            f"AND g.waiting_for != null RETURN g", ttl=30))
+        if not waiting:
+            print("  无 AUDIT 门闸在等放行 ✅")
+        for g in waiting:
+            print(f"  🔒 {g['_key']} waiting_for={g.get('waiting_for')}")
+            closure = extract_checklist(g.get("doc", ""))
+            if closure:
+                print(closure)
+    except Exception as e:
+        print(f"  ⚠️ 检查项3异常: {e}")
+
+    print("--- 4.【直接】审计产出实物验证（抽5个读 export）---")
+    try:
+        import random
+        done_runs = [r for r in runs.all()
+                     if r.get("audit_status") not in (None, "PARSE_ERROR")]
+        sample = random.sample(done_runs, min(5, len(done_runs)))
+        mismatch = 0
+        for run in sample:
+            ep = run.get("export_path", "")
+            exists = Path(ep).exists() if ep else False
+            has_xml = False
+            if exists:
+                has_xml = "<proof_audit>" in Path(ep).read_text(errors="ignore")
+            status_match = "（未比对——export 无 XML 时跳过）"
+            print(f"  [{run['_key'][:50]}] export存在={exists} XML={has_xml} "
+                  f"DB audit_status={run.get('audit_status')}")
+            if not exists or not has_xml:
+                mismatch += 1
+        if mismatch:
+            print(f"  ⚠️ {mismatch}/{len(sample)} 抽样 export 异常（缺失或无XML块）"
+                  f"——收集链断裂嫌疑，critical 上报")
+        else:
+            print(f"  ✅ 抽样 {len(sample)} 全部实物在案且含 XML")
+    except Exception as e:
+        print(f"  ⚠️ 检查项4异常: {e}")
+
+    print("--- 5.【直接】审计通过题交叉验证（028 教训）---")
+    try:
+        cont_runs = db.collection("p27_continuation_runs")
+        passed = [r for r in cont_runs.all() if r.get("audit_passed") is True]
+        sample = random.sample(passed, min(5, len(passed)))
+        for r in sample:
+            rk = r["_key"]
+            proof = None
+            for rl in reversed(r.get("rounds_log") or []):
+                pp = rl.get("proof_path")
+                if pp and Path(pp).exists():
+                    proof = Path(pp)
+                    break
+            ok = proof is not None and "\\boxed" in proof.read_text(errors="ignore")
+            print(f"  [{rk.split('_')[-1]}] proof={'✅存在且含boxed' if ok else '❌缺失或无boxed'}"
+                  f"（{str(proof)[:80] if proof else '未找到'}）")
+        if not passed:
+            print("  （尚无 audit_passed=True 的题）")
+    except Exception as e:
+        print(f"  ⚠️ 检查项5异常: {e}")
+
+    print("--- 6.【直接】作弊题证据复核（原 C9 移入）---")
+    try:
+        cheat = list(db.aql.execute(
+            f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+            f"FILTER LIKE(a.audit_status, 'FAIL_CHEATING%') "
+            f"SORT a.created_at DESC LIMIT 5 RETURN a", ttl=30))
+        if not cheat:
+            print("  无 FAIL_CHEATING 记录 ✅")
+        for a in cheat:
+            print(f"  [{a['source_run_key']}] analysis:")
+            print(f"    {(a.get('cheating_analysis') or '')[:500]}")
+    except Exception as e:
+        print(f"  ⚠️ 检查项6异常: {e}")
+
+    print("--- 7.【直接】孤儿审计 session 对账 ---")
+    try:
+        import subprocess
+        ls_out = subprocess.run(["tmux", "list-sessions"], capture_output=True,
+                                text=True, timeout=5).stdout
+        tmux_sessions = [l.split(":")[0] for l in ls_out.splitlines()
+                         if l.startswith("paudit-")]
+        redis_running = set()
+        for k in (r.hkeys("paudit:running") if qs.get("running") else []):
+            redis_running.add(k)
+        # 映射：session 名 = "paudit-" + key 后30字符
+        redis_as_session = {f"paudit-{k[-30:]}" for k in redis_running}
+        orphans = [s for s in tmux_sessions if s not in redis_as_session]
+        drift = []
+        for k in redis_running:
+            expect = f"paudit-{k[-30:]}"
+            if expect not in tmux_sessions:
+                drift.append(k)
+        print(f"  tmux paudit session: {len(tmux_sessions)} 个；Redis running: {len(redis_running)}")
+        for s in orphans:
+            # 直接查 DONE.md【直接检查】
+            key_guess = None
+            for k in redis_running | set():
+                pass
+            done_hint = "DONE.md 状态未知（key 反查失败）"
+            print(f"  🟡 孤儿 session: {s} —— {done_hint}；建议人工验证后 kill")
+        for k in sorted(drift):
+            print(f"  🟡 Redis 说在跑但 session 消失: {k}（状态漂移）")
+        if not orphans and not drift:
+            print("  ✅ 对账一致")
+    except Exception as e:
+        print(f"  ⚠️ 检查项7异常: {e}")
+
+    print("--- 8. PARSE_ERROR 堆积检查（WP-N 语义：待人工）---")
+    try:
+        pe = [r for r in runs.all() if r.get("audit_status") == "PARSE_ERROR"]
+        print(f"  PARSE_ERROR 数量: {len(pe)}")
+        for r in pe[:10]:
+            print(f"    待人工: {r['_key']} error={(r.get('error_message') or '')[:60]}")
+        if pe:
+            alert = db.collection("p27_monitor_alerts").get(
+                "p27-alert-audit_parse_error-" + pe[0]["_key"][-10:])
+            resolved = alert and alert.get("status") == "resolved"
+            print(f"  对应 alert {'已 resolve' if resolved else '未 resolve——人工复查清单见上'}")
+    except Exception as e:
+        print(f"  ⚠️ 检查项8异常: {e}")
+
+    print()

@@ -12,7 +12,7 @@
 
 | 资产 | 位置 | 是什么 | 入口 |
 |---|---|---|---|
-| **SOP** | `scripts/sop/` + `docs/sop/` | Master Agent 7x24 监控循环——8步循环脚本（01~06+Z+OP）+ 对应执行指令文档 + 系统级认知闭包 | `AGENTS.md`"Master Agent SOP 流程控制机制"段 → `python -m scripts.sop.run` |
+| **SOP** | `scripts/sop/` + `docs/sop/` | Master Agent 7x24 监控循环——9步循环脚本（01~07+Z+OP）+ 对应执行指令文档 + 系统级认知闭包 | `AGENTS.md`"Master Agent SOP 流程控制机制"段 → `python -m scripts.sop.run` |
 | **src** | `src/` + `src/sim/` | 续传解题管线实现代码——主管线4模块 + 支撑3模块 + 监控治理4模块 + 全流程模拟6模块 | `src/README.md`（4分组导航地图） |
 | **docs** | `docs/` | 架构/规范/模式/模板文档集——系统认知层 + 设计范式 + 架构设计 + 检查规范 + 模板 + SOP 文档 | 下方分类法第一~三节 |
 
@@ -171,7 +171,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ### `checklist/MasterAgentCheck.md` — Master Agent SOP 索引
 
-Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-08-19 升级，2026-08-20 扩展为 8 步**：从"按需检查清单"升级为 7x24 持续循环的 SOP 脚本机制。检查内容已迁移到 `docs/sop/SOP_01~06+Z+OP.md`（8 个文档），由 `scripts/sop/run.py` 单一入口驱动（读取 `scripts/sop/checks.py` 中 8 个检查函数）。本文件保留为 SOP 文档索引。
+Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-08-21 扩展为 9 步（WP-C 新增 07 审计健康）**：从"按需检查清单"升级为 7x24 持续循环的 SOP 脚本机制。检查内容已迁移到 `docs/sop/SOP_01~07+Z+OP.md`（9 个文档），由 `scripts/sop/run.py` 单一入口驱动（读取 `scripts/sop/checks.py` 中 9 个检查函数）。本文件保留为 SOP 文档索引。
 
 **覆盖问题场景**：
 - Master Agent 开始 7x24 监控循环时——执行 `python -m scripts.sop.run` 进入循环
@@ -182,7 +182,7 @@ Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-0
 
 ### `docs/sop/` — Master Agent SOP 文档（8个+1个认知闭包）
 
-8 步 SOP 循环的自包含执行指令文档（01-06 工作 + Z 元检查 + OP 运营知识），加 1 个系统级认知闭包（SYSTEM_CLOSURE.md，每步前置注入）。脚本运行时读取并完整打印到 stdout——内容进入 Master Agent 最近上下文，不依赖 AGENTS.md always-on 注入。
+9 步 SOP 循环的自包含执行指令文档（01-06 工作 + 07 审计健康 + Z 元检查 + OP 运营知识），加 1 个系统级认知闭包（SYSTEM_CLOSURE.md，每步前置注入）。脚本运行时读取并完整打印到 stdout——内容进入 Master Agent 最近上下文，不依赖 AGENTS.md always-on 注入。
 
 | 文档 | 脚本检查函数 | 职责 |
 |---|---|---|
@@ -200,7 +200,7 @@ Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-0
 
 ### `scripts/sop/` — Master Agent SOP 脚本（8个模块）
 
-8 步 SOP 循环的脚本模块集。`run.py` 是单一入口（读取 `_state.json` 决定当前步骤→打印 L0+L1→执行 `checks.py` 对应函数→生成报表→推进状态→打印 todo 指令）。脚本按顺序执行，通过 `_state.json` 记录上一个/下一个步骤，防止跳步。每个脚本输出末尾要求 Master Agent 用 `todo_write` 建立 todo list，最后一项是"执行 `python -m scripts.sop.run`"——自驱动 7x24 持续循环。
+9 步 SOP 循环的脚本模块集。`run.py` 是单一入口（读取 `_state.json` 决定当前步骤→打印 L0+L1→执行 `checks.py` 对应函数→生成报表→推进状态→打印 todo 指令）。脚本按顺序执行，通过 `_state.json` 记录上一个/下一个步骤，防止跳步。每个脚本输出末尾要求 Master Agent 用 `todo_write` 建立 todo list，最后一项是"执行 `python -m scripts.sop.run`"——自驱动 7x24 持续循环。
 
 | 脚本 | 职责 |
 |---|---|
