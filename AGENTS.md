@@ -142,6 +142,29 @@ python -m monitoring.continuation_control mark-ai-review <run_key> --result PASS
 python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL --note "C2幻觉"
 ```
 
+### 硬约束：判断系统状态必须查过程证据
+
+> **详见** `.devin/rules/verify-with-logs.md`（always-on rule）
+
+**任何判断系统状态时，必须查过程证据（日志+行为流水），不能只看 DB 结果。** DB 是"结果"，日志是"过程"——只看结果不看过程会漏掉状态同步 bug、得出错误结论。
+
+触发时机：接手时确认状态 · 用户问"做题成功吗" · commit 前验证 · DB 与文件不一致时。
+
+```
+# 第1层：DB 查结果
+python -m monitoring.continuation_control status
+
+# 第2层：日志查事件流
+python -m scripts.sop.log_search --problem-id <pid>
+python -m scripts.sop.log_search --level ERROR --since "2026-08-21 01:43"
+
+# 第3层：行为流水查状态转移链
+python -m src.observability --run-key <run_key>
+python -m src.observability --stats --since 1h
+```
+
+三层交叉验证——DB 说 completed 但 flow 无 run_completed = 状态同步 bug。
+
 ### 实战速查：016事故后新增的介入能力
 
 > 016事故（失控循环空转18分钟、上千个session）后系统新增三种能力，SOP_01 §8/§8.5详述。这里放always-on速查——后部可能被截断，实战中你必须知道这些武器存在。
