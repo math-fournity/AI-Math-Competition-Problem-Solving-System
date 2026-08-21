@@ -396,15 +396,142 @@ E2: 检查解题 AI 的工具调用记录（如提供）：
 
 ---
 
-## 6. 工作流
+## 6. 门闸（Step Gate）集成
 
-### 6.1 审计触发时机
+### 6.1 设计原则——审计 Pipe 必须融入门控体系
+
+续传系统已有 9 个 `@gated` 门闸（`GATE-FEED-ENQUEUE` 到 `GATE-FINALIZE-RUN-COMPLETED`），覆盖启动进程/杀 session/重入队/删产物/写终态等语义动作。门闸的核心设计是：
+
+- **门闸只设在语义动作上**——有独立正确性标准的业务动作
+- **docstring 是唯一事实源**——每个闸的 docstring 含"放行前 Master Agent 应检查"段落
+- **X/Y 注意力模型**——X=mode(auto/hold)，Y=waiting_for(触发)；无 Y = 不要求操心
+- **SOP 循环检查**——SOP_01 每轮检查 `--pending`，发现 Y 则 Master Agent 介入
+
+审计 Pipe 的关键语义动作也必须设闸，让 Master Agent 能单步跟踪审计过程。
+
+### 6.2 审计 Pipe 的门闸设计（4 个新门闸）
+
+| gate_id | 模块 | 动作 | resource | 不可逆性 |
+|---|---|---|---|---|
+| `GATE-AUDIT-LAUNCH` | proof_audit_launcher | 启动审计 devin cli | action | 可逆（kill session） |
+| `GATE-AUDIT-KILL-SESSION` | proof_audit_launcher | kill 审计 session | tmux | 不可逆 |
+| `GATE-AUDIT-FINALIZE-PASS` | proof_audit_result_collector | 写 audit_passed=True（进入选题池） | db | 几乎不可逆 |
+| `GATE-AUDIT-FINALIZE-FAIL` | proof_audit_result_collector | 写 audit_passed=False + 改 status | db | 几乎不可逆 |
+
+### 6.3 各门闸的 docstring 检查项
+
+**GATE-AUDIT-LAUNCH**（启动审计 devin cli）：
+```
+放行前 Master Agent 应检查：
+1. 待审计的 proof.md 存在且非空 → 查法：ls work_dir/proof.md + wc -c > 0
+2. 审计 work_dir 已准备好（AGENTS.md + input.md + proof.txt） → 查法：ls 审计 work_dir
+3. 审计并发未超限 → 查法：paudit:running 的hlen < concurrency
+```
+
+**GATE-AUDIT-KILL-SESSION**（kill 审计 session）：
+```
+放行前 Master Agent 应检查：
+1. 审计已完成 → 查法：DONE.md存在 或 ### PROOF AUDIT COMPLETE 在 export 中
+2. 审计 export 已落盘 → 查法：ls export文件存在
+3. reason=completed/stall/dead 时审计结果已提取 → 查法：p27_proof_audits 有记录
+```
+
+**GATE-AUDIT-FINALIZE-PASS**（写 audit_passed=True）：
+```
+放行前 Master Agent 应检查：
+1. 审计 export 的 XML 解析成功 → 查法：check_results 字段齐全
+2. audit_status=PASS 或 PASS_WITH_CAVEAT → 查法：读 audit_status 字段
+3. A1 答案正确性 PASS → 查法：check_results.A1 含 PASS
+4. 无作弊标记 → 查法：E1/E2 均 PASS 或 N/A
+```
+
+**GATE-AUDIT-FINALIZE-FAIL**（写 audit_passed=False + 可能改 status）：
+```
+放行前 Master Agent 应检查：
+1. 审计 export 的 XML 解析成功 → 查法：check_results 字段齐全
+2. audit_status 是 FAIL_* 之一 → 查法：读 audit_status 字段
+3. FAIL_INCOMPLETE 时确认 proof 确实是截断残篇 → 查法：读 proof.md 看是否中途断裂
+4. FAIL_CHEATING 时确认作弊证据充分 → 查法：读 cheating_analysis 字段
+5. 改 status=audit_failed 的影响：该题退出选题池，需人工复查才能翻案
+```
+
+### 6.4 门闸注册
+
+审计 Pipe 的门闸在 `proof_audit_launcher.py` 和 `proof_audit_result_collector.py` 中用 `@gated` 装饰器声明。启动时 `--register` 同步到 DB `p27_step_gates` 集合。
+
+Master Agent 操作：
+```bash
+python -m src.step_gate --register                    # 注册/刷新门闸目录
+python -m src.step_gate --list                        # 查看所有门闸（含审计门闸）
+python -m src.step_gate --hold GATE-AUDIT-FINALIZE-PASS  # hold 审计通过闸
+python -m src.step_gate --pending                     # 查看等待放行的门闸
+```
+
+---
+
+## 7. SOP 集成
+
+### 7.1 设计原则——审计 Pipe 必须融入 SOP 循环
+
+现有 SOP 8 步循环（01~06+Z+OP）是 Master Agent 的 7x24 监控机制。审计 Pipe 上线后，SOP 必须能监控审计 Pipe 的运行状态。
+
+### 7.2 SOP_04 的升级——从"Master Agent 人工判断"到"审计 Pipe 自动判断 + Master Agent 复核"
+
+**现状**：SOP_04（C 类 AI 判断）是 Master Agent 人工读 proof.md 做 C1-C6 判断——monitor 只抽样标记 `needs_ai_review=True`，判断靠人。
+
+**升级后**：SOP_04 变为"审计 Pipe 自动判断 + Master Agent 复核审计质量"——
+
+| SOP_04 现状 | SOP_04 升级后 |
+|---|---|
+| 查 `needs_ai_review=True` 的 run | 查 `audit_passed != None` 的 run（已审计） |
+| Master Agent 读 proof.md 做 C1-C6 | Master Agent 读审计报告做"审计质量复核" |
+| 最多 10 条（抽样） | 最多 10 条（抽样复核） |
+| 判断 proof 质量 | 判断审计 AI 的判断质量——审计 AI 判 PASS 的题，proof 真的对吗？审计 AI 判 FAIL 的题，proof 真的错吗？ |
+
+**SOP_04 新增检查项**：
+```
+C7 audit_quality_pass: 审计 AI 判 PASS 的题，抽查 proof 是否确实正确
+C8 audit_quality_fail: 审计 AI 判 FAIL 的题，抽查 proof 是否确实错误（防误判）
+C9 cheating_detected_review: 审计 AI 判 FAIL_CHEATING 的题，复查作弊证据是否充分
+```
+
+### 7.3 SOP_01 的升级——新增审计 Pipe 健康检查
+
+SOP_01（系统健康检查）新增审计 Pipe 的检查项：
+
+```
+A15 audit_queue_stalled: paudit:pending 在减少（15分钟无变化=critical）
+A16 audit_completion: p27_proof_audits 在增加（有审计在完成）
+A17 audit_failure_rate: 审计失败率<20%（>20%=warning，审计 AI 可能能力不足）
+A18 audit_gate_waiting: GATE-AUDIT-* 有无 Y 在等（有则需 Master Agent 介入）
+```
+
+### 7.4 SOP_03 的升级——新增审计相关 alert_type
+
+| alert_type | severity | 分类 | 处理方式 |
+|---|---|---|---|
+| `audit_queue_stalled` | critical | 需判断 | 查审计 launcher 是否在 dequeue |
+| `audit_completion_slow` | warning | 需判断 | 审计完成慢，可能需加并发 |
+| `audit_failure_rate_high` | warning | 需判断 | 审计 AI 误判率高，检查 AGENTS.md 模板 |
+| `cheating_detected` | critical | 数据问题 | FAIL_CHEATING 的题需人工复查 |
+| `audit_parse_error` | warning | 需判断 | 审计 AI 无法解析 proof，人工处理 |
+| `audit_gate_waiting` | info | 需AI判断 | 门闸在等放行，Master Agent 查看 --pending |
+
+### 7.5 SOP 步骤不变
+
+SOP 循环的 8 步结构不变（01~06+Z+OP），只是各步骤的检查内容扩展了审计相关项。SOP 状态机（`scripts/sop/_state.json`）不需要改。
+
+---
+
+## 8. 工作流
+
+### 8.1 审计触发时机
 
 两种模式：
 
 **模式 A：批量后审计（默认）**
 - Pipe 4 续传系统跑完一批后，启动 Pipe 5 审计这批 completed 题
-- 命令：`python -m src.proof_audit_collector --batch-id p27-full`
+- 命令：`python -m src.proof_audit_collector --batch-id paudit-p27-full`
 - 然后：`python -m src.proof_audit_launcher --batch-id paudit-p27-full`
 
 **模式 B：实时审计（未来可选）**
@@ -412,7 +539,7 @@ E2: 检查解题 AI 的工具调用记录（如提供）：
 - 需要在 `finalize_run_completed` 中加一行：`enqueue_proof_audit(run_key)`
 - 本方案先实现模式 A，模式 B 作为 future work
 
-### 6.2 完整流程
+### 8.2 完整流程（含门闸）
 
 ```
 1. proof_audit_collector --batch-id paudit-p27-full
@@ -423,21 +550,29 @@ E2: 检查解题 AI 的工具调用记录（如提供）：
 2. proof_audit_launcher --batch-id paudit-p27-full --concurrency 5
    → 并发 dequeue paudit:pending
    → 为每题准备 work_dir（写 problem_text/answer/proof.txt + AGENTS.md）
-   → 启动 devin cli 审计
+   → 【门闸 GATE-AUDIT-LAUNCH】启动 devin cli 审计
    → 检测 ### PROOF AUDIT COMPLETE
    → 写 export + DONE.md
+   → 【门闸 GATE-AUDIT-KILL-SESSION】kill 审计 session
 
 3. proof_audit_result_collector --batch-id paudit-p27-full
    → 解析审计 export 中的 XML
    → 提取 audit_status + check_results
    → 写入 p27_proof_audits
+   → 根据 audit_status：
+     PASS/PASS_WITH_CAVEAT → 【门闸 GATE-AUDIT-FINALIZE-PASS】写 audit_passed=True
+     FAIL_* → 【门闸 GATE-AUDIT-FINALIZE-FAIL】写 audit_passed=False + 改 status
    → 更新 p27_continuation_runs（audit_status/audit_passed/audited_at）
-   → 根据 audit_status 决定是否改 status（FAIL_INCOMPLETE→prepared）
+
+4. SOP 循环监控
+   → SOP_01 检查审计 Pipe 健康（A15-A18）
+   → SOP_03 分诊审计相关 alert
+   → SOP_04 复核审计质量（C7-C9）
 ```
 
 ---
 
-## 7. 选题池查询变更
+## 9. 选题池查询变更
 
 审计系统上线后，选题池查询从：
 ```aql
@@ -458,7 +593,7 @@ FOR r IN p27_continuation_runs
 
 ---
 
-## 8. 实施计划
+## 10. 实施计划
 
 ### 工作包拆解
 
@@ -467,44 +602,53 @@ FOR r IN p27_continuation_runs
 | WP-1 | DB schema 实现 + 文档化 | 无 | proof_audit_db_schema.py + /Users/user/database/AI-Math-Competition-Problem-Solving-System.md |
 | WP-2 | 审计 AI 的 AGENTS.md 模板 + 解题 AI AGENTS.md 防作弊约束更新 | 无 | templates/proof_audit_agents_md.md + 更新 templates/continuation_solve_agents_md.md |
 | WP-3 | proof_audit_collector | WP-1 | proof_audit_collector.py |
-| WP-4 | proof_audit_launcher | WP-1, WP-2 | proof_audit_launcher.py + proof_audit_redis_queue.py |
-| WP-5 | proof_audit_result_collector | WP-1 | proof_audit_result_collector.py |
-| WP-6 | config + 端到端入口 | WP-1~5 | proof_audit_config.py + run_proof_audit_pipeline.py |
-| WP-7 | 对 138 题 completed 跑一轮审计 | WP-1~6 | 审计结果 + DB 更新 |
-| WP-8 | 文档同步 | WP-7 | SYSTEM_CLOSURE.md + checklist/AUDIT-08.md + architecture.md |
+| WP-4 | proof_audit_launcher + 门闸 GATE-AUDIT-LAUNCH / GATE-AUDIT-KILL-SESSION | WP-1, WP-2 | proof_audit_launcher.py + proof_audit_redis_queue.py + @gated 装饰器 |
+| WP-5 | proof_audit_result_collector + 门闸 GATE-AUDIT-FINALIZE-PASS / GATE-AUDIT-FINALIZE-FAIL | WP-1 | proof_audit_result_collector.py + @gated 装饰器 |
+| WP-6 | config + 端到端入口 + 门闸注册 | WP-1~5 | proof_audit_config.py + run_proof_audit_pipeline.py + --register |
+| WP-7 | SOP 集成：SOP_01/03/04 升级 + checks.py 扩展 | WP-6 | 更新 checks.py + SOP_01/03/04 文档 |
+| WP-8 | 对 138 题 completed 跑一轮审计 | WP-1~7 | 审计结果 + DB 更新 |
+| WP-9 | 文档同步 | WP-8 | SYSTEM_CLOSURE.md + checklist/AUDIT-08.md + architecture.md |
 
 ### 优先级
 
-WP-1 → WP-2 → WP-3 → WP-4 → WP-5 → WP-6 → WP-7 → WP-8
+WP-1 → WP-2 → WP-3 → WP-4 → WP-5 → WP-6 → WP-7 → WP-8 → WP-9
 
 ### 验证标准
 
-- WP-7 完成后，138 题 completed 都有 audit_status
+- WP-8 完成后，138 题 completed 都有 audit_status
 - 选题池查询只返回 audit_passed=True 的题
 - p27_proof_audits 集合有 138 条记录
+- 4 个审计门闸在 `p27_step_gates` 中注册，`--list` 可见
+- SOP_01 检查输出含 A15-A18 审计健康项
+- SOP_04 检查输出含 C7-C9 审计质量复核项
 - /Users/user/database/AI-Math-Competition-Problem-Solving-System.md 文档化所有 p27_ 集合
 
 ---
 
-## 9. 风险与对策
+## 11. 风险与对策
 
 | 风险 | 对策 |
 |---|---|
-| 审计 AI 本身数学能力不足，误判 | 审计结果保留 proof_text + check_results，可人工复查 |
+| 审计 AI 本身数学能力不足，误判 | 审计结果保留 proof_text + check_results，SOP_04 复核 |
 | 审计 AI 答案比对困难（等价形式） | AGENTS.md 模板中明确"等价形式算 PASS" |
 | 138 题审计耗时 | 并发 5，每题约 3 分钟，约 83 分钟完成 |
-| 审计 AI 产生 PARSE_ERROR | 创建 alert，人工处理 |
+| 审计 AI 产生 PARSE_ERROR | 创建 alert，SOP_03 人工处理 |
 | 审计后改 status 影响已有统计 | 审计只改 audit_passed 字段，不改 status（FAIL_INCOMPLETE 除外） |
+| 门闸 hold 阻塞审计主循环 | 和续传系统一样——hold 是调试模式，SOP_01 每轮提醒 Y 在等 |
+| 审计 AI 误判作弊（假阳性） | FAIL_CHEATING 创建 alert，SOP_04 C9 复查作弊证据 |
 
 ---
 
-## 10. 与现有系统的关系
+## 12. 与现有系统的关系
 
 | 现有机制 | 关系 |
 |---|---|
-| monitor C 类抽样 | 审计 Pipe 上线后，C 类抽样可改为"审计结果的抽样复核"——审计 AI 已经审过了，Master Agent 只需抽检审计质量 |
+| 9 个续传门闸 | 审计 Pipe 新增 4 个门闸，同一套 @gated 机制，同一 `p27_step_gates` 集合 |
+| SOP 8 步循环 | 步骤结构不变，SOP_01/03/04 检查内容扩展审计项 |
+| monitor C 类抽样 | 审计 Pipe 上线后，C 类抽样改为"审计结果的抽样复核"——审计 AI 已经审过了，SOP_04 只需复核审计质量 |
 | finalize_run_completed 的 proof 入库 | 审计 collector 从 p27_continuation_results 读 proof_text，不需要再读硬盘 |
 | 选题池（Pipe 3，已删除） | 选题查询加 audit_passed=True 过滤 |
+| SYSTEM_CLOSURE 认知闭包 | §2 架构图 + §4 模块表 + §5 数据产出 + §6 判定框架 + §7 铁律 需更新 |
 
 ---
 
@@ -512,3 +656,4 @@ WP-1 → WP-2 → WP-3 → WP-4 → WP-5 → WP-6 → WP-7 → WP-8
 
 - v1 · 2026-08-21 · 初始方案：Pipe 5 proof 审计系统设计
 - v2 · 2026-08-21 · 新增防作弊机制：解题 AI 与审计 AI 的不对称约束（解题 AI 受防作弊约束+主动声明义务，审计 AI 不受约束但严格审计数学正确性+作弊检测）；新增 E 维度（作弊检测）；新增 FAIL_CHEATING / FAIL_CHEATING_DECLARED 审计结果类型；新增解题 AI AGENTS.md 防作弊约束模板
+- v3 · 2026-08-21 · 新增门闸集成（4 个审计门闸 + docstring 检查项）+ SOP 集成（SOP_01 新增 A15-A18 + SOP_03 新增 6 种审计 alert_type + SOP_04 从"人工判断"升级为"审计 Pipe 自动判断 + Master Agent 复核"）；工作包从 8 个扩展到 9 个（新增 WP-7 SOP 集成）
