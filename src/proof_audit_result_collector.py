@@ -94,7 +94,9 @@ def _extract_tag(block, tag):
 def extract_audit_from_export(export_path):
     """从 conversation.json 中提取审计 AI 的输出文本。
 
-    审计 AI 的输出在最后一个 assistant message 的 content 中。
+    审计 AI 的输出在 agent message 中（实测格式 source=='agent'；
+    WP-P 执行时发现原实现写的是 'assistant'，与真实 export 不符——
+    续传与审计的 export 格式统一为 system/user/agent 三种 source）。
     """
     if not Path(export_path).exists():
         return None
@@ -107,11 +109,11 @@ def extract_audit_from_export(export_path):
                   export_path=str(export_path), error=str(e))
         return None
 
-    # conversation.json 格式：steps 列表，找最后一个 assistant 的 message
+    # conversation.json 格式：steps 列表，取所有 agent 的 message
     steps = data.get("steps", [])
     assistant_texts = []
     for step in steps:
-        if step.get("source") == "assistant":
+        if step.get("source") in ("agent", "assistant"):
             msg = step.get("message", "")
             if isinstance(msg, dict):
                 # 可能是 {"content": "...", ...}
@@ -399,8 +401,18 @@ def collect_results(batch_id, limit=None):
         # 从 export 提取审计文本
         audit_text = extract_audit_from_export(export_path)
         if not audit_text:
-            print(f"  [skip] {audit_run_key}: 无 export 或无 assistant 文本")
             parse_errors += 1
+            if export_path and Path(export_path).exists():
+                # export 存在但提取不到 agent 文本——审计输出无法解析，
+                # 语义同 PARSE_ERROR（不知道对错，029 §3.3：待人工）。
+                # WP-P 执行时发现：截断样本（comp 撞 25000 上限）message 为空，
+                # 旧代码在此静默 skip，run 永远停在 audit_status=null 被反复重扫。
+                print(f"  [parse-error] {audit_run_key}: export 存在但无 agent 文本")
+                mark_parse_error(db, run_key, audit_run_key,
+                                 "export 存在但未提取到 agent 输出文本")
+                collected += 1
+            else:
+                print(f"  [skip] {audit_run_key}: 无 export 或路径为空")
             continue
 
         # 解析 XML
