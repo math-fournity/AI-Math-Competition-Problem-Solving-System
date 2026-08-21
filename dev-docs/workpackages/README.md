@@ -111,6 +111,13 @@ git commit（显式路径 add）→ 领下一个。
 13. **判断系统状态必须直接查证**（硬盘/tmux/进程/通知日志实物），不能只看 DB/Redis
 14. **线 2 红线**：U 系列（U1~U8）不动任何生产代码；V 系列的默认后端切换（V7）与
     auto-fallback 启用（V5）都是用户拍板项——AI 只准备数据与机制
+15. **opencode acp 必须显式设置模型与推理强度，并经 ACP 接口回显确认（脚本执行，
+    fail-fast）**——session/new 后立即 `session/set_config_option` 两步：
+    configId:"model" → 断言响应回显 currentValue == 目标模型；configId:"effort"
+    → 设 max 并断言。实测依据：不显式选择落到内建 big-pickle、ox-alpha effort
+    默认 low（opencode-acp-protocol skill §3.8 / 042 勘误节 /
+    scripts/probe_acp_model_config.py）。devin 侧对应：启动必须 `--model`
+    （强度无开关——工具事实，见 ~/.devin/rules/explicit-model-and-effort.md）
 
 ## 四、状态跟踪表（执行 AI 填写，审计依据之一）
 

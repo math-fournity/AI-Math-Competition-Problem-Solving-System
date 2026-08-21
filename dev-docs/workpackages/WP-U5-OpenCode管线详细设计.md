@@ -44,6 +44,9 @@ OpenCode ACP 是默认管线，但有三个未定问题必须实测才能设计�
   **ACP 创建的 session 与 TUI/run 存储同构可导出**（含 thinking 实文/逐消息 tokens/
   step-finish.reason）——你的 trajectory 落盘设计与崩溃恢复方案要把它纳入（三层来源：
   通知 jsonl 主 / export 兜底 / SQLite 直读不作主路径）
+- **★ 模型与强度必须显式设置**（铁律 15）：所有实测/设计前提 = session/new 后
+  set_config_option 设 model+effort=max 并断言回显——否则实际跑在 big-pickle 上，
+  一切观察失效。静默窗口数据也必须采自正确模型
 - 配额纪律：本包新增实测 ≤3 次（每次一题）
 
 ## 4. 任务分解

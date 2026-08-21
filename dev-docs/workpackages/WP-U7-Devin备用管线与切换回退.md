@@ -58,8 +58,10 @@ Devin ACP 降为备用管线（037 决策），但备用≠不重要——备用
    dangerous 的 allow_once/allow_session 选择（建议 allow_session 减交互，写理由）
 3. session 终止：cancel + terminate（无 close）——与 kill_session 门闸语义的映射
 4. trajectory 组装：引 U2 的 Devin 分支结论
-5. 模型参数：--model glm-5-2（构造参数，非写死并发类常量——它不是并发数，是后端
-   配置；仍建议从 DB batch 的配置读，与 backend 字段同记录）
+5. 模型参数：--model glm-5-2（构造参数；仍建议从 DB batch 的配置读，与 backend
+   字段同记录）。**推理强度：devin CLI/acp 当前无强度开关**（2026-08-21 --help
+   全量核查，工具事实）——由模型默认控制；若 devin 未来版本提供强度参数，按
+   ~/.devin/rules/explicit-model-and-effort.md 的升级条款改为必须显式设置
 
 ### 任务 2：切换/回退机制细化（048 下半）
 

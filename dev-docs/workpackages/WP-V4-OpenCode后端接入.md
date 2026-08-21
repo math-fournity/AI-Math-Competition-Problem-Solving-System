@@ -18,6 +18,9 @@ backend 字段驱动、sim 剧本在真 launcher 上过、真实灰度单题验�
 ## 1. 背景
 
 - U5 已定 OpenCode 的全部细节（静默窗口/注入/错误三层）；V1 已实现后端；V3 已抽象
+- **★ 接入验收必查（铁律 15）**：OpenCode 后端的 start() 必须已完成"set model +
+  set effort=max + 双断言回显"链路（V1 实现、本包验证）——未设模型会静默跑在
+  内建 big-pickle 上（U1 勘误实证），灰度验证数据全部无效
   接入——本包是"组装"性质，薄但责任重：第一次让真实解题走 ACP
 - 判定链的第一次真实消费：assembler 产物喂 is_truncated/is_completed——U2 已在实验
   脚本验证，本包在生产路径复验

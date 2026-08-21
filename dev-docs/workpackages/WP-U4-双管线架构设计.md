@@ -54,6 +54,9 @@
 - OpenCode 有原生 export 机制（038 §八实测）：trajectory 来源按三层设计（通知 jsonl
   主 / opencode export 兜底 / SQLite 直读不作主路径）——接口的产物契约不变（ATIF），
   但后端需声明自己的 trajectory 来源能力
+- **模型与强度必须显式设置并经 ACP 回显确认**（铁律 15，2026-08-21 实测）：不显式
+  选择落到内建 big-pickle；ox-alpha effort 默认 low。start() 契约含设置+断言；
+  model/reasoning_effort 从 DB batch 读不写死（与 concurrency 同源同模式）
 
 ## 4. 任务分解
 
@@ -62,7 +65,12 @@
 ```
 设计 src/acp/（或 src/backends/）的模块结构：
   backend_base.py   —— 抽象接口：
-      start(task) -> BackendHandle      # task: prompt/work_dir/traject_dir/超时
+      start(task) -> BackendHandle      # task: prompt/work_dir/traject_dir/超时/
+                                        #   model/reasoning_effort
+                                        # ★ start() 内部契约（铁律 15）：OpenCode 后端在
+                                        #   session/new 后必须 set_config_option 设 model+
+                                        #   effort 并断言响应回显，任一不符 fail-fast；
+                                        #   Devin 后端校验 --model 已传（无强度开关）
       poll(handle) -> BackendStatus     # running/thinking/tool_running/
                                         # done(result)/failed(reason) + 最近信号时间戳
                                         # + finish_reason（协议原生收尾原因——

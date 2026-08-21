@@ -44,7 +44,10 @@ src/acp/backend_base.py
   class BackendStatus: {state: thinking|tool_running|message_out|done|failed,
                         detail, last_signal_ts, assembled_partial?}
   class AcpBackend(ABC):
-      start(task) -> BackendHandle        # spawn 子进程+initialize+session/new+session/prompt
+      start(task) -> BackendHandle        # spawn 子进程+initialize+session/new
+                                          # ★+ set_config_option 设 model/effort 并断言
+                                          #   响应回显（铁律 15，fail-fast——OpenCode 后端；
+                                          #   Devin 后端校验 --model 已传）
       poll(handle) -> BackendStatus       # 非阻塞读通知+更新 last_signal_ts+组装缓冲
       terminate(handle, reason)           # 🔶 每后端的终止序列（048/046）
       @property spin_window_seconds       # 5min（037 不变量）

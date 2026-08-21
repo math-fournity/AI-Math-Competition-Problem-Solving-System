@@ -64,6 +64,12 @@ B 路（devin_acp）：U1 客户端 + session/prompt 发同题 → 全通知落�
 C 路（opencode_acp）：同上 → c_acp.jsonl
 ```
 
+**★ C 路前置强制步骤（铁律 15，脚本执行）**：session/new 之后、发题之前——
+① `session/set_config_option` configId:"model" value:"openrouter/stealth/ox-alpha"
+→ 断言响应回显 currentValue；② configId:"effort" value:"max" → 断言回显。
+任一不符立即中止本路实验。不设的话实验会跑在内建 big-pickle 上（U1 勘误实证），
+三路对比全部失效。
+
 ### 任务 2：组装器原型（脚本内函数，不进生产代码）
 
 写 `assemble_conversation(jsonl_path) -> dict`：按 skill §9 的方法组装，输出结构**对齐
@@ -135,6 +141,8 @@ message 量（Ox Alpha 无 A 路基准——对照 C 路 message 与 thought 的
 
 ## 5. 禁止事项
 
+- ❌ **C 路未设模型+effort 并断言回显，不得发 prompt**（铁律 15——否则跑在
+  big-pickle 上，对比无效）
 - ❌ 配额纪律：任务 1-3 三路各 1 题 1 次；失败重跑最多 1 次并记录原因；任务 6 另有
   +2 配额（每后端 1 次），同样失败最多重跑 1 次
 - ❌ 组装器只进实验脚本不进 src/（生产化是 V1 的事，先证明可行）
