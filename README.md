@@ -346,7 +346,8 @@ repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资�
 
 | 用途 | 命令 |
 |---|---|
-| 查询续传系统进度（status分布/completed数量） | `python -m scripts.query_progress` |
+| 查询续传系统进度（status分布 + 硬盘验证） | `python -m scripts.query_progress` |
+| completed 题硬盘验证明细（有/无 proof.md） | `python -m scripts.query_progress --verify-disk` |
 | 查询 completed 题按 source 分布 | `python -m scripts.query_progress --by-source` |
 | 查询 completed 题按 round 分布 | `python -m scripts.query_progress --by-round` |
 | 全部维度 | `python -m scripts.query_progress --detail` |
