@@ -187,6 +187,33 @@ python -m src.observability --stats --since 1h
 
 **修复方向**：这些常量应改为从 DB batch 记录读取；DB 无记录时报错而非用默认值。修复在 WP-H（030 方案）中处理。
 
+### 硬约束：适度依赖 Master Agent 介入——不追求完全自动化判定
+
+**原则**：系统不必追求"所有判定都自动化"。如果某些判定系统无法完美做出，**交给 Master Agent 侧完成最终判定和收场**——这比把不完美的判定逻辑硬塞进代码更好。
+
+**为什么**：
+- 追求 100% 自动化判定会导致代码中堆砌大量边缘情况处理——判定逻辑臃肿、难维护、易出错
+- 适度依赖 Master Agent 介入可以让代码和运行逻辑在某种意义上更"干净"——代码只做能可靠做的事，做不了的事明确标记为"待人工"并交给 Master Agent
+- Master Agent 有完整上下文和判断能力，比代码中的硬编码规则更能处理边缘情况
+- 系统的 alert 机制本身就是这个理念的具体实现——系统检测到异常但不自动修复，创建 alert 交给 Master Agent 判断
+
+**具体表现**：
+- **终态分类不完美时**：代码做出能可靠判定的分类（completed/dead_session/timeout），分类不明确的标记为"待人工复查"（如 PARSE_ERROR → `audit_passed=None` + 创建 alert，不改 status，等人工处理——029 §3.3 设计）
+- **孤儿 session 等边缘情况**：SOP_07 检查发现 tmux session 与 Redis running 不一致 → 创建 alert，Master Agent 判断该 kill 还是该等
+- **审计结果无法自动解析时**：result_collector 标记 PARSE_ERROR 不走 FINALIZE-FAIL 门闸，保留原 status，等 Master Agent 人工复查
+- **并发数等系统级配置**：代码不写死，从 DB 读取，由 Master Agent 通过 `set-concurrency` 设置
+
+**设计准则**：
+1. **代码做能可靠做的事**——可靠的终态判定（有 proof/无 proof/超时）放代码
+2. **不可靠的判定标记为"待人工"**——不强行自动判定（PARSE_ERROR、语义质量、边缘终态）
+3. **"待人工"必须有可发现的痕迹**——创建 alert 或标记字段（`audit_passed=None`），Master Agent 通过 SOP 检查发现
+4. **不为"待人工"情况写复杂的自动判定逻辑**——那是 Master Agent 的工作，不是代码的工作
+
+**反模式**：
+- ❌ 为了"自动化"把 PARSE_ERROR 也走 FINALIZE-FAIL 自动改 status=audit_failed——这会让题目被错误排除出选题池（031 C1 / 032 C1 验证的问题）
+- ❌ 为了"完美"在代码中堆砌大量边缘终态判定逻辑——臃肿且易出错
+- ✅ 代码做可靠判定，不可靠的标记"待人工"+创建 alert，Master Agent 通过 SOP 收场
+
 ### 实战速查：016事故后新增的介入能力
 
 > 016事故（失控循环空转18分钟、上千个session）后系统新增三种能力，SOP_01 §8/§8.5详述。这里放always-on速查——后部可能被截断，实战中你必须知道这些武器存在。
