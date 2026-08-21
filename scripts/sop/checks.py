@@ -142,6 +142,97 @@ def check_01_system_health(batch_id):
     _check_pending_gates()
     _check_flow_snapshot()
     _check_system_panorama(batch_id)
+    _check_audit_pipe_health()
+
+
+def _check_audit_pipe_health():
+    """步骤01例行：Pipe 5 审计 Pipe 健康检查（A15-A18，见 dev-docs/029 §7.3）。
+
+    审计 Pipe 上线后，SOP_01 需要监控审计队列/完成/失败率/门闸状态。
+    """
+    print("--- Pipe 5 审计 Pipe 健康（A15-A18）---")
+    try:
+        from src.proof_audit_redis_queue import get_redis, pending_count, running_count, completed_count, failed_count
+        from src.proof_audit_db_schema import connect_db
+        from src.proof_audit_config import (
+            PROOF_AUDIT_RUNS_COLLECTION, PROOF_AUDITS_COLLECTION,
+        )
+
+        # Redis 队列状态
+        try:
+            r = get_redis()
+            r.ping()
+            stats = {
+                "pending": pending_count(r),
+                "running": running_count(r),
+                "completed": completed_count(r),
+                "failed": failed_count(r),
+            }
+            print(f"  Redis paudit: pending={stats['pending']} running={stats['running']} "
+                  f"completed={stats['completed']} failed={stats['failed']}")
+
+            # A15: 队列停滞检测（简化版——pending>0 但 running=0）
+            if stats["pending"] > 0 and stats["running"] == 0:
+                print(f"  ⚠️ A15 audit_queue_stalled: pending={stats['pending']} 但 running=0")
+        except Exception as e:
+            print(f"  ⚠️ Redis 不可达: {e}")
+
+        # DB 审计结果统计
+        db = connect_db()
+        try:
+            # A16: 审计完成数
+            total_audits = db.collection(PROOF_AUDITS_COLLECTION).count()
+            print(f"  A16 p27_proof_audits 总数: {total_audits}")
+
+            # A17: 审计失败率
+            if total_audits > 0:
+                fail_aql = (
+                    f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+                    f"FILTER a.audit_status LIKE 'FAIL_%' "
+                    f"COLLECT WITH COUNT INTO c RETURN c"
+                )
+                fail_count = list(db.aql.execute(fail_aql, ttl=30))
+                fail_rate = (fail_count[0] / total_audits * 100) if fail_count else 0
+                print(f"  A17 审计失败率: {fail_rate:.1f}% ({fail_count[0]}/{total_audits})")
+                if fail_rate > 20:
+                    print(f"  ⚠️ A17 audit_failure_rate_high: 失败率>{20}%")
+
+            # 审计状态分布
+            dist_aql = (
+                f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+                f"COLLECT status = a.audit_status WITH COUNT INTO c "
+                f"SORT c DESC RETURN {{status, count: c}}"
+            )
+            dist = list(db.aql.execute(dist_aql, ttl=30))
+            if dist:
+                print(f"  审计状态分布:")
+                for d in dist:
+                    print(f"    {d['status']}: {d['count']}")
+        except Exception as e:
+            print(f"  ⚠️ DB 查询失败: {e}")
+
+        # A18: 审计门闸等待
+        try:
+            from src.step_gate import COLLECTION
+            if db.has_collection(COLLECTION):
+                audit_pending = [
+                    d for d in db.collection(COLLECTION).all()
+                    if d.get("waiting_for") and "AUDIT" in d.get("_key", "")
+                ]
+                if audit_pending:
+                    print(f"  🔶 A18 audit_gate_waiting: {len(audit_pending)}个审计门闸在等放行")
+                    for doc in audit_pending:
+                        print(f"     {doc['_key']}: {doc.get('waiting_for')}")
+                else:
+                    print(f"  ✅ A18 无审计门闸在等")
+        except Exception:
+            pass
+
+    except ImportError:
+        print("  （审计 Pipe 模块未安装）")
+    except Exception as e:
+        print(f"  ⚠️ 审计 Pipe 健康检查失败: {e}")
+    print()
 
 
 def check_02_data_integrity(batch_id):
@@ -522,7 +613,7 @@ def check_03_alert_triage(batch_id):
 
 
 def check_04_ai_judgment(batch_id):
-    """步骤04：C类AI判断——查询 needs_ai_review 的 run"""
+    """步骤04：C类AI判断——查询 needs_ai_review 的 run + 审计质量复核（C7-C9）"""
     log.info(f"check_04_ai_judgment: start batch={batch_id}")
     try:
         from src.continuation_db_schema import connect_db
@@ -542,23 +633,97 @@ def check_04_ai_judgment(batch_id):
         print(f"--- 待 AI 判断的条目（{len(candidates)}个）---")
         if not candidates:
             print("（无待 AI 判断的条目）")
-            print()
-            return
+        else:
+            for c in candidates:
+                pid = c.get("problem_id", "?")
+                work_dir = c.get("work_dir", "")
+                rounds_log = c.get("rounds_log", [])
+                print(f"  [{pid}] work_dir={work_dir}")
+                if rounds_log:
+                    last = rounds_log[-1] if isinstance(rounds_log, list) else {}
+                    for field in ["proof_path", "handover_path", "export"]:
+                        val = last.get(field, "（无）")
+                        print(f"    {field}: {val}")
+                print()
 
-        for c in candidates:
-            pid = c.get("problem_id", "?")
-            work_dir = c.get("work_dir", "")
-            rounds_log = c.get("rounds_log", [])
-            print(f"  [{pid}] work_dir={work_dir}")
-            if rounds_log:
-                last = rounds_log[-1] if isinstance(rounds_log, list) else {}
-                for field in ["proof_path", "handover_path", "export"]:
-                    val = last.get(field, "（无）")
-                    print(f"    {field}: {val}")
-            print()
+        # === 审计质量复核（C7-C9，见 dev-docs/029 §7.2）===
+        _check_audit_quality_review(db)
+
     except Exception as e:
         print(f"⚠️ AI review 候选查询失败: {e}")
         print()
+
+
+def _check_audit_quality_review(db):
+    """步骤04例行：审计质量复核——抽查审计 AI 的判断质量（C7-C9）。
+
+    审计 Pipe 上线后，SOP_04 从"Master Agent 人工判断 C1-C6"升级为
+    "审计 Pipe 自动判断 + Master Agent 复核审计质量 C7-C9"。
+    """
+    print("--- 审计质量复核（C7-C9）---")
+    try:
+        from src.proof_audit_config import PROOF_AUDITS_COLLECTION
+
+        if not db.has_collection(PROOF_AUDITS_COLLECTION):
+            print("  （审计 Pipe 未运行——p27_proof_audits 集合不存在）")
+            print()
+            return
+
+        # C7: 抽查审计判 PASS 的题——proof 真的对吗？
+        pass_aql = (
+            f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+            f"FILTER a.audit_status IN ['PASS', 'PASS_WITH_CAVEAT'] "
+            f"FILTER a.ai_review_done != true "
+            f"SORT RAND() LIMIT 5 "
+            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
+            f"problem_id: a.problem_id, audit_status: a.audit_status, "
+            f"audit_summary: a.audit_summary}}"
+        )
+        pass_candidates = list(db.aql.execute(pass_aql, ttl=60))
+
+        # C8: 抽查审计判 FAIL 的题——proof 真的错吗？
+        fail_aql = (
+            f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+            f"FILTER a.audit_status LIKE 'FAIL_%' "
+            f"FILTER a.ai_review_done != true "
+            f"SORT RAND() LIMIT 5 "
+            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
+            f"problem_id: a.problem_id, audit_status: a.audit_status, "
+            f"audit_summary: a.audit_summary, cheating_analysis: a.cheating_analysis}}"
+        )
+        fail_candidates = list(db.aql.execute(fail_aql, ttl=60))
+
+        # C9: 作弊检测题——复查作弊证据是否充分
+        cheat_aql = (
+            f"FOR a IN {PROOF_AUDITS_COLLECTION} "
+            f"FILTER a.audit_status IN ['FAIL_CHEATING', 'FAIL_CHEATING_DECLARED'] "
+            f"FILTER a.ai_review_done != true "
+            f"LIMIT 5 "
+            f"RETURN {{_key: a._key, source_run_key: a.source_run_key, "
+            f"problem_id: a.problem_id, audit_status: a.audit_status, "
+            f"cheating_analysis: a.cheating_analysis}}"
+        )
+        cheat_candidates = list(db.aql.execute(cheat_aql, ttl=60))
+
+        print(f"  C7 审计判PASS的题（抽查proof是否确实正确）: {len(pass_candidates)}条")
+        for c in pass_candidates:
+            print(f"    [{c['problem_id']}] {c['audit_status']}: {c['audit_summary'][:80]}")
+
+        print(f"  C8 审计判FAIL的题（抽查proof是否确实错误）: {len(fail_candidates)}条")
+        for c in fail_candidates:
+            print(f"    [{c['problem_id']}] {c['audit_status']}: {c['audit_summary'][:80]}")
+
+        print(f"  C9 作弊检测题（复查作弊证据是否充分）: {len(cheat_candidates)}条")
+        for c in cheat_candidates:
+            analysis = c.get("cheating_analysis", "")[:100]
+            print(f"    [{c['problem_id']}] {c['audit_status']}: {analysis}")
+
+        if not pass_candidates and not fail_candidates and not cheat_candidates:
+            print("  ✅ 无待复核的审计结果")
+
+    except Exception as e:
+        print(f"  ⚠️ 审计质量复核失败: {e}")
+    print()
 
 
 def check_05_code_repair(batch_id):
