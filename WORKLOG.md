@@ -4,6 +4,19 @@
 
 ---
 
+## WP-H 审计优雅停止 · 2026-08-21
+
+### 做了什么
+审计launcher装上与续传同构的优雅停止（SIGINT+should_stop，严格按graceful-shutdown.md §6清单），并实现"收尾即收集"：completed判定后立即collect_one入库，三条退出路径break前统一_final_collect兜底。stop_audit_batch两模式（优雅SIGINT/强杀清队列），入口run_proof_audit_pipeline --stop [--force]。文档同步graceful-shutdown.md §3.4 + SYSTEM_CLOSURE。
+
+### 集成实测（真实小批次）
+SIGINT后零新启动；00000619完成即入库（audits 9→10而launcher还活着——边完成边入库实证）；00000595撞max_runtime判stall_timeout（既有语义）；running清零后优雅退出+兜底收集0条（无漏网）；统计与DB一致。flow新增graceful_stop事件。
+
+### 遗留
+00000595可重新入队（WP-L重试的事）；批次超时路径用代码核对代替实测（50分钟太长）；审计pipe的flow观测缺口依旧（launch/kill不进flow，@gated run_key=null）——记录给SOP_07。
+
+---
+
 ## WP-P 现场补救 · 2026-08-21
 
 ### 做了什么

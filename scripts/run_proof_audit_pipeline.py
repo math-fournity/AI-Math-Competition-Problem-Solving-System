@@ -78,7 +78,17 @@ def main():
     parser.add_argument("--poll-seconds", type=int, default=10, help="轮询间隔秒")
     parser.add_argument("--register-gates", action="store_true",
                         help="运行前注册门闸到 DB")
+    parser.add_argument("--stop", action="store_true",
+                        help="停止批次（优雅：向 launcher 发 SIGINT，等 running 自然完成）")
+    parser.add_argument("--force", action="store_true",
+                        help="配合 --stop 使用：强制停止（kill 所有 paudit session + 清队列）")
     args = parser.parse_args()
+
+    # 停止模式——不运行任何阶段
+    if args.stop:
+        from src.proof_audit_launcher import stop_audit_batch
+        stop_audit_batch(args.batch_id, force=args.force)
+        return
 
     # 注册门闸
     if args.register_gates or args.stage == "all":

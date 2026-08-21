@@ -96,6 +96,23 @@ def stop_batch(batch_id, force=False):
 - **优雅停止**（默认）：`--stop` → 向launcher发送SIGINT → launcher不再启动新run → running自然完成
 - **强制停止**：`--stop --force` → kill所有session+清空队列 → 立即停止
 
+### 3.4 审计 Pipe 实例（`proof_audit_launcher.py`，WP-H 2026-08-21）
+
+按 §6 清单接线，与续传的差异点：
+
+1. **register_shutdown("proof_audit_launcher")** 在 `launch_batch()` 开头
+2. **should_stop 检查**在主循环两个 break（自然完成/批次超时）之后、补充并发 while 之前：
+   running 空 → `log_flow("graceful_stop")` + 收尾后 break；running 非空 → 打印等待数，
+   跳过补充并发
+3. **补充并发 while 条件**加 `not should_stop() and ...`
+4. **收尾即收集**（审计 Pipe 特有）：running 检查段里每个审计判定 completed/dead_done
+   并更新 DB 后，立即调 `collect_one()` 解析 export 入库——不等批次结束
+5. **三条退出路径统一兜底收集**：自然完成/批次超时/优雅停止的 break 前都调
+   `_final_collect(batch_id)`（内部 `collect_results`，try/except 包裹失败不阻塞退出）
+6. **stop_audit_batch()** 两模式：优雅=pgrep 发 SIGINT；force=kill 所有 `paudit-`
+   session + 清 paudit: 队列。入口 `run_proof_audit_pipeline.py --stop [--force]`
+7. 无 watchdog（审计 Pipe 不挂 launchd）——§6 第 6 步不适用
+
 ## 4. 使用方法
 
 ```bash

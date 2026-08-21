@@ -40,6 +40,9 @@ from src.proof_audit_redis_queue import (
 )
 from src.step_gate import gated
 from monitoring.shared_logger import get_logger, log_event
+from monitoring.graceful_shutdown import register_shutdown, should_stop
+from src.observability import log_flow
+from src.proof_audit_result_collector import collect_one, collect_results
 
 logger = get_logger("proof_audit_launcher")
 
@@ -223,6 +226,19 @@ def detect_stall(session_name, stall_since):
     return False
 
 
+def _final_collect(batch_id):
+    """兜底收集（WP-H 三条退出路径统一收尾）：正常情况下收尾即收集已入库，
+    这里抓漏网（如崩溃恢复后残留的 completed）。失败不阻塞退出——收集可重试，
+    崩溃不可接受。"""
+    try:
+        n = collect_results(batch_id)
+        print(f"  [final-collect] 兜底收集: {n} 条")
+    except Exception as e:
+        log_event(logger, "warning", "final_collect_failed",
+                  batch_id=batch_id, error=str(e))
+        print(f"  [final-collect] 失败（不阻塞退出）: {e}")
+
+
 def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
                  max_runtime=AUDIT_MAX_RUNTIME_SECONDS,
                  stall_seconds=AUDIT_STALL_SECONDS,
@@ -231,6 +247,9 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
     print(f"=== 启动审计批次 batch={batch_id} concurrency={concurrency} ===")
     log_event(logger, "info", "audit_batch_start",
               batch_id=batch_id, concurrency=concurrency)
+
+    # 优雅停止注册（WP-H，graceful-shutdown.md §6 清单第 2 步）
+    register_shutdown("proof_audit_launcher")
 
     db = connect_db()
     ensure_schema(db)
@@ -265,6 +284,7 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
             print(f"  launched: {launched}")
             print(f"  completed: {completed_count}")
             print(f"  failed: {failed_count}")
+            _final_collect(batch_id)  # WP-H：自然完成路径也统一收尾
             break
 
         # 检查超时
@@ -273,10 +293,26 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
             print(f"  launched: {launched}")
             print(f"  completed: {completed_count}")
             print(f"  failed: {failed_count}")
+            _final_collect(batch_id)  # WP-H：超时退出路径同样收尾（033 P3-b）
             break
 
-        # 补充并发——从 pending 取出填到 concurrency
-        while current_running < concurrency and current_pending > 0:
+        # 优雅退出检查（WP-H）——收到 SIGTERM/SIGINT 后不再启动新审计
+        if should_stop():
+            if current_running == 0:
+                print(f"\n=== 优雅停止：running 已全部完成，launcher 退出 ===")
+                log_flow("graceful_stop", run_key=None, batch_id=batch_id,
+                         launched=launched, completed=completed_count,
+                         failed=failed_count)
+                print(f"  launched: {launched}")
+                print(f"  completed: {completed_count}")
+                print(f"  failed: {failed_count}")
+                _final_collect(batch_id)
+                break
+            print(f"  [graceful_shutdown] 不再启动新审计，"
+                  f"等待{current_running}个running自然完成...")
+
+        # 补充并发——从 pending 取出填到并发数（优雅停止模式下跳过）
+        while not should_stop() and current_running < concurrency and current_pending > 0:
             items = dequeue_pending(r, count=1)
             if not items:
                 break
@@ -365,6 +401,15 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
                     "ended_at": utc_now(),
                 })
 
+                # 收尾即收集（WP-H，030 需求1第二层）：判定完成立即入库
+                try:
+                    result = collect_one(db, get_audit_run(db, audit_run_key))
+                    print(f"  [collect] {audit_run_key}: {result}")
+                except Exception as e:
+                    log_event(logger, "warning", "collect_one_failed",
+                              audit_run_key=audit_run_key, error=str(e))
+                    print(f"  [collect] {audit_run_key}: 失败(不阻塞) {e}")
+
                 completed_count += 1
                 print(f"  [done] {audit_run_key}")
                 continue
@@ -386,6 +431,16 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
                         "status": "completed",
                         "ended_at": utc_now(),
                     })
+
+                    # 收尾即收集（WP-H）：dead_done 分支同样立即入库
+                    try:
+                        result = collect_one(db, get_audit_run(db, audit_run_key))
+                        print(f"  [collect] {audit_run_key}: {result}")
+                    except Exception as e:
+                        log_event(logger, "warning", "collect_one_failed",
+                                  audit_run_key=audit_run_key, error=str(e))
+                        print(f"  [collect] {audit_run_key}: 失败(不阻塞) {e}")
+
                     completed_count += 1
                     print(f"  [done-dead] {audit_run_key}")
                 else:
@@ -426,6 +481,70 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
     log_event(logger, "info", "audit_batch_done",
               batch_id=batch_id, launched=launched,
               completed=completed_count, failed=failed_count)
+
+
+def stop_audit_batch(batch_id, force=False):
+    """停止审计批次——优雅停止（默认）或强制 kill（WP-H 任务3，模仿 continuation_launcher.stop_batch）
+
+    优雅停止（force=False，默认）：
+      - 向 launcher 进程发送 SIGINT，launcher 收到后不再启动新审计
+      - 已在运行的 devin cli session 继续自然完成（收尾即收集照常生效）
+      - Redis 队列不清空（恢复时可继续）
+
+    强制停止（force=True）：
+      - kill 所有 paudit- tmux session（包括正在运行的 devin cli）
+      - 清空 paudit: Redis 队列
+    """
+    print(f"=== 停止审计批次: {batch_id} (mode: {'force' if force else 'graceful'}) ===")
+
+    if force:
+        # 强制模式：kill 所有 paudit- session + 清空队列
+        result = subprocess.run(["tmux", "list-sessions"], capture_output=True, text=True, timeout=5)
+        paudit_sessions = [l.split(":")[0] for l in result.stdout.split("\n")
+                           if l.startswith(f"{AUDIT_TMUX_PREFIX}-")]
+        for s in paudit_sessions:
+            subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True, timeout=5)
+            print(f"  killed: {s}")
+        print(f"  共kill {len(paudit_sessions)}个session")
+
+        r = get_redis()
+        from src.proof_audit_redis_queue import (
+            PENDING_KEY, RUNNING_KEY, COMPLETED_KEY, FAILED_KEY, STATS_KEY,
+        )
+        for key in (PENDING_KEY, RUNNING_KEY, COMPLETED_KEY, FAILED_KEY, STATS_KEY):
+            r.delete(key)
+        print(f"  paudit: Redis 队列已清空")
+    else:
+        # 优雅模式：向 launcher 发送 SIGINT，不 kill devin session
+        launcher_pids = subprocess.run(
+            ["pgrep", "-f", f"proof_audit_launcher.*{batch_id}"],
+            capture_output=True, text=True
+        ).stdout.strip().split("\n")
+        launcher_pids = [p for p in launcher_pids if p]
+
+        if not launcher_pids:
+            print(f"  [WARNING] launcher进程未找到，可能已退出")
+            print(f"  如需强制停止所有session: python -m scripts.run_proof_audit_pipeline --batch-id {batch_id} --stop --force")
+            return
+
+        for pid in launcher_pids:
+            try:
+                os.kill(int(pid), 2)  # SIGINT=2
+                print(f"  向launcher PID={pid}发送SIGINT")
+            except Exception as e:
+                print(f"  向PID={pid}发送SIGINT失败: {e}")
+
+        try:
+            r = get_redis()
+            n = running_count(r)
+            print(f"  当前running: {n}个（等待自然完成，收尾即收集照常）")
+        except Exception:
+            pass
+
+        print(f"")
+        print(f"  ★ 等所有running完成后，launcher自动退出（退出前兜底收集）")
+        print(f"  ★ 如需立即强制停止（kill所有devin session）:")
+        print(f"    python -m scripts.run_proof_audit_pipeline --batch-id {batch_id} --stop --force")
 
 
 def main():

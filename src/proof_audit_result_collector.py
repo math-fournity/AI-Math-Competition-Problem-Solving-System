@@ -364,6 +364,70 @@ def mark_parse_error(db, run_key, audit_run_key, detail):
 
 # === 结果收集主逻辑 ===
 
+def collect_one(db, audit_run):
+    """收集单个已完成审计。返回 'pass' | 'fail' | 'parse_error' | 'skip'（无文本）。
+
+    供两处消费：collect_results 的循环体；审计 launcher 的收尾即收集
+    （WP-H：每个审计判定完成后立即入库，不等批次结束）。
+    """
+    audit_run_key = audit_run["_key"]
+    run_key = audit_run.get("source_run_key", "")
+    export_path = audit_run.get("export_path", "")
+
+    # 从 export 提取审计文本
+    audit_text = extract_audit_from_export(export_path)
+    if not audit_text:
+        if export_path and Path(export_path).exists():
+            # export 存在但提取不到 agent 文本——审计输出无法解析，
+            # 语义同 PARSE_ERROR（不知道对错，029 §3.3：待人工）。
+            # WP-P 执行时发现：截断样本（comp 撞 25000 上限）message 为空，
+            # 旧代码在此静默 skip，run 永远停在 audit_status=null 被反复重扫。
+            print(f"  [parse-error] {audit_run_key}: export 存在但无 agent 文本")
+            mark_parse_error(db, run_key, audit_run_key,
+                             "export 存在但未提取到 agent 输出文本")
+            return "parse_error"
+        print(f"  [skip] {audit_run_key}: 无 export 或路径为空")
+        return "skip"
+
+    # 解析 XML
+    parsed = parse_audit_xml(audit_text)
+    if not parsed:
+        # XML 解析失败——PARSE_ERROR（029 §3.3：不改 status，待人工）
+        print(f"  [parse-error] {audit_run_key}: XML 解析失败")
+        mark_parse_error(db, run_key, audit_run_key,
+                         "XML解析失败，无法提取审计结果")
+        return "parse_error"
+
+    audit_status = parsed["audit_status"]
+    check_results = parsed["check_results"]
+    cheating_analysis = parsed.get("cheating_analysis", "无作弊嫌疑")
+    audit_summary = parsed.get("audit_summary", "")
+
+    audited_at = utc_now()
+
+    # 根据审计结果走不同门闸
+    if audit_status in AUDIT_PASS_STATUSES:
+        audit_finalize_pass(
+            db, run_key, audit_run_key,
+            audit_status, check_results,
+            cheating_analysis, audit_summary, audited_at)
+        print(f"  [pass] {audit_run_key}: {audit_status}")
+        return "pass"
+    elif audit_status in AUDIT_FAIL_STATUSES:
+        audit_finalize_fail(
+            db, run_key, audit_run_key,
+            audit_status, check_results,
+            cheating_analysis, audit_summary, audited_at)
+        print(f"  [fail] {audit_run_key}: {audit_status}")
+        return "fail"
+    else:
+        # PARSE_ERROR 或其他无效状态（029 §3.3：不改 status，待人工）
+        mark_parse_error(db, run_key, audit_run_key,
+                         f"audit_status 无效: {audit_status}")
+        print(f"  [parse-error] {audit_run_key}: {audit_status}")
+        return "parse_error"
+
+
 def collect_results(batch_id, limit=None):
     """收集审计结果——解析 export，写入 DB"""
     print(f"=== 收集审计结果 batch={batch_id} ===")
@@ -394,65 +458,12 @@ def collect_results(batch_id, limit=None):
     parse_errors = 0
 
     for audit_run in candidates:
-        audit_run_key = audit_run["_key"]
-        run_key = audit_run.get("source_run_key", "")
-        export_path = audit_run.get("export_path", "")
-
-        # 从 export 提取审计文本
-        audit_text = extract_audit_from_export(export_path)
-        if not audit_text:
+        result = collect_one(db, audit_run)
+        if result == "skip":
             parse_errors += 1
-            if export_path and Path(export_path).exists():
-                # export 存在但提取不到 agent 文本——审计输出无法解析，
-                # 语义同 PARSE_ERROR（不知道对错，029 §3.3：待人工）。
-                # WP-P 执行时发现：截断样本（comp 撞 25000 上限）message 为空，
-                # 旧代码在此静默 skip，run 永远停在 audit_status=null 被反复重扫。
-                print(f"  [parse-error] {audit_run_key}: export 存在但无 agent 文本")
-                mark_parse_error(db, run_key, audit_run_key,
-                                 "export 存在但未提取到 agent 输出文本")
-                collected += 1
-            else:
-                print(f"  [skip] {audit_run_key}: 无 export 或路径为空")
             continue
-
-        # 解析 XML
-        parsed = parse_audit_xml(audit_text)
-        if not parsed:
-            # XML 解析失败——PARSE_ERROR（029 §3.3：不改 status，待人工）
-            print(f"  [parse-error] {audit_run_key}: XML 解析失败")
-            mark_parse_error(db, run_key, audit_run_key,
-                             "XML解析失败，无法提取审计结果")
+        if result == "parse_error":
             parse_errors += 1
-            collected += 1
-            continue
-
-        audit_status = parsed["audit_status"]
-        check_results = parsed["check_results"]
-        cheating_analysis = parsed.get("cheating_analysis", "无作弊嫌疑")
-        audit_summary = parsed.get("audit_summary", "")
-
-        audited_at = utc_now()
-
-        # 根据审计结果走不同门闸
-        if audit_status in AUDIT_PASS_STATUSES:
-            audit_finalize_pass(
-                db, run_key, audit_run_key,
-                audit_status, check_results,
-                cheating_analysis, audit_summary, audited_at)
-            print(f"  [pass] {audit_run_key}: {audit_status}")
-        elif audit_status in AUDIT_FAIL_STATUSES:
-            audit_finalize_fail(
-                db, run_key, audit_run_key,
-                audit_status, check_results,
-                cheating_analysis, audit_summary, audited_at)
-            print(f"  [fail] {audit_run_key}: {audit_status}")
-        else:
-            # PARSE_ERROR 或其他无效状态（029 §3.3：不改 status，待人工）
-            mark_parse_error(db, run_key, audit_run_key,
-                             f"audit_status 无效: {audit_status}")
-            print(f"  [parse-error] {audit_run_key}: {audit_status}")
-            parse_errors += 1
-
         collected += 1
 
     print(f"\n=== 收集完成 ===")
