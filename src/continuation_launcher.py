@@ -66,17 +66,8 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def classify_failure(failure_type: str) -> str:
-    """区分基础设施失败和模型能力失败
-
-    基础设施失败（infra）——可重试：rate_limited/failed_connection/launch_error/dead_session
-    模型能力失败（model）——不可重试，是数据：failed_timeout/failed_stall/failed_no_proof/truncated_at_max
-
-    参考：xishujuzhen/solver_harness/pipe/retry_infrastructure.py
-    """
-    if failure_type in INFRA_FAILURES:
-        return "infra"
-    return "model"
+# 失败分类与检测已迁移至共享模块（WP-I）——check_ai_gave_up 留给 WP-K 接线
+from src.devin_cli_failure_detection import classify_failure
 
 
 # =============================================================================

@@ -87,19 +87,13 @@ TRUNC_COMP_TOKENS_MIN = 24000        # completion_tokens >= 24000 判定为截�
 PROOF_COMPLETE_MARKER = r"\\boxed"
 PROOF_FILE_NAME = "proof.md"
 
-# === 错误模式检测（复用config.py的模式）===
-RATE_LIMIT_PATTERNS = ["rate limit", "rate_limit", "429", "Too Many Requests",
-                       "message rate limit", "http 429", "status 429"]
-CONNECTION_PATTERNS = ["connection error", "ECONNREFUSED", "ETIMEDOUT",
-                       "socket hang up", "fetch failed", "network error",
-                       "network request failed", "ECONNRESET"]
-
-# 失败分类
-INFRA_FAILURES = {"rate_limited", "failed_connection", "launch_error", "dead_session"}
-MODEL_FAILURES = {"failed_timeout", "failed_stall", "failed_no_proof", "truncated_at_max"}
-
-# 重试配置
-MAX_RETRIES = 3
+# === 错误模式检测与失败分类 ===
+# WP-I：定义迁移至 src/devin_cli_failure_detection.py（续传+审计共享模块）——
+# 此处 re-export 保持既有 import 路径兼容（兼容层；新代码应直接 import 共享模块）
+from src.devin_cli_failure_detection import (  # noqa: F401
+    RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS,
+    INFRA_FAILURES, MODEL_FAILURES, MAX_RETRIES,
+)
 
 # === v2方案配置 ===
 # v2方案每轮2个pipe：Pipe A生成HANDOVER.md + Pipe B解题
