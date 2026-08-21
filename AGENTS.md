@@ -165,6 +165,28 @@ python -m src.observability --stats --since 1h
 
 三层交叉验证——DB 说 completed 但 flow 无 run_completed = 状态同步 bug。
 
+### 硬约束：禁止代码中写死并发数
+
+**并发数的默认值来源只有一个：本 AGENTS.md。** 代码中禁止写死任何并发数默认值（如 `DEFAULT_CONCURRENCY = 5`、`AUDIT_DEFAULT_CONCURRENCY = 5`）。
+
+**为什么**：
+- 并发数 = 同时在跑的管线条数 = devin cli 实例数上限（见上方"核心概念"）
+- 这个数字影响 API 配额消耗、系统资源占用、rate limit 风险——是系统级配置，不是代码级常量
+- 写死在代码里 = 改并发要改代码 = 违反"改并发不改代码"的设计原则
+- 030 教训：`proof_audit_config.py` 写死 `AUDIT_DEFAULT_CONCURRENCY = 5`，这个 5 是拍脑袋设的，没有依据（没有实验、没有推理、没有 rate limit 分析）
+
+**正确做法**：
+- 续传系统：并发数存 DB batch 记录，launcher 每轮 poll 从 DB 读取（见上方"并发控制"）
+- 审计系统：同样从 DB batch 记录读取，或从本 AGENTS.md 读取
+- 代码中只写"从 DB/AGENTS.md 读取并发数"的逻辑，不写默认值
+- 如果 DB 中没有并发数记录，launcher 应该报错并提示"请先设置并发数"，而不是用写死的默认值
+
+**当前违规**（待修复）：
+- `src/continuation_config.py:75` — `DEFAULT_CONCURRENCY = 5`（写死）
+- `src/proof_audit_config.py:42` — `AUDIT_DEFAULT_CONCURRENCY = 5`（写死）
+
+**修复方向**：这些常量应改为从 DB batch 记录读取；DB 无记录时报错而非用默认值。修复在 WP-H（030 方案）中处理。
+
 ### 实战速查：016事故后新增的介入能力
 
 > 016事故（失控循环空转18分钟、上千个session）后系统新增三种能力，SOP_01 §8/§8.5详述。这里放always-on速查——后部可能被截断，实战中你必须知道这些武器存在。
