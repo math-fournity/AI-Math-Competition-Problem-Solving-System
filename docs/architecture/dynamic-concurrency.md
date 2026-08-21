@@ -30,7 +30,7 @@ redis_conc = int(r.get("math:config:concurrency") or args.concurrency)
 
 错题分析系统用ArangoDB的batch记录存储并发数：
 ```python
-# launcher主循环每轮从DB读取（continuation_launcher.py 第645-656行）
+# launcher主循环每轮从DB读取（continuation_launcher.py 第1041-1052行）
 try:
     batch_doc = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
     if batch_doc and "concurrency" in batch_doc:

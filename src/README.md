@@ -111,11 +111,11 @@ v2方案双队列（pending_handover/pending_solve 等），v1方案单队列（
 ### `monitor_continuation.py` — Monitor Pipe（每120s检查写alert）
 
 按 `docs/specs/p27_monitor_spec.md` 检查规范实现。每120s 执行 A类14项自动检查
-+ B类9项续传质量检查，alert 写 DB p27_monitor_alerts。C类5项 AI 判断由
-Master Agent SOP_04 执行（不在本模块）。
++ B类9项续传质量检查，alert 写 DB p27_monitor_alerts。C类6项 AI 判断（C1-C6，
+含 020 审计新增的 C6 export_semantics）由 Master Agent SOP_04 执行（不在本模块）。
 
 **覆盖问题场景**：不写 alert=检查失效；A13 四源不一致（016新增）；A14 失控循环
-（016新增）。完整 alert_type 清单（30种）见 `SYSTEM_CLOSURE.md` §6。
+（016新增）。完整 alert_type 清单（34种）见 `SYSTEM_CLOSURE.md` §6。
 **用法**：
 ```
 python -m src.monitor_continuation --batch-id p27-full --interval 120

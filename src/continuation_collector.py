@@ -1,10 +1,10 @@
-"""continuation_collector.py — POC-2.7续传Pipe数据收集组件
+"""continuation_collector.py — 续传解题管线数据收集组件（管线入口）
 
-从problem_list.json取919道DIRECTION_ERROR题，为每道题构造续传run记录。
-复用data_collector.py的模式，但数据源是problem_list.json而非ArangoDB查询。
+从problem_list.json取失败题（题量以文件为准，随批次扩充增长：919→5957→6083），
+为每道题构造续传run记录。数据源是problem_list.json而非ArangoDB查询。
 
 步骤：
-  1. 加载problem_list.json（919题）
+  1. 加载problem_list.json
   2. 为每道题提取题目文本
   3. 为每道题创建DB run记录（status=prepared）
   4. 返回prepared的run列表（供feeder入Redis队列）

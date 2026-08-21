@@ -47,13 +47,13 @@ while ... len(running) + len(handover_pending) < concurrency ...
 |---|---|---|---|---|
 | solve（续传解题）| `continuation_launcher.py` | `DEFAULT_CONCURRENCY=5`（共享池）| ✅ 是 | 管线核心 |
 | handover（HANDOVER 生成）| `continuation_launcher.py` | 与 solve 共享并发池 | ✅ 是 | 管线核心 |
-| analysis（Pipe 1 分析）| `analysis_launcher.py` | `DEFAULT_CONCURRENCY=10` | ❌ 否 | 分析为什么失败，不解题 |
-| audit（Pipe 2 审计）| `audit_launcher.py` | `AUDIT_CONCURRENCY=5` | ❌ 否 | 审计分析结果，不解题 |
-| selection（Pipe 3 选题）| `selection_launcher.py` | `SELECTION_CONCURRENCY=1` | ❌ 否 | 选题给 POC-2.5，不解题 |
-| solver（Mid-Hint 实验）| `solver_launcher.py` | `SOLVER_CONCURRENCY=1` | ❌ 否 | 独立实验，不是续传管线 |
-| monitor_exec（C 类 AI 判断）| **未实现**（spec 中 `- [ ]`）| `MONITOR_EXEC_CONCURRENCY=1`（配置已定义）| ❌ 否 | spec 已写但代码未实现 |
+| ~~analysis（Pipe 1 分析）~~ | ~~`analysis_launcher.py`~~ | — | ❌ 否 | **已删除**（2026-08-20，Pipe 1/2/3 全删） |
+| ~~audit（Pipe 2 审计）~~ | ~~`audit_launcher.py`~~ | — | ❌ 否 | **已删除**（同上） |
+| ~~selection（Pipe 3 选题）~~ | ~~`selection_launcher.py`~~ | — | ❌ 否 | **已删除**（同上） |
+| ~~solver（Mid-Hint 实验）~~ | ~~`solver_launcher.py`~~ | — | ❌ 否 | **已删除**（同上） |
+| monitor_exec（C 类 AI 判断）| **未实现**（spec 中 `- [ ]`）| `MONITOR_EXEC_CONCURRENCY=1`（配置已定义）| ❌ 否 | spec 已写但代码未实现；C类判断由 Master Agent SOP_04 承载 |
 
-**Pipe 1/2/3 是"分析管线"不是"解题管线"**：它们分析失败原因、审计分析质量、选题——都不解题。Pipe 4 的输入是预生成的 `problem_list.json`（919 题），不依赖 Pipe 1/2/3 实时产出（`continuation_collector.py:41-48`）。
+**历史注**：Pipe 1/2/3 曾是"分析管线"（分析失败原因/审计质量/选题——都不解题），2026-08-20 已全部删除。当前系统只有解题管线一条；Pipe 4 的输入是预生成的 `problem_list.json`（2026-08-21 时为 6083 题），不依赖任何 Pipe 实时产出（`continuation_collector.py`）。
 
 ---
 
@@ -61,14 +61,15 @@ while ... len(running) + len(handover_pending) < concurrency ...
 
 用户命题：*"对解题管线的并发限制，一定能够限制到 devin cli 在系统中同时的实例的数量"*
 
-**成立条件**：只有解题管线在跑（Pipe 1/2/3/solver_launcher 不同时运行）。
+**成立条件**：只有解题管线在跑（其他 devin cli 消费者不同时运行）。
 
-- ✅ 如果只启动 Pipe 4 → 限制管线数 = 限制 devin cli 实例数，命题成立
-- ❌ 如果 Pipe 4 和 Pipe 1 同时跑 → Pipe 4 管线数限制了 solve/handover，但 Pipe 1 的 analysis devin cli 不受约束，系统总 devin cli 实例数 = Pipe 4 管线数 + Pipe 1 并发数
+- ✅ 如果只启动解题管线 → 限制管线数 = 限制 devin cli 实例数，命题成立
+- ❌ 历史反例：Pipe 4 和 Pipe 1 同时跑时，Pipe 4 管线数限制了 solve/handover，但 Pipe 1 的 analysis devin cli 不受约束（Pipe 1/2/3 已删除，此反例不再可能发生）
+- ⚠️ 残余风险：未来若新增管线外的 devin cli 消费者（如实现 monitor_exec），需重新评估
 
-**当前实际运行模式**（AGENTS.md 启动指令）：只启动 Pipe 4（`continuation_control start --batch-id p27-full --concurrency 1`），不同时启动 Pipe 1/2/3。所以命题在当前运行模式下成立。
+**当前实际运行模式**（AGENTS.md 启动指令）：只启动解题管线（`continuation_control start --batch-id p27-full --concurrency 1`）。所以命题在当前运行模式下成立。
 
-**如果要保证命题在任何情况下都成立**：需要新增一个跨所有 devin cli 消费者的全局并发闸（不只是管 Pipe 4），让 analysis/audit/selection/solver 启动 devin cli 前也先抢全局锁。当前架构没有这个能力。
+**如果要保证命题在任何情况下都成立**：需要新增一个跨所有 devin cli 消费者的全局并发闸（不只是管解题管线），让未来新增的消费者启动 devin cli 前也先抢全局锁。当前架构没有这个能力。
 
 ---
 
@@ -101,5 +102,5 @@ while ... len(running) + len(handover_pending) < concurrency ...
 ## 7. 边界说明
 
 - **第一次解题**在外部 POC-2.5 解题系统（独立 repo），其并发由 `pipe_control.py concurrency` 控制，是独立旋钮，本项目的管线并发控制不覆盖它。
-- **solver_launcher.py**（Mid-Hint 实验）是独立实验 launcher，与续传管线无关，并发已经是 1。
-- **monitor_exec** 在 spec 中规划但代码未实现（`src/monitor_exec_launcher.py` 不存在），当前不产生 devin cli 实例。
+- **Pipe 1/2/3 与 solver_launcher**（Mid-Hint 实验launcher）均已删除（2026-08-20），不再是管线外消费者。
+- **monitor_exec** 在 spec 中规划但代码未实现（`src/monitor_exec_launcher.py` 不存在），当前不产生 devin cli 实例；C 类判断由 Master Agent SOP_04 承载。

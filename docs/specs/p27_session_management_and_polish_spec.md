@@ -244,7 +244,7 @@ tmux有但注册表无（孤儿session，需人工检查）:
 
 ## §B. ~~Monitor Pipe执行devin架构规范~~（已废弃 2026-08-19）
 
-> **废弃说明**：§B 定义的"Monitor Exec Devin"（独立 devin cli 做 AI 检查+修复）不再实现。由 **Master Agent SOP 流程控制机制**取代——Master Agent 自己通过 `scripts/sop/run.py` 的 7 步自驱动循环承载 C 类 AI 检查+修复工作。详见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
+> **废弃说明**：§B 定义的"Monitor Exec Devin"（独立 devin cli 做 AI 检查+修复）不再实现。由 **Master Agent SOP 流程控制机制**取代——Master Agent 自己通过 `scripts/sop/run.py` 的 8 步自驱动循环承载 C 类 AI 检查+修复工作。详见 `dev-docs/013-Master-Agent-SOP流程控制机制方案.md`。
 >
 > §A（Session 编号化管理）仍然有效且已实现。以下 §B 内容保留作为历史参考。
 

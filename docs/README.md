@@ -10,7 +10,7 @@
 |---|---|
 | `system/` | 系统认知层——新 AI 接手入口（AnalysisSystem/Design/Ops 三个文档） |
 | `patterns/` | 设计范式层——跨项目元方法论（MonitorPipe 范式、HANDOFF 续传标准、StepGate 步进门闸） |
-| `architecture/` | 架构设计——9个设计方面文档（framework-checklist/architecture/shutdown/concurrency 等） |
+| `architecture/` | 架构设计——10个设计方面文档（solve-pipeline/framework-checklist/architecture/shutdown/concurrency 等） |
 | `specs/` | 检查规范——POC-2.7 Monitor Pipe 执行依据（3个 spec 文档） |
 | `templates/` | 模板——各 Pipe 的 AGENTS.md 模板和 selfrun 任务模板（4个） |
 

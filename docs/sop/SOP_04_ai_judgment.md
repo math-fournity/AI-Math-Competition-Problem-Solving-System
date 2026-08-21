@@ -133,5 +133,5 @@ python -m monitoring.continuation_control mark-ai-review <run_key> --result FAIL
 
 ### 深入了解（如需）
 
-- `docs/specs/p27_monitor_spec.md` §3.3 — C1-C5 AI review 抽样标准的权威定义
+- `docs/specs/p27_monitor_spec.md` §3.3 — C1-C6 AI review 抽样标准的权威定义（C1-C5 由 monitor 抽样标记，C6 export_semantics 为 020 审计新增、由你在本步骤执行）
 - `docs/patterns/续传规范文档.md` — HANDOVER.md 的标准格式（C4 handover_quality 判断依据）

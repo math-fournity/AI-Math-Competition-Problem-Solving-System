@@ -39,7 +39,7 @@
 | LAUNCH | Launcher 启动与续传控制 | 10 | WP-01, WP-02 | `LAUNCH-` |
 | MON-A | Monitor Pipe A 类自动检查 | 14 | WP-02, WP-05 | `MON-A` |
 | MON-B | Monitor Pipe B 类续传质量检查 | 9 | WP-02, WP-05 | `MON-B` |
-| MON-C | Monitor Pipe C 类 AI 判断 | 5 | WP-05, WP-07 | `MON-C` |
+| MON-C | Monitor Pipe C 类 AI 判断 | 6 | WP-05, WP-07 | `MON-C` |
 | EXEC | ~~Monitor Exec Devin~~（已废弃[-]） | 28 | ~~WP-03~07~~ | `EXEC-` |
 | SELF | Master Agent self-check | 22 | WP-13 | `SELF-` |
 | CTRL | 控制命令与查看支持 | 9 | WP-01, WP-06 | `CTRL-` |
@@ -49,7 +49,7 @@
 | HARD | 硬约束（贯穿全程） | 16 | 全部, WP-14 | `HARD-` |
 | DECISION | ~~待决策问题~~（已废弃[-]，多数关于Exec Devin） | 7 | — | `DEC-` |
 
-**合计**：14 个门类，147 个需求点。
+**合计**：14 个门类，163 个需求点（另有 5 个 MON-A-issue 已知问题文件，checkpoint 文件共 168 个）。
 
 ---
 

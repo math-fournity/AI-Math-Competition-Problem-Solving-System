@@ -44,19 +44,19 @@
 | `real_concurrency_exceeded` | 实际并发>设定（A13） | 代码bug或基础设施 | 查并发控制逻辑 |
 | `launch_churn` | 同题1小时内≥5次启动（A14，016新增） | 代码bug | **立即按016报告§5**：kill launcher→清空Redis队列→查根因 |
 | `proof_missing` | proof.md不存在 | 数据问题 | 判断是模型能力还是代码bug |
-| `proof_too_small` | proof.md过小 | 数据问题 | 记录 |
-| `proof_no_boxed` | proof存在但无boxed | 数据问题 | 记录 |
-| `handover_missing` | HANDOVER.md不存在 | 数据问题 | 判断handover devin是否失败 |
-| `handover_too_small` | HANDOVER.md过小 | 数据问题 | 记录 |
-| `all_rounds_truncated` | 5轮全截断（B5 truncation_pattern） | 需判断 | 分析截断原因（token不够？） |
-| `status_anomaly` | 状态分布异常 | 需判断 | 分析具体异常 |
-| `rounds_log_duplicate_round` | rounds_log重复轮号（B7） | 代码bug | 旧数据或bug复发 |
-| `rounds_log_missing_field` | rounds_log字段缺失（B7） | 代码bug | 查make_round_log_entry |
-| `rounds_log_export_missing` | rounds_log中export文件不存在（B7） | 代码bug | 查export路径 |
-| `rounds_log_handover_missing` | rounds_log中handover文件不存在（B7） | 代码bug | 查handover路径 |
-| `rounds_log_proof_missing` | rounds_log中proof文件不存在（B7） | 代码bug | 查proof_path |
-| `rounds_log_no_proof_path` | rounds_log中proof_path为空（B7） | 代码bug | 查make_round_log_entry |
-| `intermediate_product_collision` | 中间产物路径重复（B8） | 代码bug | 查路径生成逻辑 |
+| `proof_too_small` | proof.md过小（B3） | 数据问题 | 记录 |
+| `proof_no_boxed` | proof存在但无boxed（B2） | 数据问题 | 记录 |
+| `handover_missing` | HANDOVER.md不存在（B4） | 数据问题 | 判断handover devin是否失败 |
+| `handover_too_small` | HANDOVER.md过小（B5） | 数据问题 | 记录 |
+| `all_rounds_truncated` | 5轮全截断（B6 truncation_pattern） | 需判断 | 分析截断原因（token不够？） |
+| `status_anomaly` | 状态分布异常（B7） | 需判断 | 分析具体异常 |
+| `rounds_log_duplicate_round` | rounds_log重复轮号（B8） | 代码bug | 旧数据或bug复发 |
+| `rounds_log_missing_field` | rounds_log字段缺失（B8） | 代码bug | 查make_round_log_entry |
+| `rounds_log_export_missing` | rounds_log中export文件不存在（B8） | 代码bug | 查export路径 |
+| `rounds_log_handover_missing` | rounds_log中handover文件不存在（B8） | 代码bug | 查handover路径 |
+| `rounds_log_proof_missing` | rounds_log中proof文件不存在（B8） | 代码bug | 查proof_path |
+| `rounds_log_no_proof_path` | rounds_log中proof_path为空（B8） | 代码bug | 查make_round_log_entry |
+| `intermediate_product_collision` | 中间产物路径重复（B9） | 代码bug | 查路径生成逻辑 |
 | `work_dir_collision` | work_dir路径重复（B9） | 代码bug | 查路径生成逻辑 |
 | `redis_connection` | Redis不可达 | 基础设施 | 等恢复 |
 | `flow_ledger_unavailable` | 行为流水DB不可达 | 基础设施 | 等恢复 |

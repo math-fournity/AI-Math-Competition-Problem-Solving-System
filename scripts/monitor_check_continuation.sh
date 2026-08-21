@@ -36,7 +36,7 @@ fi
 echo ""
 echo "  >> 需要检查："
 echo "     - 每轮是否有新ALERT？alert类型是什么（critical/warning/info）？"
-echo "     - AI_REVIEW抽样的结果——需按specs/p27_monitor_spec.md §3.3的C1-C5标准检查"
+echo "     - AI_REVIEW抽样的结果——需按specs/p27_monitor_spec.md §3.3的C1-C6标准检查"
 echo "     - progress是否在推进？如果停滞，检查launcher日志"
 echo "     - pass_rate是否在增长？目标COMPLETED≥50%（415号§7.1）"
 echo ""

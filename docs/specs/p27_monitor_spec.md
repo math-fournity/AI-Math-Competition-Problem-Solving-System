@@ -79,6 +79,7 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | C3. answer_leak | ai_review_sample | info | proof.md是否答案泄漏——直接从题目描述中抄答案而非推导 |
 | C4. handover_quality | ai_review_sample | info | HANDOVER.md是否准确总结了上一轮的思考——有没有遗漏关键结论、有没有编造内容 |
 | C5. continuation_direction | ai_review_sample | info | 续传方向是否正确——AI是在上一轮的基础上继续，还是从头开始重复 |
+| C6. export_semantics | （同上抽样） | info | thinking是否真的在解这道题——不是跑题/循环废话/无实质推理（2026-08-20 020审计新增，由Master Agent在SOP_04执行；monitor抽样的check_items元数据未含，判断时同样覆盖） |
 
 ---
 
@@ -176,7 +177,7 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 #### 抽样频率
 - 每3轮（约6-15分钟）抽样2条`final_status='COMPLETED'`的run
 
-#### AI需要检查的5项（C1-C5）
+#### AI需要检查的6项（C1-C6，C6为2026-08-20 020审计新增）
 对每条抽样结果，Master AI需要：
 
 1. **C1. proof_quality**——读proof.md，检查数学正确性
@@ -205,13 +206,18 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
    - AI是在上一轮的基础上继续，还是从头开始重复
    - 通过标准：在上一轮基础上继续
 
+6. **C6. export_semantics**——读export的thinking部分（conversation.json）
+   - thinking是否真的在解这道题——不是跑题/循环废话/无实质推理/中途崩溃
+   - 通过标准：内容与题目相关且有实质推理
+   - （020审计新增项，由Master Agent在SOP_04对同一批抽样执行）
+
 ---
 
 ## 4. alert结构
 
 ```json
 {
-  "_key": "p27-alert-{timestamp}-{type}",
+  "_key": "p27-alert-{timestamp}-{type}-{随机后缀}",
   "alert_type": "session_health | queue_stalled | rate_limit | ...",
   "severity": "critical | warning | info",
   "details": {
@@ -220,11 +226,14 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
     "run_key": "相关run的key（如适用）",
     ...其他上下文字段
   },
-  "status": "new | reviewing | fixed | wontfix",
+  "status": "new | resolved",
   "created_at": "ISO timestamp",
   "resolved_at": null
 }
 ```
+
+> `_key` 的随机后缀为 016 勘误补丁（MON-A!02）：同一毫秒多条同类型 alert 不再撞 unique 约束。
+> `status` 枚举与代码一致（`new`/`resolved`，`resolve-alert` 命令写 `resolved`）。
 
 **alert集合**：`p27_monitor_alerts`（独立于现有Pipe的`monitor_alerts`集合）
 

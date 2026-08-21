@@ -30,7 +30,7 @@ if any(pattern in pane_output for pattern in RATE_LIMIT_PATTERNS):
 
 ### 新Pipe如何实现
 
-1. 从`config.py`导入`RATE_LIMIT_PATTERNS`（或自己定义）
+1. 从`continuation_config.py`导入`RATE_LIMIT_PATTERNS`（或自己定义）
 2. 主循环中检测pane输出
 3. 匹配到后设置`rate_limit_paused_until`
 4. 暂停期间跳过"启动新的"部分
@@ -46,27 +46,25 @@ devin cli可能因为API错误、网络问题等原因卡住——不退出也�
 ```python
 # 每轮poll时对每个running session
 pane_output = tmux capture-pane -t {session_name} -p -S -100
-pane_hash = hash(pane_output)
+pane_hash = hash(pane_output[-500:])
 
-if session_name in last_pane_hash:
-    if pane_hash == last_pane_hash[session_name]:
-        # pane内容无变化
-        idle_seconds = time.time() - last_change_time[session_name]
-        if idle_seconds > stall_seconds:  # 默认300秒
-            # 判定为stall
-            tmux kill-session -t {session_name}
-            mark_run_as_failed(run_key, "failed_stall")
-    else:
-        # pane内容有变化——更新hash和时间
-        last_pane_hash[session_name] = pane_hash
-        last_change_time[session_name] = time.time()
+if pane_hash != info["last_pane_hash"]:
+    info["last_pane_hash"] = pane_hash
+    info["last_activity"] = time.time()
+idle_seconds = time.time() - info["last_activity"]
+
+if idle_seconds > stall_seconds:
+    # 判定为stall——★不kill★：标记session为stuck，等DONE.md或用户授意
+    # （铁律：绝不kill无DONE.md的session——devin cli可能还在写export）
+    mark_stuck(db, session_key, f"stall(idle {idle_sec}s)")
+    mark_run_as_failed(run_key, "failed_stall")  # retry_eligible=False
 ```
 
 ### 关键参数
 
-- `stall_seconds`：默认300秒（5分钟无变化判定为stall）
-- 检测方式：pane内容的hash变化
-- 处理方式：kill-session + 标记为failed_stall
+- `stall_seconds`：默认600秒（DEFAULT_STALL_SECONDS，10分钟无变化判定为stall）
+- 检测方式：pane内容（末500字符）的hash变化
+- 处理方式：**不kill**——标记stuck（等DONE.md），run标记failed_stall
 
 ### 注意事项
 

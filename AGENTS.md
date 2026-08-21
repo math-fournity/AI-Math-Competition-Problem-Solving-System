@@ -77,11 +77,11 @@ launcher 下次 poll 自动生效（通常 15 秒内）。只影响后续新启�
    source .env
    python -m monitoring.continuation_control start --batch-id p27-full --concurrency 1
    ```
-   确认 launcher/monitor/watchdog 三个 tmux session 都在运行。
+   确认 launcher/monitor 两个 tmux session 都在运行（`start` 只启动这两个；watchdog 可选，不由此命令启动——需 launchd plist 或手动 `tmux new-session -d -s p27-watchdog "bash scripts/continuation_watchdog.sh --batch-id p27-full"`）。
    **注意**：`--concurrency 1` 只是初始值。如果 DB 的 batch 记录里已有 concurrency 字段，launcher 会用 DB 的值覆盖命令行参数。运行中改并发用 `set-concurrency`（见上方"并发控制"），不要重启 launcher。
 
    > **这两条命令都是短命令，可以直接在 shell 里裸跑**：
-   > - `continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor/watchdog 三个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。
+   > - `continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor 两个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。
    > - `python -m scripts.sop.run` 每次只跑**一个 SOP 步骤**就退出（`scripts/sop/run.py:48-113`，读 `_state.json` 决定步骤→执行检查→推进状态→退出）。所谓"7x24 持续循环"是 Master Agent 用 `todo_write` 自驱动一次次执行 `sop.run`，循环的承载者是 AI 本身，不是某个后台脚本。
 
 2. **启动 SOP 监控循环**：
@@ -199,13 +199,13 @@ python -m scripts.sop.run
 
 | 步骤 | 名称 | 检查什么 |
 |---|---|---|
-| 01 | 系统存活+进度+Session | 进程状态/进度统计/session注册表一致性/stuck/done/门闸Y通道/行为流水 |
-| 02 | 数据完整性 | 产出文件存在性/rounds_log 7字段/DB-文件一致性/Redis-DB一致性 |
+| 01 | 系统存活+进度+Session | 进程状态/进度统计/session注册表一致性/stuck/done/门闸Y通道/行为流水/系统全景视图 |
+| 02 | 数据完整性 | 每轮输入/输出文件存在性/rounds_log 6路径字段/DB-文件一致性/Redis-DB一致性/题源完成率 |
 | 03 | alert分类 | 读未处理alert，分类为代码bug/数据/基础设施/需重跑/需清理 |
 | 04 | C类AI判断 | 读proof.md/HANDOVER.md做C1-C6判断（数学正确性/幻觉/泄漏/质量/方向/语义） |
-| 05 | 代码修复 | 修分类为代码bug的问题+py_compile+git commit+文档同步 |
+| 05 | 代码修复 | 修分类为代码bug的问题+py_compile+git commit+文档同步+sim发布门禁（改调度/判定逻辑时） |
 | 06 | 报告+WORKLOG+Self-check | 写报告+续写WORKLOG+执行SELF-S1~S22+resolve alert |
-| Z | 元检查+整体检查 | 每个SOP步骤合理性+整体系统是否需要调整 |
+| Z | 元检查+整体检查 | 每个SOP步骤合理性+整体调整+方向性判断+审计（AUDIT-01~07，每5轮） |
 | OP | 运营知识刷新 | 硬约束/外部索引/快速开始/SOP机制/环境验证——每轮循环末尾注入，突破AGENTS.md 16K限制 |
 
 **自我进化机制**：Z 步骤检查整个 SOP 系统本身是否需要调整——SOP 系统不仅能修目标系统，还能修自己。

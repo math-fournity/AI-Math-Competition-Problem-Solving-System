@@ -89,8 +89,9 @@ p27_continuation_events（事件流）/ p27_continuation_results（最终结果�
 p27_sessions（session注册表）/ p27_step_gates（门闸状态）/ p27_monitor_alerts（alert）/
 p27_continuation_batches（批次记录，存concurrency等批次级配置）
 
-rounds_log 每条7字段：export/truncated/completed/reason/method + handover_path/map_path/
-prompt_path/prev_export/proof_path。round-1 只有 export（5基础字段）。
+rounds_log 每条=5基础字段（round/export/truncated/completed/reason）+R2起补
+method/handover_success + 6个路径字段（export/prompt_path/proof_path/handover_path/
+map_path/prev_export）。round-1 只有5基础字段。
 
 **p27_sessions 文档字段**（session_registry.py:148-178，SOP_02 2c 检查依据）：
 `_key`(p27-s{seq}) / `seq`(全局序号，unique) / `session_name`(tmux名，unique) /
@@ -184,12 +185,13 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 > （L1现状/L2流畅性/L3流程合规/L4趋势），是"从过程视角推理系统运行"的数据源——
 > SOP_01每轮自动输出，在认知闭包背景下阅读做分析推理（不是逐项打勾）。
 
-**alert_type 完整清单**（SOP_03 分类依据——代码中实际产生的 alert_type 字符串，共30种）：
+**alert_type 完整清单**（SOP_03 分类依据——代码中实际产生的 alert_type 字符串，共34种）：
 
 > ⚠️ 命名映射：A9 检查项名 `stall_detection`，但代码 alert_type=`long_running`；
-> B5 检查项名 `truncation_pattern`，但代码 alert_type=`all_rounds_truncated`；
-> B7 检查项名 `rounds_log_integrity`，但代码产生 6 个细分 alert_type（见下表）。
+> B6 检查项名 `truncation_pattern`，但代码 alert_type=`all_rounds_truncated`；
+> B8 检查项名 `rounds_log_integrity`，但代码产生 6 个细分 alert_type（见下表）。
 > SOP_03 分类时以**alert_type 字符串**为准，不是检查项名。
+> B类编号以 `p27_monitor_spec.md` §2.2 为准（=checklist MON-B1~B9）。
 
 | alert_type 字符串 | 对应检查项 | severity | 分类 | 处理方式 |
 |---|---|---|---|---|
@@ -210,19 +212,19 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 | `real_concurrency_exceeded` | A13 | critical | 代码bug或基础设施 | 实际并发>设定 |
 | `launch_churn` | A14 | critical | 代码bug | **立即按016报告§5**：kill launcher→清空Redis队列→查根因（016新增） |
 | `proof_missing` | B1 | critical | 数据问题 | 判断是模型能力还是代码bug |
-| `proof_too_small` | B2 | warning | 数据问题 | 记录 |
+| `proof_too_small` | B3 | warning | 数据问题 | 记录 |
 | `proof_no_boxed` | B2 | warning | 数据问题 | proof存在但无boxed答案 |
-| `handover_missing` | B3 | critical | 数据问题 | 判断handover devin是否失败 |
-| `handover_too_small` | B4 | warning | 数据问题 | 记录 |
-| `all_rounds_truncated` | B5（truncation_pattern） | warning | 需判断 | 5轮全截断→可能token不够 |
-| `status_anomaly` | B6 | info | 需判断 | 分析具体异常 |
-| `rounds_log_duplicate_round` | B7 | critical | 代码bug | 重复轮号=旧数据或bug复发 |
-| `rounds_log_missing_field` | B7 | warning | 代码bug | 查make_round_log_entry |
-| `rounds_log_export_missing` | B7 | critical | 代码bug | rounds_log中export字段指向文件不存在 |
-| `rounds_log_handover_missing` | B7 | critical | 代码bug | rounds_log中handover_path指向文件不存在 |
-| `rounds_log_proof_missing` | B7 | critical | 代码bug | rounds_log中proof_path指向文件不存在 |
-| `rounds_log_no_proof_path` | B7 | warning | 代码bug | rounds_log中proof_path字段为空 |
-| `intermediate_product_collision` | B8 | critical | 代码bug | 中间产物路径重复，查路径生成逻辑 |
+| `handover_missing` | B4 | critical | 数据问题 | 判断handover devin是否失败 |
+| `handover_too_small` | B5 | warning | 数据问题 | 记录 |
+| `all_rounds_truncated` | B6（truncation_pattern） | warning | 需判断 | 5轮全截断→可能token不够 |
+| `status_anomaly` | B7（final_status_distribution） | info | 需判断 | 分析具体异常 |
+| `rounds_log_duplicate_round` | B8 | critical | 代码bug | 重复轮号=旧数据或bug复发 |
+| `rounds_log_missing_field` | B8 | warning | 代码bug | 查make_round_log_entry |
+| `rounds_log_export_missing` | B8 | critical | 代码bug | rounds_log中export字段指向文件不存在 |
+| `rounds_log_handover_missing` | B8 | critical | 代码bug | rounds_log中handover_path指向文件不存在 |
+| `rounds_log_proof_missing` | B8 | critical | 代码bug | rounds_log中proof_path指向文件不存在 |
+| `rounds_log_no_proof_path` | B8 | warning | 代码bug | rounds_log中proof_path字段为空 |
+| `intermediate_product_collision` | B9 | critical | 代码bug | 中间产物路径重复，查路径生成逻辑 |
 | `work_dir_collision` | B9 | critical | 代码bug | work_dir路径重复 |
 | `redis_connection` | 基础设施 | critical | 基础设施 | Redis不可达，等恢复 |
 | `flow_ledger_unavailable` | 基础设施 | warning | 基础设施 | 行为流水DB不可达 |

@@ -831,7 +831,7 @@ def requeue_truncated(r, run_key, pid, round_num):
     【检查项】（每项含查法+正常值）
     1. 截断判据完整 → 查法：observability --run-key看judge事件的comp≥24000+rc>1000+msg=0
     2. rounds_log+export正确 → 查法：DB run的rounds_log最后一条round==round_num且export路径存在
-    3. 未到max → 查法：round_num < DB batch的max_rounds(默认3)
+    3. 未到max → 查法：round_num < DB batch的max_rounds(默认5)
     4. score未被feeder重置 → 查法：ZRANGE p27:pending查该key的score==round_num(非0)
 
     【论证依据——放行/不放行判定】

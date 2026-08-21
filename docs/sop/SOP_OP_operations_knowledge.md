@@ -61,7 +61,7 @@
 | 017-全流程模拟系统设计方案 | `dev-docs/` | 全流程模拟（src/sim/，7剧本，首日捕获5bug） |
 | 018-teardown误删生产目录事故报告 | `dev-docs/` | 018事故（成果双写教训） |
 | 019-删除Pipe123后系统全面检查分析报告 | `dev-docs/` | 删除Pipe1/2/3后的残留引用检查报告 |
-| README.md | `checklist/` | 需求点清单索引（14门类147checkpoint） |
+| README.md | `checklist/` | 需求点清单索引（14门类163checkpoint+5已知问题） |
 
 详细定位见`README.md`引导地图。
 

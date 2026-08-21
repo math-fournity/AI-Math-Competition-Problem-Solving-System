@@ -1,19 +1,10 @@
-"""continuation_config.py — POC-2.7续传Pipe配置常量
+"""continuation_config.py — 续传解题管线（原POC-2.7 Pipe 4）配置常量
 
-POC-2.7的续传Pipe（Pipe 4），接入错题分析系统框架。
-对948道被Pipe 1判定为DIRECTION_ERROR的题启动续传机制。
-
-与现有3个Pipe的关系：
-  Pipe 1 分析（analysis_launcher）   → 判定d1=DIRECTION_ERROR
-  Pipe 2 审计（audit_launcher）       → 审计分析结果
-  Pipe 3 选题（selection_launcher）   → 选题给POC-2.5
-  Pipe 4 续传（continuation_launcher）→ 对DIRECTION_ERROR题续传，判定截断vs思维错误  ← 本文件
-
-设计原则：
-  - 不修改现有3个Pipe的任何代码
-  - 复用analysis_launcher的stall/rate_limit/zombie检测模式
-  - 用独立的Redis队列前缀p27:避免冲突
-  - 用独立的DB集合p27_continuation_*避免冲突
+续传解题管线的全局配置：DB集合名/Redis key/模型/路径/阈值。
+当前系统只有这一条管线——Pipe 1/2/3（分析/审计/选题）已于2026-08-20删除
+（历史：本Pipe曾以"不修改Pipe 1/2/3任何代码"为设计原则接入4 Pipe体系，
+复用analysis_launcher的stall/rate_limit/zombie检测模式，用独立p27:前缀
+和p27_continuation_*集合避免冲突——这套隔离设计保留至今）。
 """
 
 from pathlib import Path

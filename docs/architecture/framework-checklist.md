@@ -18,7 +18,7 @@
 | 2 | Redis前缀隔离 | 用自己的前缀，不与其他Pipe冲突 | `continuation_redis_queue.py` (`p27:`) |
 | 3 | ArangoDB集合隔离 | 用自己的集合名，不与其他Pipe冲突 | `continuation_db_schema.py` (`p27_*`) |
 | 4 | tmux session命名隔离 | 用自己的前缀，不与其他Pipe冲突 | `continuation_config.py` (`TMUX_PREFIX`) |
-| 5 | 动态并发 | 运行期可调整并发数，不需要重启 | `continuation_launcher.py` 第488-497行 |
+| 5 | 动态并发 | 运行期可调整并发数，不需要重启 | `continuation_launcher.py` 第1041-1052行 |
 | 6 | 优雅停止 | 停launcher不kill devin实例，等running自然完成 | `graceful_shutdown.py` + `stop_batch()` |
 | 7 | stall检测 | pane_hash变化+idle时间，检测卡住的session | `continuation_launcher.py` `launch_batch()` |
 | 8 | rate_limit处理 | 检测到rate_limit模式后自动暂停20分钟 | `continuation_launcher.py` `launch_batch()` |
@@ -111,7 +111,7 @@ if new_conc != concurrency:
 ```
 修改并发：`db.collection("{name}_batches").update({"_key": batch_id, "concurrency": 20})`
 
-**参考**：`continuation_launcher.py` 第488-497行
+**参考**：`continuation_launcher.py` 第1041-1052行
 
 **详见**：`docs/dynamic-concurrency.md`
 

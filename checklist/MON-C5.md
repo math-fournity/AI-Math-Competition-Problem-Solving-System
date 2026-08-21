@@ -4,7 +4,7 @@
 > **状态**: [ ]
 > **负责的WP**: WP-05, WP-07
 > **来源**: p27_monitor_spec.md §2.3
-> **所属章节**: §MON-C · Monitor Pipe C 类 AI 判断（5 项）
+> **所属章节**: §MON-C · Monitor Pipe C 类 AI 判断（6 项）
 
 ## 需求描述
 

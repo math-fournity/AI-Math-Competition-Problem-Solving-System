@@ -465,9 +465,9 @@ def cmd_health(args):
         aql = (
             f"FOR a IN {MONITOR_ALERTS_COLLECTION} "
             f"FILTER a.batch_id == @bid "
-            f"FILTER a.resolved == false "
+            f"FILTER a.status != 'resolved' "
             f"COLLECT severity = a.severity WITH COUNT INTO c "
-            f"RETURN {{severity, count: c}}"
+            f"RETURN {{severity: severity, count: c}}"
         )
         cursor = db.aql.execute(aql, bind_vars={"bid": args.batch_id}, ttl=60)
         has_alerts = False
@@ -712,7 +712,7 @@ def main():
     p_setc = sub.add_parser("set-concurrency", help="动态修改并发数")
     p_setc.add_argument("--batch-id", required=True, help="批次ID")
     p_setc.add_argument("--concurrency", type=int, required=True, help="新并发数")
-    p_setc.add_argument("--poll-seconds", type=int, default=30, help="launcher的poll间隔（用于提示生效时间）")
+    p_setc.add_argument("--poll-seconds", type=int, default=15, help="launcher的poll间隔（用于提示生效时间；launcher默认DEFAULT_POLL_SECONDS=15）")
     p_setc.set_defaults(func=cmd_set_concurrency)
 
     # sessions（编号化管理）

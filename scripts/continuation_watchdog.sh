@@ -85,7 +85,7 @@ print(r.hlen('p27:running'))
             DIFF=$((P27_SESSIONS - REDIS_RUNNING))
             if [ $DIFF -gt 2 ] || [ $DIFF -lt -2 ]; then
                 log "WARNING: p27- session数($P27_SESSIONS)与Redis running($REDIS_RUNNING)不一致 (diff=$DIFF)"
-                log "  可能需要运行: $PY $ANALYSIS_DIR/monitoring/recover_from_crash.py --batch-id $BATCH_ID"
+                log "  可运行一致性检查: $PY $ANALYSIS_DIR/monitoring/continuation_control.py sessions --consistency-check"
             fi
         fi
 

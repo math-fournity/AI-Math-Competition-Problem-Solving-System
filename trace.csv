@@ -4147,3 +4147,7 @@ view-file,src/README.md,document,docs/patterns/StepGate.md,indexes,src/README.md
 view-file,src/README.md,document,docs/patterns/MonitorPipe.md,indexes,src/README.md索引docs/patterns/MonitorPipe.md,
 view-file,src/README.md,document,docs/sop/SOP_01_system_health.md,indexes,src/README.md索引docs/sop/SOP_01_system_health.md,
 view-file,src/README.md,dev-doc,dev-docs/017-全流程模拟系统设计方案.md,indexes,src/README.md索引dev-docs/017-全流程模拟系统设计方案.md,
+checkpoint,MON-C6,code,monitoring/continuation_control.py,implements,MON-C6由monitoring/continuation_control.py实现,
+checkpoint,MON-C6,document,docs/specs/p27_monitor_spec.md,specified-by,MON-C6由docs/specs/p27_monitor_spec.md规范定义,
+checkpoint,MON-C6,wp,WP-05,part-of,MON-C6属于WP-05,
+checkpoint,MON-C6,wp,WP-07,part-of,MON-C6属于WP-07,

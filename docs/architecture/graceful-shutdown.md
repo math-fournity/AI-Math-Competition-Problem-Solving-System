@@ -63,8 +63,8 @@ def launch_batch(...):
                 print(f"不再启动新run，等待{len(running)}个running自然完成...")
                 time.sleep(poll_seconds)
 
-        # 启动新的——优雅退出模式下跳过
-        while not should_stop() and len(running) < concurrency and pending_count(r) > 0:
+        # 启动新的——优雅退出模式下跳过（handover_pending与running共享并发槽）
+        while not should_stop() and len(running) + len(handover_pending) < concurrency and pending_count(r) > 0:
             # dequeue + 启动devin cli
             ...
 

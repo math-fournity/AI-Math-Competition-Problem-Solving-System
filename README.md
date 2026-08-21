@@ -107,17 +107,18 @@
 
 ## 三、架构设计——docs/architecture/
 
-### `docs/architecture/` — 架构设计文档（9个）
+### `docs/architecture/` — 架构设计文档（10个）
 
 架构设计文档集。每个文档覆盖一个设计方面：
 
-- **`framework-checklist.md`** — 新Pipe必读的12项必查清单。**覆盖场景**：创建新Pipe前。**依赖**：配合 `docs/patterns/MonitorPipe.md` §6 使用。
-- **`architecture.md`** — 4个Pipe的演进与组件职责。**覆盖场景**：理解系统整体架构时。**依赖**：设计总索引见根目录 `docs/system/AnalysisSystemDesign.md`。
+- **`solve-pipeline.md`** — 解题管线核心概念（并发=管线条数=devin cli实例数；终态判定）。**覆盖场景**：讨论系统并发/devin cli实例数时（必读）。**依赖**：AGENTS.md"核心概念"段引用它。
+- **`framework-checklist.md`** — 新Pipe必读的12项必查清单（⚠️ 已标过时：Pipe 1/2/3 已删，不计划新增 Pipe）。**覆盖场景**：创建新Pipe前。**依赖**：配合 `docs/patterns/MonitorPipe.md` §6 使用。
+- **`architecture.md`** — 4个Pipe的演进与组件职责（⚠️ 已标过时：描述删除前的 4 Pipe 架构）。**覆盖场景**：理解系统演进历史时。
 - **`graceful-shutdown.md`** — 优雅停止设计（信号处理、不kill devin实例）。**覆盖场景**：实现停止功能时。
 - **`dynamic-concurrency.md`** — 动态并发设计（运行期调整并发数）。**覆盖场景**：实现并发调整时。
-- **`monitor-pipe-pattern.md`** — Monitor Pipe设计范式（本地版）。**覆盖场景**：实现Monitor Pipe时。**依赖**：完整范式见根目录 `docs/patterns/MonitorPipe.md`。
+- **`monitor-pipe-pattern.md`** — Monitor Pipe设计范式（本地版，⚠️ 已标过时）。**覆盖场景**：理解演进历史时。**依赖**：现行范式见根目录 `docs/patterns/MonitorPipe.md`。
 - **`operational-concerns.md`** — 运维关注点（rate limit/stall/zombie/多轮续传/断点续传）。**覆盖场景**：实现launcher核心逻辑时。**依赖**：运行操作SOP见根目录 `docs/system/AnalysisSystemOps.md`。
-- **`selfrun-workflow.md`** — selfrun工作流。**覆盖场景**：使用selfrun模式时。**依赖**：selfrun任务模板见 `docs/templates/selfrun_subagent_task.md`。
+- **`selfrun-workflow.md`** — selfrun工作流（⚠️ 已废弃：selfrun代码已删）。**覆盖场景**：历史参考。
 - **`solver-trajectory-schema.md`** — trajectory数据schema。**覆盖场景**：处理trajectory数据时。
 - **`solver-harness-borrowing.md`** — 解题系统借鉴分析（7个值得借鉴的设计）。**覆盖场景**：从解题系统借鉴设计到错题分析系统时、理解多模块解耦/独立服务设计时。
 
@@ -125,18 +126,18 @@
 
 POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行依据：
 
-- **`p27_monitor_spec.md`** — Pipe 4续传的检查规范（A类9项自动检查/B类9项续传质量/C类5项AI判断）。**覆盖场景**：实现Monitor Pipe检查逻辑时、查阅检查标准时。**依赖**：设计范式见根目录 `docs/patterns/MonitorPipe.md`。
-- **`p27_session_management_and_polish_spec.md`** — Session编号化管理与打磨devin架构规范。**覆盖场景**：实现session编号化管理时、实现Monitor Exec Devin自动修复架构时。**依赖**：前置依赖 `docs/specs/p27_monitor_spec.md`。
-- **`p27_monitor_pipe_operations.md`** — Monitor Pipe操作规范（Monitor Exec Devin的认知资产入口）。**覆盖场景**：Monitor Exec Devin启动时加载、查找所有认知资产入口时。**依赖**：检查规范详情见 `docs/specs/p27_monitor_spec.md`、session管理见 `docs/specs/p27_session_management_and_polish_spec.md`。
+- **`p27_monitor_spec.md`** — Pipe 4续传的检查规范（A类14项自动检查/B类9项续传质量/C类6项AI判断，alert_type 全集34种的权威来源）。**覆盖场景**：实现Monitor Pipe检查逻辑时、查阅检查标准时。**依赖**：设计范式见根目录 `docs/patterns/MonitorPipe.md`。
+- **`p27_session_management_and_polish_spec.md`** — Session编号化管理与打磨devin架构规范（§A Session管理有效 / §B Exec Devin已废弃）。**覆盖场景**：实现session编号化管理时。**依赖**：前置依赖 `docs/specs/p27_monitor_spec.md`。
+- **`p27_monitor_pipe_operations.md`**（⚠️ 已废弃 2026-08-19）— 原Monitor Exec Devin的认知资产入口，该角色已由 Master Agent SOP 循环取代（现行入口是 `docs/sop/`）。保留作历史参考。
 
-### `docs/templates/` — 模板（4个）
+### `docs/templates/` — 模板（4个，⚠️ 均为已删除Pipe/已废弃方案的历史模板）
 
-各Pipe的AGENTS.md模板和selfrun任务模板：
+分析/审计/选题三个 Pipe 及 selfrun 方案均已删除/废弃（2026-08-20），以下模板保留作历史参考，当前系统不再使用：
 
-- **`analysis_agents_md.md`** — 分析Pipe的AGENTS.md模板（devin cli分析失败题的prompt）。**覆盖场景**：构造分析任务AGENTS.md时。
-- **`audit_agents_md.md`** — 审计Pipe的AGENTS.md模板。**覆盖场景**：构造审计任务AGENTS.md时。
-- **`selection_agents_md.md`** — 选题Pipe的AGENTS.md模板。**覆盖场景**：构造选题任务AGENTS.md时。
-- **`selfrun_subagent_task.md`** — selfrun模式subagent任务执行规范（v3）。**覆盖场景**：使用selfrun模式替代devin cli载体时。**依赖**：selfrun工作流见 `docs/architecture/selfrun-workflow.md`。
+- **`analysis_agents_md.md`** — 分析Pipe的AGENTS.md模板（历史）。**覆盖场景**：历史参考。
+- **`audit_agents_md.md`** — 审计Pipe的AGENTS.md模板（历史）。**覆盖场景**：历史参考。
+- **`selection_agents_md.md`** — 选题Pipe的AGENTS.md模板（历史）。**覆盖场景**：历史参考。
+- **`selfrun_subagent_task.md`** — selfrun模式subagent任务执行规范（v3，⚠️ 已废弃）。**覆盖场景**：历史参考。**依赖**：selfrun工作流见 `docs/architecture/selfrun-workflow.md`（已废弃）。
 
 ---
 
@@ -144,7 +145,7 @@ POC-2.7续传Pipe的检查规范集，Monitor Pipe和Monitor Exec Devin的执行
 
 ### `checklist/README.md` — 需求点清单索引
 
-错题分析系统全部功能需求点的索引。14个门类134个需求点，每个需求点（checkpoint）一个独立文件，文件名即编号。README.md 只保留门类索引表+编号规则+状态标记说明，不重复每个 checkpoint 的内容。用 checklist 推进和管理整个项目研发，每个 checkpoint 记录它涉及的文档和代码。
+错题分析系统全部功能需求点的索引。14个门类163个需求点（另含5个MON-A-issue已知问题文件，checkpoint文件共168个），每个需求点（checkpoint）一个独立文件，文件名即编号。README.md 只保留门类索引表+编号规则+状态标记说明，不重复每个 checkpoint 的内容。用 checklist 推进和管理整个项目研发，每个 checkpoint 记录它涉及的文档和代码。
 
 **覆盖问题场景**：
 - 开发前确认功能无遗漏时——查门类索引表
@@ -186,7 +187,7 @@ Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-0
 | 文档 | 脚本检查函数 | 职责 |
 |---|---|---|
 | `SYSTEM_CLOSURE.md` | （每步前置注入，L0 认知闭包） | 系统级认知闭包（架构/生命周期/判定框架） |
-| `SOP_01_system_health.md` | `check_01_system_health` | 系统存活+进度+Session+门闸Y+行为流水 |
+| `SOP_01_system_health.md` | `check_01_system_health` | 系统存活+进度+Session+门闸Y+行为流水+全景视图 |
 | `SOP_02_data_integrity.md` | `check_02_data_integrity` | 数据完整性（全量文件+DB集合级+题源完成率） |
 | `SOP_03_alert_triage.md` | `check_03_alert_triage` | alert 分类处理 |
 | `SOP_04_ai_judgment.md` | `check_04_ai_judgment` | C 类 AI 判断（C1-C6） |
@@ -214,7 +215,7 @@ Master Agent 接管 Monitor Pipe 检查工作后的检查清单索引。**2026-0
 
 **覆盖问题场景**：用户说"开始工作"时启动循环（`python -m scripts.sop.run`）；流程状态查询/跳步修正时用 `_set_next.py`；完整性验证时用 `dry_run.py`；日志检索时用 `log_search.py`。
 
-### `checklist/<编号>.md` — 单个checkpoint详情（153个）
+### `checklist/<编号>.md` — 单个checkpoint详情（168个）
 
 每个需求点一个独立文件，文件名即编号（如 `ENV-01.md`、`MON-A1.md`、`SELF-S1.md`）。扁平化存放，不设门类子目录——编号前缀已自带门类分类。每个文件包含：需求描述、验证方法、涉及的文档和代码、状态、负责的WP、来源、变更记录。
 

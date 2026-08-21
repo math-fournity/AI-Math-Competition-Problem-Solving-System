@@ -16,7 +16,7 @@
 | `DONE.md` | `{export_dir}/` | 退出标记（含 exit code） | devin cli 退出时 |
 | `tmux.log` | `{trajectory_dir}/tmux/` | tmux 日志 | tmux capture |
 
-### rounds_log 的 7 个路径字段
+### rounds_log 的字段结构
 
 每个 run 的 DB 记录中有 `rounds_log` 数组，每条记录对应一轮：
 
@@ -24,7 +24,8 @@
 修复）：launcher 取件时对 seed export 重判截断/完成，结果补录为 round-1
 条目。它没有自己的 prompt/handover/proof（那是 R2 起才有的），唯一产物是
 `round1_export.json`（seed 镜像），所以只有 5 个基础字段。checks.py 对
-round-1 只必查 export。R2 起的条目才是完整 7 字段：
+round-1 只必查 export。R2 起的条目才是完整结构（5基础字段 + method/
+handover_success + 6 个路径字段）：
 
 ```python
 {
@@ -42,7 +43,7 @@ round-1 只必查 export。R2 起的条目才是完整 7 字段：
 }
 ```
 
-**7个路径字段**：export / handover_path / map_path / prompt_path / prev_export / proof_path + work_dir（在run记录顶层）
+**6个路径字段**：export / handover_path / map_path / prompt_path / prev_export / proof_path（work_dir 在 run 记录顶层，不在 rounds_log 条目内）
 
 > DB 集合全景见上方 SYSTEM_CLOSURE（L0）§5。本步骤检查 rounds_log 的字段完整性（下方）。
 

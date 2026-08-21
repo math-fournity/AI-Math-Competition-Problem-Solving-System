@@ -863,6 +863,8 @@ def flag_for_ai_review(db, batch_id, sample_size=SAMPLE_SIZE):
     - C3. answer_leak: 是否答案泄漏
     - C4. handover_quality: HANDOVER.md是否准确
     - C5. continuation_direction: 续传方向是否正确
+    - C6. export_semantics: thinking是否真的在解这道题（020审计新增，
+      由Master Agent在SOP_04执行——本函数抽样同一批结果）
     """
     aql = (
         f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
@@ -907,6 +909,7 @@ def flag_for_ai_review(db, batch_id, sample_size=SAMPLE_SIZE):
             "check_items": [
                 "C1.proof_quality", "C2.proof_hallucination", "C3.answer_leak",
                 "C4.handover_quality", "C5.continuation_direction",
+                "C6.export_semantics",
             ],
         })
 

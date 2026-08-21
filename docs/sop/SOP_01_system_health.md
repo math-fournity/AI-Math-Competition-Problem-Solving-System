@@ -13,9 +13,9 @@
 
 - `p27-launcher` — 续传启动器，并发启动 devin cli 解题实例
 - `monitor-p27` — 监控 Pipe，每 120 秒检查一次系统状态写 alert
-- `p27-watchdog` — 看门狗，每 30 秒检查 launcher/monitor 是否活着，死了就重启
+- `p27-watchdog` — 看门狗，每 30 秒检查 launcher/monitor 是否活着，死了就重启（**可选服务**：`continuation_control start` 不启动它，由 launchd plist 或手动 `tmux new-session -d -s p27-watchdog "bash scripts/continuation_watchdog.sh --batch-id p27-full"` 启动；不在≠系统故障）
 
-如果这三个进程任何一个不在了，系统就有问题。
+如果 launcher/monitor 任何一个不在了，系统就有问题（watchdog 不在只是少了自动重启保障）。
 
 ### 本步骤检查什么
 
@@ -63,7 +63,7 @@ python -m monitoring.continuation_control start --batch-id p27-full --concurrenc
 python -m src.monitor_continuation --batch-id p27-full --interval 120 &
 ```
 
-> **这两条都是短命令，可以直接在 shell 里裸跑**：`continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor/watchdog 三个长服务各自放进独立 tmux session（`continuation_control.py:158-161`）——你不需要手动套 tmux。`sop.run` 同理，每次只跑一个 SOP 步骤就退出（`scripts/sop/run.py:48-113`），7x24 循环是 Master Agent 用 `todo_write` 自驱动一次次执行 `sop.run`，承载者是 AI 本身。
+> **这两条都是短命令，可以直接在 shell 里裸跑**：`continuation_control start` 执行完就退出，它内部自己用 `tmux new-session -d` 把 launcher/monitor 两个长服务各自放进独立 tmux session（`continuation_control.py:158-161`；watchdog 不由此命令启动，见上方"关键服务进程"）——你不需要手动套 tmux。`sop.run` 同理，每次只跑一个 SOP 步骤就退出（`scripts/sop/run.py:48-113`），7x24 循环是 Master Agent 用 `todo_write` 自驱动一次次执行 `sop.run`，承载者是 AI 本身。
 
 ### 4. Session 注册表深度检查（SESS-01~12 需求点）
 
