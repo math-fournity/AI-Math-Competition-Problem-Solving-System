@@ -138,7 +138,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-C | WP-C-SOP07新STEP.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-C-执行记录.md（9步循环上线；端到端真跑8项全绿+PARSE_ERROR=1待人工） |
 | WP-D | WP-D-SOP01精简.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | d7e2c7e | exec-log/WP-D-执行记录.md（A16/A17移交+completed抽样直接检查落地） |
 | WP-E | WP-E-SOP04升级.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-E-执行记录.md（四步复核法+回退链+--scope audit实测；C7-C8文档补全） |
-| WP-Q | WP-Q-审计alert清单对齐.md | ☐ 未开始 | | | | |
+| WP-Q | WP-Q-审计alert清单对齐.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | dc044ab | exec-log/WP-Q-执行记录.md（6种→2 DB alert+3 SOP提示+删1） |
 | WP-F | WP-F-文档同步.md | ☐ 未开始 | | | | |
 | WP-R | WP-R-审计prompt双份渲染.md | ☐ 未开始 | | | | |
 | **线 2·U 系列（调查）** | | | | | | |
