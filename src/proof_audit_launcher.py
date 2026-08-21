@@ -126,7 +126,12 @@ def tmux_pane_text(session_name, lines=500):
 
 
 def prepare_audit_work_dir(audit_run_key, problem_text, standard_answer, proof_text):
-    """准备审计 work_dir——写 AGENTS.md（渲染模板）+ input 文件"""
+    """准备审计 work_dir——AGENTS.md（工作区引导，devin 自动读）+ proof.txt（被审对象）
+    + audit_prompt.txt（任务启动指令，--prompt-file 用）。
+
+    WP-R 双份渲染修复（031 C5）：AGENTS.md 与 --prompt-file 不再是同一份文件——
+    AGENTS.md 留在 work_dir 作工作区引导；audit_prompt.txt 是简短启动指令
+    （指向 AGENTS.md 而非重复其内容）。返回 (work_dir, prompt_file=audit_prompt.txt)。"""
     work_dir = AUDIT_SOLVER_BASE / audit_run_key
     work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -147,7 +152,15 @@ def prepare_audit_work_dir(audit_run_key, problem_text, standard_answer, proof_t
     # 也写一份 proof.txt 供审计 AI 直接读
     (work_dir / "proof.txt").write_text(proof_text or "")
 
-    return work_dir, agents_md_path
+    # 任务启动指令（WP-R）：简短 prompt 指向 AGENTS.md，替代把 AGENTS.md 本身
+    # 当 --prompt-file 的双份渲染（031 C5）
+    prompt_template_path = PROJECT_ROOT / "templates" / "proof_audit_prompt.txt"
+    prompt_tpl = prompt_template_path.read_text()
+    prompt_text_out = prompt_tpl.replace("{problem_id}", audit_run_key.replace("paudit-", ""))
+    prompt_file = work_dir / "audit_prompt.txt"
+    prompt_file.write_text(prompt_text_out)
+
+    return work_dir, prompt_file
 
 
 @gated

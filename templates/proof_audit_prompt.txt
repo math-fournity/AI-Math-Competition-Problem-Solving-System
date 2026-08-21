@@ -1,0 +1,9 @@
+你的任务：审计一道数学题的 proof.md 是否真实、正确、完整。
+
+工作区指引：完整读当前目录下的 AGENTS.md——里面有题目文本、标准答案、被审计的
+proof 内容、以及 9 项审计维度（A1-E2）和输出格式要求。
+
+输出要求：按 AGENTS.md 规定的 XML 格式（<proof_audit>...</proof_audit>）输出审计
+报告，以 ### PROOF AUDIT COMPLETE 结尾。
+
+problem_id: {problem_id}

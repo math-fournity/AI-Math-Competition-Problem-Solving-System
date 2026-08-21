@@ -140,7 +140,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-E | WP-E-SOP04升级.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-E-执行记录.md（四步复核法+回退链+--scope audit实测；C7-C8文档补全） |
 | WP-Q | WP-Q-审计alert清单对齐.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | dc044ab | exec-log/WP-Q-执行记录.md（6种→2 DB alert+3 SOP提示+删1） |
 | WP-F | WP-F-文档同步.md | ☐ 未开始 | | | | |
-| WP-R | WP-R-审计prompt双份渲染.md | ☐ 未开始 | | | | |
+| WP-R | WP-R-审计prompt双份渲染.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-R-执行记录.md（audit_prompt.txt分离+冒烟全过） |
 | **线 2·U 系列（调查）** | | | | | | |
 | WP-U1 | WP-U1-ACP能力基线复验.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | c310171/b211945 | exec-log/WP-U1-执行记录.md（含跑错模型勘误弧线，042 勘误节为准） |
 | WP-U2 | WP-U2-内容完整性三路对比.md | ✅ 完成（B路推迟） | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-U2-执行记录.md（C路组装100%无损；报告043） |
