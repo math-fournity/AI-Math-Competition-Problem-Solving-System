@@ -35,8 +35,8 @@
 |---|---|---|
 | 1 | **WP-U1 基线报告**（dev-docs/042 "基线事实"节） | 双后端可用性 + 你的冒烟脚本（本实验直接扩展它） |
 | 2 | `src/continuation_launcher.py` 的 `is_truncated()` + `is_completed()`（搜 def is_truncated） | **判定链吃的 JSON 结构**——实验的对照目标：三路的"可组装性"都按这两个函数的字段需求检验（steps/source=agent/reasoning_content/message/tool_calls/metrics.completion_tokens） |
-| 3 | OpenCode skill §9（trajectory 组装）+ Devin skill 对应节 | 两家的组装方法（messageId 索引/chunk 拼接） |
-| 4 | `dev-docs/036` §三.3（检测≠采集的区分，30 行） | 本实验要回答的问题的原始表述与三分支 |
+| 3 | OpenCode skill §9（trajectory 组装与导出，**含 §9.3–9.6 的原生 export 实测与三层来源**）+ Devin skill 对应节 | 两家的组装方法（messageId 索引/chunk 拼接）+ OpenCode 原生 export 命令与格式 |
+| 4 | `dev-docs/036` §三.3（检测≠采集的区分，30 行）+ **`dev-docs/038` §八/§九（export 实测 + 检测信号分层）** | 本实验要回答的问题的原始表述与三分支；任务 6 截断信号探测的设计依据 |
 | 5 | DB 或 problem_list 选题：找一道已有续传记录的题（`data/poc_2.7/problem_list.json` 任取 + 查 DB 该题历史） | 实验题要求：真实数学题、已知 glm-5-2 会产生较长 thinking（优先选历史 rc>5000 的题） |
 
 ## 3. 现场事实基线
@@ -90,6 +90,13 @@ completion_tokens 从 usage_update 取或标注缺失）。
 （如 ≥50%——同模型同题，ACP 推送若只是摘要会差一个数量级）；C 路同理对照其自身
 message 量（Ox Alpha 无 A 路基准——对照 C 路 message 与 thought 的比例合理性）。
 
+**C 路追加（零调用成本）：原生 export 对照**——C 路跑完后立即执行
+`opencode export <sessionID>`（sessionID 从通知流或 `opencode session list` 取），
+对比三个来源：①通知流组装产物 ②原生 export JSON ③两者与 B 路口径的量级一致性。
+验证点：export 是否含 thinking 实文（`reasoning` part）、逐消息 tokens、
+`step-finish.reason` 值；组装器漏了什么 export 有（反之亦然）。038 §八已实测
+"ACP session 可导出"，本对照验证**内容层面**组装器无损失。
+
 ### 任务 4：分叉判定（写进报告，V 系列依据）
 
 ```
@@ -104,9 +111,32 @@ message 量（Ox Alpha 无 A 路基准——对照 C 路 message 与 thought 的
 
 ### 任务 5：报告 `dev-docs/043-ACP内容完整性三路实验报告.md` + commit
 
+### 任务 6：截断信号探测（038 §九分层检测的主信号验证，配额 +2）
+
+**背景**：038 §九裁定检测信号分层——协议原生信号为主、结构启发式兜底。但"协议在
+截断时给什么信号"从未实测。本任务用专门设计的任务触发 output 上限，记录协议响应。
+
+```
+对 Devin ACP 与 OpenCode ACP 各跑 1 次（配额 +2，独立于任务 1-3 的 3 次基线配额）：
+  触发任务设计：要求 AI "穷举/逐条详述"型 prompt（如"从 1 数到 100000 并对每个数
+  写一句注释"或超长枚举证明）——目标是让单轮输出撞后端上限
+  记录：
+    Devin：session/prompt response 的 stopReason 值（预期 max_tokens 类？）
+           + usage_update 的 token 曲线 + 流终止形态
+    OpenCode：step-finish.reason 的值（新值出现？）+ 最后几个通知的形态
+              + 进程是否存活 + 随后 opencode export 能否捞回部分内容
+  判定：
+    显式信号存在（stopReason/reason 出现非 end_turn/stop 的新值且语义=截断）
+      → 第一层主信号成立，V1 detection.py 优先消费它
+    无显式信号（静默断流/仍是 stop）
+      → 该后端截断检测只能靠第二层结构启发式（is_truncated 后端化阈值），
+        报告中写明并给 V4/V5 标注
+```
+
 ## 5. 禁止事项
 
-- ❌ 配额纪律：三路各 1 题 1 次；失败重跑最多 1 次并记录原因
+- ❌ 配额纪律：任务 1-3 三路各 1 题 1 次；失败重跑最多 1 次并记录原因；任务 6 另有
+  +2 配额（每后端 1 次），同样失败最多重跑 1 次
 - ❌ 组装器只进实验脚本不进 src/（生产化是 V1 的事，先证明可行）
 - ❌ 不因单题结果下绝对结论——报告中写明样本局限（1 题），V1 实现时保留回归验证点
 - ❌ C 路（Ox Alpha）不做解题质量判断（那是 U6 的事——本包只看内容完整性）
@@ -116,8 +146,11 @@ message 量（Ox Alpha 无 A 路基准——对照 C 路 message 与 thought 的
 - [ ] 三路原始数据落盘（a_export.json / b_acp.jsonl / c_acp.jsonl）+ 脚本存在
 - [ ] 对比表完整（7 项指标×3 路）
 - [ ] B/A 完整率有数字；两后端各自的分支判定明确
+- [ ] **C 路原生 export 对照完成**（export JSON 落盘 + 与组装产物的差异清单）
 - [ ] is_truncated/is_completed 对组装产物的试跑结果记录（可运行/报错字段清单）
-- [ ] 043 报告含"给 V1/V4/V5 的输入"小节
+- [ ] **任务 6 截断信号探测记录**（两后端各自的 stopReason/reason 实测值 + 分层检测
+      判定：主信号成立/不成立）
+- [ ] 043 报告含"给 V1/V4/V5 的输入"小节（**含分层检测的信号源结论**）
 - [ ] 生产代码零改动；commit 只含脚本+报告
 
 ## 7. 完成汇报要求

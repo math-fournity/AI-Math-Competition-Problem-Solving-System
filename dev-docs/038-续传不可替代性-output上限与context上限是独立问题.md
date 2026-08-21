@@ -192,5 +192,98 @@ checklist/：
 3. **`is_truncated()` 阈值必须后端化**——不同后端的 output 上限不同，
    阈值不能继续作为全局常量写死。这是 037"执行后端抽象"立场的具体落地点。
 
-4. **不修改工作包文档**——本文独立存在，供执行 AI 在做 WP-U2/U4/V3 时
-   参考。执行 AI 读到本文后应自行判断是否纳入其工作范围。
+4. ~~不修改工作包文档~~（初版立场；**2026-08-21 用户授权后已改变**——本文 §八/§九
+   的发现经用户确认需要落地，相关工作包文档已同步更新，见 §十清单）
+
+---
+
+## 八、2026-08-21 补充实测：OpenCode 原生 export 机制（用户提问触发的调查）
+
+> 本节及以后由工作包执行 AI（ox-alpha）在执行线 1 期间应用户要求调查补充。
+> 初版 §三.三 的"阈值后端化"立场在本节深化为"检测信号分层设计"（§九）。
+
+### 8.1 实测结论（本机 v1.18.20，官方文档交叉确认）
+
+初版调研（035/037 时期）认为"OpenCode ACP 没有直接的 trajectory 导出功能"——
+**这个说法是错的**：
+
+1. **官方 export 命令存在**：`opencode export [sessionID]`（带 `--sanitize` 脱敏）、
+   `opencode import`、`opencode session list/delete`——都是 opencode.ai/docs/cli/
+   的正式命令
+2. **存储是全局 SQLite**：`~/.local/share/opencode/opencode.db`（本机 876MB），表含
+   `session`/`message`/`part` 等；历史上曾是 JSON 文件存储后迁移。`storage/` 目录只有
+   辅助元数据
+3. **★ ACP 创建的 session 与 TUI/run 在存储层完全同构**——ACP 只是前端，落盘走同一
+   条路。实测：037 调研时的 ACP 测试 session（"Calculating 1+1"，模型
+   stealth/ox-alpha）用 `opencode export ses_fdb78f223ffeOl1e57eWRaJpYI` 成功导出完整
+   内容
+4. **导出格式比 devin conversation.json 更丰富**：每条 assistant 消息含
+   `parts`（`reasoning` 思考实文 / `text` / `tool` / `step-finish`）、逐消息 token 计数、
+   `step-finish.reason`（实测见 stop/tool-calls/unknown）+ 细粒度 tokens（reasoning
+   单列）——结构上天然覆盖 devin export 的 rc/msg/tc/comp 四件套
+
+### 8.2 对比逆转：trajectory 导出维度 OpenCode 反超 Devin
+
+| | Devin | OpenCode |
+|---|---|---|
+| `-p` 模式导出 | ✅ `--export` | （run 模式无此需求表述） |
+| **ACP 模式导出** | ❌ 无——只能通知流自行组装 | ✅ 原生 export，进程死后仍可从 SQLite 捞回 |
+
+含义：OpenCode 管线的 trajectory 兜底不依赖"纯组装"——即使 launcher 崩溃没存下
+通知流，事后仍能从它自己的库里捞回完整轨迹（含 thinking）。Devin ACP 无此能力。
+
+### 8.3 已同步的知识资产
+
+以上事实已更新进两份全局 skill（commit skills-devin `17284c5`、config 大仓 `545ef4f`）：
+`skills-devin/opencode-acp-protocol.md` §九重写、`skills-devin/devin-acp-protocol.md`
+十·补对比表加行、`.config/opencode/skills/opencode-acp-protocol/` 的 SKILL.md +
+full-sop.md 同步。
+
+---
+
+## 九、检测信号分层设计（对 §三 的深化——用户方案与工作包设计的调和）
+
+### 9.1 问题的由来
+
+用户指出：`TRUNC_COMP_TOKENS_MIN` 这类数值阈值本质是 `-p` 模式信息黑罩下的
+**验尸启发式**（运行期零信号，只能死后解剖 conversation.json 猜死因）。未来 ACP
+管线的截断检测应该**通过协议动态感知**，而不是靠数值阈值猜。这个直觉是对的，且
+有协议依据：ACP v1 的 `session/prompt` response 带 `stopReason` 字段（035 实测正常
+结束返回 `end_turn`）；OpenCode 的 `step-finish.reason` 是同类结构化信号。
+
+### 9.2 分层裁定（主信号 / 兜底 / 下游统一）
+
+| 层 | 机制 | 适用 |
+|---|---|---|
+| **第一层（主信号）** | 协议原生信号：Devin `stopReason`（预期截断时为 max_tokens 类值）/ OpenCode `step-finish.reason` | ACP 后端首选 |
+| **第二层（兜底）** | 组装后 trajectory 的结构检查（现 `is_truncated`，阈值按 §三.三 后端化） | OpenCode 若不给显式信号时的 fallback；防协议信号缺失 |
+| **下游（统一）** | 接力机制不变：归档部分产出 → HANDOVER → 重入队 | 全后端共用——"判定链复用"的正确含义是复用接力机制，不锁死上游信号源 |
+
+### 9.3 未验证项（升格为 WP-U2 实验靶）
+
+"协议会显式告知截断"目前是**高度合理但未证实**的假设：
+1. Devin ACP 撞 output 上限时 `stopReason` 返回什么值——从未实测（035 只测过 end_turn）
+2. OpenCode ACP 撞顶时 `step-finish.reason` 给什么——实测只见过 stop/tool-calls/unknown
+3. OpenCode SQLite 落盘时机（运行中增量 vs 结束批量）——决定崩溃后 export 能捞回多少
+
+三项已写入 WP-U2 任务 6（截断信号探测）与任务 3 扩展（export 对照）。
+
+### 9.4 对 §三.三 的定位修正
+
+§三.三 的"阈值后端化"仍然成立且已采纳（V3 落地），但它从"主检测机制的参数适配"
+**降级为第二层兜底的参数化**。U4 架构的检测层按本节分层设计，不再把结构启发式当
+唯一机制。
+
+---
+
+## 十、本次更新的落地清单（2026-08-21）
+
+| 文档 | 改动 |
+|---|---|
+| 本文（038） | 新增 §八（export 实测）/ §九（分层检测）/ §十（本清单） |
+| WP-U2 | 前置认知加载清单补 skill §9.3–9.6；任务 3 加 C 路原生 export 对照（零调用成本）；新增任务 6 截断信号探测（配额 +2）；验收 checklist 相应扩展 |
+| WP-U4 | §3 阈值讨论改为分层检测裁定；任务 1 接口的 BackendStatus 增 finish_reason 字段；任务 2 增第 7 点 trajectory 三层来源策略；前置认知加载清单补本文 |
+| WP-U5 | §3 基线补 export/SQLite 事实；任务 4 设计文档增"trajectory 来源三层"小节 |
+| WP-V1 | 规格注记：组装器对接三层来源（通知 jsonl 主 / opencode export 兜底）；detection 消费协议原生 finish reason |
+| WP-V3 | 规格注记：TRUNC_COMP_TOKENS_MIN → backend.trunc_comp_threshold 属性（-p 后端返回 24000，行为零变化） |
+| workpackages/README.md | §一背景补一行 038 补充说明 |

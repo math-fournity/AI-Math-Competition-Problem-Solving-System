@@ -39,6 +39,11 @@ OpenCode ACP 是默认管线，但有三个未定问题必须实测才能设计�
   1-2 次针对性实测
 - opencode.json 已配 openrouter/ox-alpha 单模型 + permission allow
 - OpenCode 的 `--cwd` 决定工作目录与 AGENTS.md 自动加载范围
+- **OpenCode 有原生 export 机制**（038 §八实测，v1.18.20）：`opencode export [sessionID]`
+  官方命令；session 全量持久化于 `~/.local/share/opencode/opencode.db`（SQLite）；
+  **ACP 创建的 session 与 TUI/run 存储同构可导出**（含 thinking 实文/逐消息 tokens/
+  step-finish.reason）——你的 trajectory 落盘设计与崩溃恢复方案要把它纳入（三层来源：
+  通知 jsonl 主 / export 兜底 / SQLite 直读不作主路径）
 - 配额纪律：本包新增实测 ≤3 次（每次一题）
 
 ## 4. 任务分解
@@ -83,7 +88,9 @@ OpenCode ACP 是默认管线，但有三个未定问题必须实测才能设计�
 
 含：静默窗口参数+依据 / 完成状态机（running→thinking→…→done 的判定流程含双窗口
 协调）/ 提示词注入设计+映射表 / 错误检测三层方案 / 通知日志落盘设计（实时 jsonl
-追加——skill §9.2，资产保留新形态）/ "给 V1/V4 的输入"小节。
+追加——skill §9.2，资产保留新形态）/ **trajectory 来源三层小节**（通知 jsonl 主 /
+`opencode export` 崩溃恢复兜底——含"launcher 死后如何从 sessionID 捞回"的操作设计，
+引 038 §八与 U2 的 export 对照结论）/ "给 V1/V4 的输入"小节。
 
 ### 任务 5：commit（脚本+报告）
 

@@ -53,8 +53,14 @@ src/acp/backend_base.py
 src/acp/opencode_backend.py   # 🔶 完成状态机按 046；权限零交互；close 语义
 src/acp/devin_backend.py      # stopReason 驱动；权限自动响应 🔶（048 的 allow_session 决策）
 src/acp/assembler.py          # 通知流→ATIF conversation.json；实时 jsonl 落盘（资产）
+                              # + OpenCode 侧三层来源对接（038 §八）：export 兜底读取器
+                              #   （opencode export 包装——进程崩溃后从 SQLite 捞回）
 src/acp/detection.py          # spin 检测（poll 的 last_signal_ts > spin_window → alert 事件）
-                               # + 错误三层检测 🔶（046：通知文本 WP-I 模式/stderr/超时）
+                              # + 截断检测分层（038 §九）：第一层消费 poll 的
+                              #   finish_reason（协议原生，U2 任务 6 实测其截断值）；
+                              #   第二层结构启发式 is_truncated（阈值读 backend.
+                              #   trunc_comp_threshold）
+                              # + 错误三层检测 🔶（046：通知文本 WP-I 模式/stderr/超时）
 ```
 
 ## 4. 任务分解（框架）

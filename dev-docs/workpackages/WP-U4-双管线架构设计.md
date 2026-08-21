@@ -34,8 +34,9 @@
 | 3 | `src/continuation_launcher.py` **主循环通读**（launch_batch 的调度骨架 + launch_solve/start_handover 的启动 + running 检查段的判定） | 哪些是业务逻辑（保留）哪些是引擎逻辑（抽走）——分界的原始材料 |
 | 4 | `src/proof_audit_launcher.py` 通读 | 第二个消费方——接口必须同时适配两个 launcher（避免为续传过拟合） |
 | 5 | `dev-docs/037` §2.3（不变的部分）+ §四.9（双管线架构设计要求原文） | 用户决策已定死的不变量：ACP v1 信号同构/检测逻辑通用/max_runtime 兜底/默认 OpenCode |
-| 6 | OpenCode skill §6（完成检测方案 A-D）+ Devin skill 的 response 语义 | 适配层最大的差异点素材 |
-| 7 | `dev-docs/036` §四.2c（分叉对方案的影响） | 完整性分叉如何改变 V4/V5 的设计 |
+| 6 | **`dev-docs/038` 全文**（阈值后端化 + 检测信号分层设计） | 检测层的分层裁定：协议原生主信号 / 结构启发式兜底 / 接力机制统一——你的检测层设计必须体现这个分层 |
+| 7 | OpenCode skill §6（完成检测方案 A-D）+ §9（trajectory 三层来源）+ Devin skill 的 response 语义 | 适配层最大的差异点素材 |
+| 8 | `dev-docs/036` §四.2c（分叉对方案的影响） | 完整性分叉如何改变 V4/V5 的设计 |
 
 ## 3. 现场事实基线
 
@@ -44,11 +45,15 @@
 - 并发模型不变：管线并发=agent 实例数（用户 030 需求 2 的模型，ACP 后是 ACP 子进程数）
 - WP-G 后并发数唯一来源 DB batch——后端选择/切换的配置也应同源（DB batch 记录，
   不写死——硬约束 8）
-- Ox Alpha 输出上限 131072 vs glm-5-2 的 25000：**TRUNC_COMP_TOKENS_MIN=24000 阈值
-  的后端相关性**——glm-5-2 截断 comp≈25000（>24000 ✓）；Ox Alpha 若截断 comp≈131072
-  （>24000 ✓ 仍捕获）但**正常长输出也常 >24000**——幸好截断判定还需 msg==0 且 rc>1000，
-  正常完成 msg>0 不误判。设计时把"判定阈值是否该按后端参数化"作为一个显式决策点
-  （推荐：阈值常量共享，判定逻辑不变，理由写清）
+- Ox Alpha 输出上限 131072 vs glm-5-2 的 25000：**截断检测按 038 §九分层设计**——
+  第一层协议原生信号（Devin stopReason / OpenCode step-finish.reason，U2 任务 6 实测
+  其截断形态）；第二层结构启发式 `is_truncated`（**阈值后端化已裁定采纳**：阈值 =
+  后端 output 上限 × 0.96，从 backend 配置读，不写死全局常量；-p 后端传 24000 行为
+  不变）。注意正常长输出也常 >24000——幸好截断判定还需 msg==0 且 rc>1000，正常完成
+  msg>0 不误判；后端化后该保护逻辑不变
+- OpenCode 有原生 export 机制（038 §八实测）：trajectory 来源按三层设计（通知 jsonl
+  主 / opencode export 兜底 / SQLite 直读不作主路径）——接口的产物契约不变（ATIF），
+  但后端需声明自己的 trajectory 来源能力
 
 ## 4. 任务分解
 
@@ -59,11 +64,17 @@
   backend_base.py   —— 抽象接口：
       start(task) -> BackendHandle      # task: prompt/work_dir/traject_dir/超时
       poll(handle) -> BackendStatus     # running/thinking/tool_running/
-                                       # done(result)/failed(reason) + 最近信号时间戳
+                                        # done(result)/failed(reason) + 最近信号时间戳
+                                        # + finish_reason（协议原生收尾原因——
+                                        #   Devin stopReason / OpenCode step-finish.reason，
+                                        #   038 §九第一层主信号的载体）
       terminate(handle, reason)         # 不可逆终止（过门闸语义）
       done_marker_semantics()           # 该后端"完成"的定义（E1 语义澄清的后端版）
+      trunc_comp_threshold              # 截断判定阈值（=output 上限×0.96，038 §三.三；
+                                        #   -p 后端返回 24000 行为不变）
   opencode_backend.py / devin_backend.py / （-p 后端在 V3 从现有代码抽出）
-  trajectory_assembler.py               # 通知→ATIF conversation.json（U2 结论落地）
+  trajectory_assembler.py               # 通知→ATIF conversation.json（U2 结论落地；
+                                        #   OpenCode 侧对接三层来源——export 兜底）
 
 接口设计的检验标准（写进报告）：
   a. continuation/proof_audit 两个 launcher 的全部现有语义都能表达
@@ -85,6 +96,13 @@
    base 的状态推断统一"靠通知流转变，有显式标记时加速"
 6. 错误模式信号：-p 后端=pane 文本模式（WP-J）/ ACP 后端=通知流中的什么形态
    （**引 U5 的实测结论**——rate limit 在 ACP 通知里长什么样）
+7. **截断检测分层**（038 §九）：每后端写明第一层主信号有无（U2 任务 6 结论——
+   Devin stopReason / OpenCode step-finish.reason 的截断值实测）+ 第二层结构启发式
+   的阈值来源（backend.trunc_comp_threshold）；下游接力机制（归档→HANDOVER→重入队）
+   全后端统一，不为 ACP 重写
+8. **trajectory 来源三层**（038 §八）：通知 jsonl 实时落盘为主 / OpenCode 原生
+   export 作崩溃恢复兜底 / SQLite 直读不作主路径——组装器对接策略与资产保留的
+   衔接（通知 jsonl 同为资产，铁律 11）
 
 ### 任务 3：管线选择与切换机制设计（037 §四.13）
 
@@ -125,7 +143,7 @@
 - [ ] 行为等价性表（≥8 个业务事件 × 3 后端）
 - [ ] 差异适配 6 点逐一有方案（完成检测留 U5 参数位已标注）
 - [ ] 选择/切换机制含 DB 配置源/set-backend/健康检查/回退策略（自动回退默认关）
-- [ ] 阈值参数化决策有明确结论与理由
+- [ ] 截断检测分层设计完整（第一层协议原生信号 + 第二层结构启发式 + 阈值后端化，对齐 038 §九；引用 U2 任务 6 实测结论）
 - [ ] 架构对比专节（含工作量数据引用 U3）
 - [ ] 045 报告 + "给 V 系列输入"小节；零代码改动
 

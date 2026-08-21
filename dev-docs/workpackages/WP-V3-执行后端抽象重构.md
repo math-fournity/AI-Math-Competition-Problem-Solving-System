@@ -49,6 +49,11 @@ src/backends/ptmux_devin.py   —— 或并入 src/acp/（🔶 按 U8 定夺目�
 launcher 改造：launch_solve 等函数变薄（组装 task → backend.start）；
               running 检查段消费 backend.poll 的状态——**判定逻辑
               （is_truncated/is_completed/proof 检查）不动**（消费后端产物路径）
+阈值参数化（038 §三.三，本包落地）：TRUNC_COMP_TOKENS_MIN 全局常量 →
+              backend.trunc_comp_threshold 属性；PtmuxDevinBackend 返回 24000
+              （=现值，**行为零变化**）；is_truncated 改读该属性。这是本包唯一
+              允许的"非纯搬运"改动——因为它是参数来源替换而非行为变更，
+              sim 回归必须证明判定结果与重构前一致
 ```
 
 ## 4. 任务分解（框架）
