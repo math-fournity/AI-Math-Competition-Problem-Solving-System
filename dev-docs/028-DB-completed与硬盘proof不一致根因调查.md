@@ -184,6 +184,52 @@ DB 不是"造假"——124 题在 018 事故之前完成时，proof.md 确实存
 | 027 | DB completed 与硬盘 proof.md 的交叉验证 | 138 题只有 14 题有 proof.md，124 题无证据 |
 | 028（本报告） | 为什么会这样？DB 是否造假？ | 不是造假，是 018 事故数据丢失 + 018 事故前 proof 单点存储的设计缺陷 |
 
+---
+
+## 9. 数据恢复（v2 更新）
+
+### 9.1 发现——proof.md 没有全丢
+
+用户提示去来源目录查证。虽然 work_dir 和 trajectory/p27-continuation 都被 018 事故删了，但 **devin cli 的 sessions.db（30GB）保留了 AI 写 proof.md 时的 write tool_call 完整内容**。
+
+sessions.db 位于 `~/.local/share/devin/cli/sessions.db`，记录了所有 devin cli session 的完整对话历史，包括 tool_call 的 arguments。当 AI 用 write tool 写 proof.md 时，tool_call 的 arguments.content 字段包含了 proof.md 的完整文本。
+
+### 9.2 恢复方法
+
+`scripts/recover_proofs_from_sessions_db.py`：
+1. 取 124 题无 proof.md 的 completed 记录
+2. 在 sessions.db 中按 work_dir 查找对应的 session
+3. 在 session 的 message_nodes 中查找 write proof.md 的 tool_call
+4. 提取 tool_call arguments.content 作为 proof.md 内容
+5. 恢复到 work_dir/proof.md + 入库到 p27_continuation_results
+
+### 9.3 恢复结果
+
+| 指标 | 恢复前 | 恢复后 |
+|---|---|---|
+| 有 proof.md | 14 | **138** |
+| 无 proof.md | 124 | **1** |
+| p27_continuation_results 记录 | 14 | **137** |
+
+123/124 题成功恢复。唯一未恢复的是 `deepmath_103k_00011504`——其解题 session（upbeat-tadpole）只有 system 和 user 消息，没有 assistant 消息（AI 没有产出任何内容），可能是 session 启动失败。
+
+### 9.4 恢复后的真实数字
+
+| 指标 | 值 |
+|---|---|
+| DB completed 总数 | 139（含 1 题 dead_session 后重新完成） |
+| 有 proof.md（硬盘验证） | **138** |
+| 有 p27_continuation_results 记录 | **137**（14 原有 + 123 恢复） |
+| 无 proof.md | **1**（deepmath_103k_00011504，AI 无产出） |
+| 真实成功率 | **138/10,069 = 1.37%** |
+
+### 9.5 教训
+
+1. **sessions.db 是隐藏的数据备份源**——devin cli 的 sessions.db 记录了所有 tool_call 的完整 arguments，包括 write 文件的内容。当文件从硬盘丢失时，sessions.db 可能仍然保留着内容。
+2. **"全丢了"需要验证**——018 事故报告说"124 份 proof 不可恢复"，但实际上 123 份可以从 sessions.db 恢复。018 报告的结论是错误的——它只检查了 work_dir 和 DB，没有检查 sessions.db。
+3. **数据恢复应该穷尽所有可能的数据源**——work_dir、DB、sessions.db、trajectory 目录、备份盘，都应该检查。
+
 ## 变更记录
 
 - v1 · 2026-08-21 · 初始创建，根因调查完成：不是 DB 造假，是 018 事故数据丢失 + 018 事故前 proof 单点存储设计缺陷
+- v2 · 2026-08-21 · 数据恢复：从 sessions.db 恢复了 123/124 题的 proof.md，018 报告"不可恢复"的结论被推翻。真实成功率从 0.14% 修正为 1.37%
