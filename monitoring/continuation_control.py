@@ -200,7 +200,14 @@ def stop_service(name: str, session_name: str, graceful: bool = True, timeout: i
 
 def cmd_start(args):
     """一键启动续传系统（launcher + monitor，都带auto-restart）"""
-    print(f"=== 启动POC-2.7续传系统 (batch={args.batch_id}, concurrency={args.concurrency}) ===\n")
+    # WP-G：并发数不写默认值——未传参则透传 None，由 launcher 执行
+    # "DB 无记录且未传参报错退出"的硬约束（DB 有记录时 launcher 用 DB 值）
+    conc_arg = (f"--concurrency {args.concurrency} "
+                if args.concurrency is not None else "")
+    conc_arg_monitor = (f"--concurrency {args.concurrency} "
+                        if args.concurrency is not None else "")
+    print(f"=== 启动POC-2.7续传系统 (batch={args.batch_id}, "
+          f"concurrency={args.concurrency if args.concurrency is not None else '从DB读取'}) ===\n")
 
     # 前置检查
     # Redis
@@ -229,7 +236,7 @@ def cmd_start(args):
     launcher_cmd = (
         f"cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.continuation_launcher "
         f"--batch-id {args.batch_id} "
-        f"--concurrency {args.concurrency} "
+        f"{conc_arg}"
         f"--max-rounds {args.max_rounds} "
         f"--method {args.method}"
     )
@@ -241,7 +248,7 @@ def cmd_start(args):
         f"cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.monitor_continuation "
         f"--batch-id {args.batch_id} "
         f"--interval {args.monitor_interval} "
-        f"--concurrency {args.concurrency}"
+        f"{conc_arg_monitor.rstrip()}".rstrip()
     )
     start_service("monitor", monitor_cmd, MONITOR_SESSION, auto_restart=True)
 
@@ -687,7 +694,8 @@ def main():
     # start
     p_start = sub.add_parser("start", help="一键启动launcher+monitor（带auto-restart）")
     p_start.add_argument("--batch-id", required=True, help="批次ID")
-    p_start.add_argument("--concurrency", type=int, default=5, help="并发数")
+    p_start.add_argument("--concurrency", type=int, default=None,
+                         help="并发数（不传则 launcher 从 DB batch 读；DB 也无则报错退出）")
     p_start.add_argument("--max-rounds", type=int, default=5, help="最大续传轮次")
     p_start.add_argument("--method", choices=["v1", "v2"], default="v2", help="续传方案")
     p_start.add_argument("--monitor-interval", type=int, default=120, help="Monitor Pipe检查间隔（秒）")

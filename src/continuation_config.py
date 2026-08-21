@@ -72,7 +72,8 @@ DEVIN_MODEL = "glm-5-2"
 DEVIN_PERMISSION_MODE = "dangerous"
 
 # === 并发配置（续传比分析任务慢，需要更长的timeout/stall）===
-DEFAULT_CONCURRENCY = 5
+# 并发数不在此写死（AGENTS.md 硬约束）：唯一来源 DB batch.concurrency，
+# set-concurrency 设置；DB 无记录且未传参时 launcher 报错退出
 DEFAULT_MAX_RUNTIME_SECONDS = 1800   # 30分钟（续传单轮可能thinking spin很久）
 DEFAULT_STALL_SECONDS = 600          # 10分钟无活动判定为stall（续传解题thinking可能很长）
 DEFAULT_POLL_SECONDS = 15            # 轮询间隔

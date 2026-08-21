@@ -139,7 +139,7 @@ map_path/prev_export）。round-1 只有5基础字段。
 **关键配置参数**（continuation_config.py，SOP_01/05 判断依据）：
 | 参数 | 值 | 含义 |
 |---|---|---|
-| `DEFAULT_CONCURRENCY` | 5 | 默认并发数（可被 DB batch 记录覆盖） |
+| 并发数 | 唯一来源 = DB batch.concurrency（`set-concurrency` 设置；续传/审计批次同集合 `p27_continuation_batches`）——DB 无记录且未传参时 launcher 报错退出，代码零写死默认值（WP-G） |
 | `DEFAULT_MAX_RUNTIME_SECONDS` | 1800 | 单轮最大运行时间（30分钟） |
 | `DEFAULT_STALL_SECONDS` | 600 | 无活动判定 stall 阈值（10分钟） |
 | `DEFAULT_POLL_SECONDS` | 15 | launcher 轮询间隔 |

@@ -39,7 +39,9 @@ AUDIT_FAILED_KEY = "paudit:failed"
 AUDIT_STATS_KEY = "paudit:stats"
 
 # === 审计并发配置（审计任务比解题快——只读 proof 不解题）===
-AUDIT_DEFAULT_CONCURRENCY = 5
+# 并发数不在此写死（AGENTS.md 硬约束）：唯一来源 DB batch.concurrency
+# （p27_continuation_batches 集合，与续传批次同集合同命令 set-concurrency）；
+# DB 无记录且未传参时 launcher 报错退出（WP-G）
 AUDIT_MAX_RUNTIME_SECONDS = 600     # 10分钟（审计只读 proof + 判断，不解题）
 AUDIT_STALL_SECONDS = 180           # 3分钟无活动判定为 stall
 AUDIT_POLL_SECONDS = 10             # 轮询间隔

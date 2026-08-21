@@ -30,7 +30,7 @@ from src.continuation_config import (
     CONTINUATION_SOLVER_BASE, CONTINUATION_TRAJECTORY_BASE,
     D_TRAJ_DIR, MAPPER_SCRIPT, CONTINUE_SPEC,
     DEVIN_MODEL, DEVIN_PERMISSION_MODE,
-    DEFAULT_CONCURRENCY, DEFAULT_MAX_RUNTIME_SECONDS,
+    DEFAULT_MAX_RUNTIME_SECONDS,
     DEFAULT_STALL_SECONDS, DEFAULT_POLL_SECONDS, DEFAULT_MAX_ROUNDS,
     TRUNC_COMP_TOKENS_MIN, PROOF_COMPLETE_MARKER, PROOF_FILE_NAME,
     RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS,
@@ -951,7 +951,7 @@ def finalize_run_completed(db, r, run_key, pid, round_num, done_reason,
 # =============================================================================
 # 并发批量续传（核心——复用analysis_launcher的stall/rate_limit/zombie模式）
 # =============================================================================
-def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
+def launch_batch(batch_id, concurrency=None,
                  max_rounds=DEFAULT_MAX_ROUNDS,
                  max_runtime=DEFAULT_MAX_RUNTIME_SECONDS,
                  stall_seconds=DEFAULT_STALL_SECONDS,
@@ -1000,6 +1000,13 @@ def launch_batch(batch_id, concurrency=DEFAULT_CONCURRENCY,
     existing_batch = db.collection(CONTINUATION_BATCHES_COLLECTION).get(batch_id)
     if existing_batch and "concurrency" in existing_batch:
         concurrency = existing_batch["concurrency"]
+    elif concurrency is None:
+        # WP-G：DB 无记录且未传参——报错退出，不做数值兜底（硬约束）
+        print("并发数未设置：DB batch 记录无 concurrency 字段且未传 --concurrency。"
+              "请先 python -m monitoring.continuation_control set-concurrency "
+              f"--batch-id {batch_id} --concurrency N")
+        log_event(logger, "error", "concurrency_not_set", batch_id=batch_id)
+        return
     update_batch(db, batch_id, {
         "status": "launching",
         "updated_at": utc_now(),
@@ -1997,7 +2004,8 @@ def stop_batch(batch_id, force=False):
 def main():
     parser = argparse.ArgumentParser(description="POC-2.7续传Pipe启动")
     parser.add_argument("--batch-id", required=True, help="批次ID")
-    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="并发数（不传则用 DB batch 记录；两者皆无则报错退出）")
     parser.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
     parser.add_argument("--method", choices=["v1", "v2"], default="v2")
     parser.add_argument("--max-runtime", type=int, default=DEFAULT_MAX_RUNTIME_SECONDS)

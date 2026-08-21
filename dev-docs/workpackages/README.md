@@ -28,6 +28,12 @@
 > 已落入 WP-U2（任务 6 + export 对照）/U4（接口 finish_reason + 适配层 7/8 点）/
 > U5/V1/V3——执行这些包的 AI 以更新后的文档为准。
 
+> **2026-08-21 用户裁定（执行顺序与并发）**：
+> ① **后续所有工作包 OpenCode ACP 优先**——先让未来的系统在 OpenCode ACP 侧跑起来，
+>   Devin 侧推后（U 系列内 U5 先于 U7、V 系列 V4 先于 V5；U2 的 C 路先于 B 路出数据）。
+> ② **并发数值由用户定**——AI 不做推荐实验（WP-G 任务 3 据此提前终止，见 dev-docs/051）；
+>   系统解决问题能力优先于参数寻优，无论数值多少，异常处置能力是前提。
+
 ## 二、执行顺序与依赖图（v2）
 
 > 编号说明：线 1 沿用 031~036 的最终裁定（无 WP-M/O/T 独立包——M 并入 WP-J，O 未占用，
@@ -114,7 +120,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-N | WP-N-PARSE-ERROR修复.md | ✅ 完成 | Devin | 2026-08-21 | d9c59f0 | exec-log/WP-N-执行记录.md |
 | WP-P | WP-P-现场补救.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | a4c436b+见exec-log | exec-log/WP-P-执行记录.md（含收集器解析bug修复+差1根因报告） |
 | WP-H | WP-H-审计优雅停止.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-H-执行记录.md（集成测试五断言全过） |
-| WP-G | WP-G-并发治理.md | ☐ 未开始 | | | | |
+| WP-G | WP-G-并发治理.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-G-执行记录.md（实验按用户裁定终止，051留档） |
 | WP-A | WP-A-门控docstring重写.md | ☐ 未开始 | | | | |
 | WP-B | WP-B-直接检查铁律rule.md | ☐ 未开始 | | | | |
 | WP-S | WP-S-资产保留.md | ☐ 未开始 | | | | |

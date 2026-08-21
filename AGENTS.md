@@ -181,11 +181,16 @@ python -m src.observability --stats --since 1h
 - 代码中只写"从 DB/AGENTS.md 读取并发数"的逻辑，不写默认值
 - 如果 DB 中没有并发数记录，launcher 应该报错并提示"请先设置并发数"，而不是用写死的默认值
 
-**当前违规**（待修复）：
-- `src/continuation_config.py:75` — `DEFAULT_CONCURRENCY = 5`（写死）
-- `src/proof_audit_config.py:42` — `AUDIT_DEFAULT_CONCURRENCY = 5`（写死）
+**当前违规**：~~3 处写死~~ **已全部修复**（2026-08-21 WP-G，commit 见 git log）：
+- `continuation_config.py` / `proof_audit_config.py` 的两个常量已删
+- `run_proof_audit_pipeline.py` / 两个 launcher 的 argparse default 已改 None
+- `continuation_control.py start` 的 default=5 已改 None（透传 launcher 执行硬约束）
+- `monitor_continuation.py --concurrency default=5` 已改 None（无值时跳过并发比对，保留存活检查）
 
-**修复方向**：这些常量应改为从 DB batch 记录读取；DB 无记录时报错而非用默认值。修复在 WP-H（030 方案）中处理。
+**现行机制**：并发数唯一来源 = DB batch.concurrency（set-concurrency 设置）；DB 无记录
+且未传参 → 报错退出，不做数值兜底。审计批次与续传批次同集合同命令。
+**并发数值由用户决定**（2026-08-21 用户裁定：AI 不做推荐实验；系统解决问题能力优先
+于参数寻优）。
 
 ### 硬约束：适度依赖 Master Agent 介入——不追求完全自动化判定
 

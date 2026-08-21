@@ -94,3 +94,17 @@ db.collection("{name}_batches").update({"_key": batch_id, "concurrency": 20})
 
 **教训**：动态并发只约束新启动是正确的设计，但**存量+孤儿进程不受控**是真实风险——
 必须配合A13四源审计+行为流水监控，不能只信DB里的concurrency字段。
+
+## 6. 审计批次同构复用（WP-G，2026-08-21）
+
+审计 Pipe（proof_audit_launcher）的并发数与续传**同集合、同命令**：
+
+- 记录位置：同一个 `p27_continuation_batches` 集合，`_key` = 审计 batch-id
+  （如 `paudit-p27-full`），launcher 启动时 get-or-create
+- 修改命令：`python -m monitoring.continuation_control set-concurrency --batch-id paudit-p27-full --concurrency N`
+- 生效机制：与续传相同——launcher 每轮 poll 从 DB 刷新，只影响后续新启动的审计
+- 约束：DB 无记录且未传 `--concurrency` → launcher 报错退出（无数值兜底）；
+  `continuation_control start` 未传参时透传 None 由 launcher 执行同一约束；
+  monitor 的并发比对在无值时跳过（存活类检查保留）
+- 并发数值由用户决定（2026-08-21 用户裁定：系统解决问题能力优先于参数寻优，
+  AI 不做推荐实验；无论数值多少，系统的异常处置能力是前提）

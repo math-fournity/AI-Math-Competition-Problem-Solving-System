@@ -73,7 +73,8 @@ def main():
                         default="all", help="运行阶段（默认 all=三阶段顺序运行）")
     parser.add_argument("--limit", type=int, default=10000, help="限制题数")
     parser.add_argument("--filter-prefix", help="题目ID前缀过滤")
-    parser.add_argument("--concurrency", type=int, default=5, help="审计并发数")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="审计并发数（不传则用 DB batch 记录；两者皆无则报错退出）")
     parser.add_argument("--max-runtime", type=int, default=600, help="单轮最大运行时间秒")
     parser.add_argument("--poll-seconds", type=int, default=10, help="轮询间隔秒")
     parser.add_argument("--register-gates", action="store_true",

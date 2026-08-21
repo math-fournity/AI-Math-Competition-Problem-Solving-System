@@ -25,11 +25,12 @@ from src.proof_audit_config import (
     PROJECT_ROOT, AUDIT_SOLVER_BASE, AUDIT_TRAJECTORY_BASE,
     DEVIN_MODEL, DEVIN_PERMISSION_MODE,
     PROOF_AUDIT_RUNS_COLLECTION,
-    AUDIT_DEFAULT_CONCURRENCY, AUDIT_MAX_RUNTIME_SECONDS,
+    AUDIT_MAX_RUNTIME_SECONDS,
     AUDIT_STALL_SECONDS, AUDIT_POLL_SECONDS,
     AUDIT_COMPLETE_MARKER, AUDIT_TMUX_PREFIX,
     GATE_AUDIT_LAUNCH, GATE_AUDIT_KILL_SESSION,
 )
+from src.continuation_config import CONTINUATION_BATCHES_COLLECTION
 from src.proof_audit_db_schema import (
     connect_db, ensure_schema, get_audit_run, update_audit_run,
 )
@@ -239,20 +240,53 @@ def _final_collect(batch_id):
         print(f"  [final-collect] 失败（不阻塞退出）: {e}")
 
 
-def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
+def launch_batch(batch_id, concurrency=None,
                  max_runtime=AUDIT_MAX_RUNTIME_SECONDS,
                  stall_seconds=AUDIT_STALL_SECONDS,
                  poll_seconds=AUDIT_POLL_SECONDS):
     """并发启动审计批次"""
-    print(f"=== 启动审计批次 batch={batch_id} concurrency={concurrency} ===")
-    log_event(logger, "info", "audit_batch_start",
-              batch_id=batch_id, concurrency=concurrency)
+    print(f"=== 启动审计批次 batch={batch_id} ===")
+    log_event(logger, "info", "audit_batch_start", batch_id=batch_id)
 
     # 优雅停止注册（WP-H，graceful-shutdown.md §6 清单第 2 步）
     register_shutdown("proof_audit_launcher")
 
     db = connect_db()
     ensure_schema(db)
+
+    # 并发数治理（WP-G，AGENTS.md 硬约束落地）：DB batch 记录是唯一权威。
+    # 审计批次与续传批次同集合（p27_continuation_batches）——set-concurrency
+    # 命令直接可用。DB 有则不覆盖；显式传参则初始化 DB；两者皆无则报错退出。
+    batches = db.collection(CONTINUATION_BATCHES_COLLECTION)
+    existing_batch = batches.get(batch_id)
+    if existing_batch and "concurrency" in existing_batch:
+        concurrency = existing_batch["concurrency"]
+        print(f"  并发数: {concurrency}（从 DB batch 记录读取）")
+    elif concurrency is not None:
+        print(f"  并发数: {concurrency}（命令行显式传入，初始化 DB batch 记录）")
+    else:
+        print("并发数未设置：DB batch 记录无 concurrency 字段且未传 --concurrency。"
+              "请先 python -m monitoring.continuation_control set-concurrency "
+              f"--batch-id {batch_id} --concurrency N")
+        log_event(logger, "error", "concurrency_not_set", batch_id=batch_id)
+        return
+
+    # 初始化/刷新批次记录（get-or-create——审计批次此前不在该集合）
+    now = utc_now()
+    try:
+        if existing_batch:
+            batches.update({"_key": batch_id, "status": "auditing",
+                            "concurrency": concurrency, "updated_at": now})
+        else:
+            batches.insert({"_key": batch_id, "batch_id": batch_id,
+                            "status": "auditing", "concurrency": concurrency,
+                            "created_at": now, "updated_at": now})
+            log_event(logger, "info", "audit_batch_record_created",
+                      batch_id=batch_id, concurrency=concurrency)
+    except Exception as e:
+        # 批次记录写失败不阻塞启动（并发数已定），但留痕
+        log_event(logger, "warning", "batch_record_update_failed",
+                  batch_id=batch_id, error=str(e))
 
     # 连接 Redis
     try:
@@ -295,6 +329,20 @@ def launch_batch(batch_id, concurrency=AUDIT_DEFAULT_CONCURRENCY,
             print(f"  failed: {failed_count}")
             _final_collect(batch_id)  # WP-H：超时退出路径同样收尾（033 P3-b）
             break
+
+        # 动态并发（WP-G）——从DB读取batch.concurrency，支持运行中通过set-concurrency调整
+        try:
+            batch_doc = batches.get(batch_id)
+            if batch_doc and "concurrency" in batch_doc:
+                db_concurrency = batch_doc["concurrency"]
+                if db_concurrency != concurrency:
+                    print(f"  [concurrency] 并发数调整: {concurrency} → {db_concurrency}（从DB读取）")
+                    log_event(logger, "info", "concurrency_adjusted",
+                              batch_id=batch_id, old=concurrency, new=db_concurrency)
+                    concurrency = db_concurrency
+        except Exception:
+            # DB读取失败时保持当前concurrency，不让DB故障导致launcher崩溃
+            pass
 
         # 优雅退出检查（WP-H）——收到 SIGTERM/SIGINT 后不再启动新审计
         if should_stop():
@@ -550,8 +598,8 @@ def stop_audit_batch(batch_id, force=False):
 def main():
     parser = argparse.ArgumentParser(description="Pipe 5 审计并发引擎")
     parser.add_argument("--batch-id", required=True, help="审计批次ID")
-    parser.add_argument("--concurrency", type=int, default=AUDIT_DEFAULT_CONCURRENCY,
-                        help=f"并发数（默认{AUDIT_DEFAULT_CONCURRENCY}）")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="并发数（不传则用 DB batch 记录；两者皆无则报错退出）")
     parser.add_argument("--max-runtime", type=int, default=AUDIT_MAX_RUNTIME_SECONDS,
                         help=f"单轮最大运行时间秒（默认{AUDIT_MAX_RUNTIME_SECONDS}）")
     parser.add_argument("--poll-seconds", type=int, default=AUDIT_POLL_SECONDS,

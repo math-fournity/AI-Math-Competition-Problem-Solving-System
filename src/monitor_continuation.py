@@ -244,6 +244,10 @@ def check_session_health(db, batch_id, expected_concurrency):
             "db_running": db_running,
             "tmux_sessions": actual,
         }))
+    elif expected_concurrency is None:
+        # WP-G：DB 无记录且未传 --concurrency——不猜数值，跳过并发比对
+        #（上面的存活类检查不受影响——它不依赖预期值）
+        pass
     elif actual > expected_concurrency:
         alerts.append(("session_health", "critical", {
             "summary": f"tmux session数({actual})超过并发设定({expected_concurrency})"
@@ -1227,7 +1231,9 @@ def main():
     parser = argparse.ArgumentParser(description="POC-2.7续传监控Pipe")
     parser.add_argument("--batch-id", required=True, help="续传批次ID")
     parser.add_argument("--interval", type=int, default=120, help="检查间隔（秒）")
-    parser.add_argument("--concurrency", type=int, default=5, help="预期并发数")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="预期并发数（不传则从 DB batch 读；两者皆无则跳过并发比对，"
+                             "存活类检查保留）")
     parser.add_argument("--check-alerts", action="store_true", help="查看新alerts")
     parser.add_argument("--resolve-alert", help="标记alert为已解决")
     args = parser.parse_args()
