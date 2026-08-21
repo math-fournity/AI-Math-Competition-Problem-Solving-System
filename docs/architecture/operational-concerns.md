@@ -22,6 +22,8 @@ if any(pattern in pane_output for pattern in RATE_LIMIT_PATTERNS):
     print(f"  [rate_limit] 检测到rate limit，暂停20分钟")
 ```
 
+> **审计 Pipe 同款已接入（WP-J，2026-08-21）**：proof_audit_launcher 的running 检查段按同款模式实现——RATE_LIMIT_PATTERNS 匹配 → 全局暂停 20 分钟（audit_rate_paused_until）→ 不 kill session 留观。数据源为 pane 300 行 + pipe log 尾部 5KB 合并。
+
 ### 关键参数
 
 - 暂停时间：1200秒（20分钟）——足够让API配额恢复

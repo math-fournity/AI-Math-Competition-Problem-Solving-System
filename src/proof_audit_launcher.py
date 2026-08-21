@@ -44,8 +44,43 @@ from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
 from src.observability import log_flow
 from src.proof_audit_result_collector import collect_one, collect_results
+# WP-I 共享检测模块（WP-J 消费）
+from src.devin_cli_failure_detection import (
+    RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS, TOKEN_LIMIT_PATTERNS,
+    match_patterns, check_ai_gave_up, classify_failure,
+)
 
 logger = get_logger("proof_audit_launcher")
+
+# rate_limit 全局暂停时间戳（WP-J，照抄续传 rate_limit_paused_until 模式）
+audit_rate_paused_until = 0
+
+# kill 策略两类（WP-J 设计决策，单测断言用）：
+#   rate_limited / failed_connection —— 不 kill：devin 可能自恢复（对齐续传
+#     "标记不kill"哲学），session 留观；rate_limited 另触发全局暂停 20 分钟
+#   ai_gave_up / failed_token_limit —— kill：模型不会再产出有效结果
+KILL_POLICY = {
+    "rate_limited": False,
+    "failed_connection": False,
+    "ai_gave_up": True,
+    "failed_token_limit": True,
+}
+
+
+def tail_file(path, nbytes=5120):
+    """读文件末尾 n 字节（errors=ignore）——pane scrollback 会滚走早期错误，
+    pipe log 尾部是更稳的错误模式数据源。路径不存在返回空串。"""
+    p = Path(path)
+    if not p.exists():
+        return ""
+    try:
+        with open(p, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - nbytes))
+            return f.read().decode(errors="ignore")
+    except Exception:
+        return ""
 
 
 def utc_now():
@@ -257,14 +292,8 @@ def check_audit_complete(export_path, session_name):
     return False
 
 
-def detect_stall(session_name, stall_since):
-    """检测审计是否 stall——tmux pane 无新活动超过 stall_seconds"""
-    if stall_since is None:
-        return None
-    elapsed = time.time() - stall_since
-    if elapsed > AUDIT_STALL_SECONDS:
-        return True
-    return False
+# （WP-J）原死代码检测函数已整体删除——031 B5：定义后从未被调用；
+# 无活动检测按 034/036 裁定不做（审计任务短，max_runtime 兜底 + SOP 巡检足够）。
 
 
 def _final_collect(batch_id):
@@ -278,6 +307,23 @@ def _final_collect(batch_id):
         log_event(logger, "warning", "final_collect_failed",
                   batch_id=batch_id, error=str(e))
         print(f"  [final-collect] 失败（不阻塞退出）: {e}")
+
+
+def detect_terminal_verdict(detect_text):
+    """审计终态判定辅助（WP-J，模块级便于单测）。
+
+    输入：pane 文本 + pipe log 尾部的合并文本。
+    返回 verdict 或 None。检测顺序（先环境性，续传同序）：
+      rate_limited → failed_connection → failed_token_limit → ai_gave_up
+    """
+    for name, patterns in (("rate_limited", RATE_LIMIT_PATTERNS),
+                           ("failed_connection", CONNECTION_PATTERNS),
+                           ("failed_token_limit", TOKEN_LIMIT_PATTERNS)):
+        if match_patterns(detect_text, patterns):
+            return name
+    if check_ai_gave_up(detect_text):
+        return "ai_gave_up"
+    return None
 
 
 def launch_batch(batch_id, concurrency=None,
@@ -384,6 +430,18 @@ def launch_batch(batch_id, concurrency=None,
             # DB读取失败时保持当前concurrency，不让DB故障导致launcher崩溃
             pass
 
+        # rate_limit 全局暂停检查（WP-J，照抄续传 rate_limit_paused_until 模式）
+        now_ts = time.time()
+        if audit_rate_paused_until > now_ts:
+            remaining = int(audit_rate_paused_until - now_ts)
+            if remaining % 60 == 0:
+                print(f"  [rate_limit_pause] 等待 rate limit 恢复，剩余 {remaining}s...")
+            time.sleep(poll_seconds)
+            continue
+        elif audit_rate_paused_until > 0:
+            print(f"  [rate_limit_pause] 恢复运行")
+            audit_rate_paused_until = 0
+
         # 优雅退出检查（WP-H）——收到 SIGTERM/SIGINT 后不再启动新审计
         if should_stop():
             if current_running == 0:
@@ -399,8 +457,9 @@ def launch_batch(batch_id, concurrency=None,
             print(f"  [graceful_shutdown] 不再启动新审计，"
                   f"等待{current_running}个running自然完成...")
 
-        # 补充并发——从 pending 取出填到并发数（优雅停止模式下跳过）
-        while not should_stop() and current_running < concurrency and current_pending > 0:
+        # 补充并发——从 pending 取出填到并发数（优雅停止/限流暂停模式下跳过）
+        while (not should_stop() and audit_rate_paused_until <= time.time()
+               and current_running < concurrency and current_pending > 0):
             items = dequeue_pending(r, count=1)
             if not items:
                 break
@@ -441,13 +500,13 @@ def launch_batch(batch_id, concurrency=None,
                 audit_run_key, work_dir, prompt_file, export_path,
                 db=db, batch_id=batch_id)
 
-            # 加入 running
+            # 加入 running（WP-J：tmux_pipe_path 供错误模式检测读尾部）
             add_running(r, audit_run_key, {
                 "session_name": session_name,
                 "work_dir": str(work_dir),
                 "export_path": export_path,
+                "tmux_pipe_path": str(Path(export_path).parent.parent / "tmux" / "tmux_pipe.log"),
                 "started_at": time.time(),
-                "stall_since": None,
             })
 
             # 更新 DB
@@ -502,7 +561,50 @@ def launch_batch(batch_id, concurrency=None,
                 print(f"  [done] {audit_run_key}")
                 continue
 
-            # 检查 stall
+            # 错误模式检测（WP-J）——在 session 还活着时做（pane 是活 session 的）。
+            # 数据源：pane 300 行 + pipe log 尾部 5KB 合并（早期错误可能滚出 scrollback）。
+            # 检测顺序：rate_limit → connection → token_limit（先环境性，续传同序）
+            #           → ai_gave_up。命中即按 KILL_POLICY 两类处置。
+            pane_text = tmux_pane_text(session_name, lines=300)
+            detect_text = pane_text + tail_file(meta.get("tmux_pipe_path", ""), 5120)
+            verdict = detect_terminal_verdict(detect_text)
+
+            if verdict:
+                failure_category = classify_failure(verdict)
+                add_failed(r, {"audit_run_key": audit_run_key, "reason": verdict})
+                update_audit_run(db, audit_run_key, {
+                    "status": "failed",
+                    "error_message": verdict,
+                    "failure_category": failure_category,
+                    "ended_at": utc_now(),
+                })
+                remove_running(r, audit_run_key)
+                log_event(logger, "warning", "audit_terminal_state",
+                          audit_run_key=audit_run_key, verdict=verdict,
+                          failure_category=failure_category)
+
+                if KILL_POLICY.get(verdict, True):
+                    # ai_gave_up / failed_token_limit：模型不会再产出——kill（过门闸）
+                    audit_kill_session(session_name, audit_run_key, reason=verdict)
+                    print(f"  [{verdict}] {audit_run_key} 已 kill 并标记失败"
+                          f"（category={failure_category}）")
+                else:
+                    # rate_limited / failed_connection：不 kill，session 留观
+                    # （devin 可能自恢复；对齐续传"标记不kill"哲学）
+                    print(f"  [{verdict}] {audit_run_key} 标记失败，session 留观不 kill"
+                          f"（category={failure_category}）")
+
+                if verdict == "rate_limited":
+                    # rate_limit 全局暂停 20 分钟（照抄续传模式）
+                    pause_until = time.time() + 1200
+                    if pause_until > audit_rate_paused_until:
+                        audit_rate_paused_until = pause_until
+                        print(f"  [rate_limit_pause] 暂停 20 分钟...")
+
+                failed_count += 1
+                continue
+
+            # 检查 session 消失
             if not tmux_running(session_name):
                 # session 已消失——可能是 devin cli 正常退出但 DONE.md 没写
                 # 检查 export 是否有完成标记
@@ -547,21 +649,25 @@ def launch_batch(batch_id, concurrency=None,
                     print(f"  [fail-dead] {audit_run_key}")
                 continue
 
-            # 检查超时
+            # 检查超时（WP-J 语义修正：这是总时长超时，旧命名名不副实已废弃）
             if time.time() - started_at > max_runtime:
-                audit_kill_session(session_name, audit_run_key, reason="stall")
+                audit_kill_session(session_name, audit_run_key, reason="max_runtime_exceeded")
                 remove_running(r, audit_run_key)
                 add_failed(r, {
                     "audit_run_key": audit_run_key,
-                    "reason": "stall_timeout",
+                    "reason": "max_runtime_exceeded",
                 })
                 update_audit_run(db, audit_run_key, {
                     "status": "failed",
-                    "error_message": "stall_timeout",
+                    "error_message": "max_runtime_exceeded",
+                    "failure_category": classify_failure("max_runtime_exceeded"),
                     "ended_at": utc_now(),
                 })
+                log_event(logger, "warning", "audit_terminal_state",
+                          audit_run_key=audit_run_key, verdict="max_runtime_exceeded",
+                          failure_category=classify_failure("max_runtime_exceeded"))
                 failed_count += 1
-                print(f"  [fail-stall] {audit_run_key}")
+                print(f"  [fail-timeout] {audit_run_key}（超过 max_runtime={max_runtime}s）")
 
         # 等待下一轮轮询
         time.sleep(poll_seconds)
