@@ -95,16 +95,60 @@ def ensure_monitor_collections(db):
             pass
 
 
-def create_alert(db, alert_type, severity, details):
-    """创建alert。
+def create_alert(db, alert_type, severity, details, dedup=True):
+    """创建alert（幂等去重版，2026-08-21修复alert洪水）。
 
-    016勘误补丁：_key加随机后缀防冲突（MON-A!02）。原key格式
-    p27-alert-{ts}-{type}——同一毫秒两条同类型alert（如A13的两条
-    real_concurrency_mismatch）会撞unique约束，第二条静默丢失。
+    去重规则（dedup=True，默认）：alert_type + details.summary 相同且尚未
+    resolve 的alert只保留**一条**文档——再次检测到同一状态时不新建，只把
+    已有文档的 occurrence_count+1、last_seen_at 刷新。持续存在的状态
+    （如018遗留文件缺失、stuck注册表残留）= 一条未处理alert持续计权，
+    而不是每120秒一条新纪录（2026-08-21实测：1788个stuck残留×每轮告警
+    ×通宵=5万+条，把SOP_03分诊淹没）。resolve后同状态再出现会开新条目
+    （状态回归可见）。
+
+    _key设计：确定性hash（type+summary），主键O(1)判重——不依赖二级索引
+    扫描（session_registry_inconsistency类存量4万+条，索引扫描每轮做1788次
+    会放大DB压力）。MON-A!02的随机后缀历史问题不复发：不同summary→不同
+    hash；同type同ms两条不同alert（如A13两个变体）summary不同，天然分开。
     """
-    import uuid
+    import hashlib
     ts = int(time.time() * 1000)
-    alert_key = f"p27-alert-{ts}-{alert_type}-{uuid.uuid4().hex[:6]}"
+    summary = details.get("summary", "") if isinstance(details, dict) else str(details)
+    if dedup:
+        h = hashlib.sha1(f"{alert_type}|{summary}".encode()).hexdigest()[:10]
+        alert_key = f"p27-alert-{alert_type}-{h}"
+        existing = None
+        try:
+            existing = db.collection(MONITOR_ALERTS_COLLECTION).get(alert_key)
+        except Exception:
+            existing = None
+        if existing is not None:
+            try:
+                if existing.get("status") != "resolved":
+                    # 同一持续状态仍在——只累加计数，不新建
+                    db.collection(MONITOR_ALERTS_COLLECTION).update({
+                        "_key": alert_key,
+                        "last_seen_at": _utc_now(),
+                        "occurrence_count": (existing.get("occurrence_count") or 1) + 1,
+                    })
+                else:
+                    # 曾resolved但状态回归——重开同一条文档（key不变，审计链连续）
+                    db.collection(MONITOR_ALERTS_COLLECTION).update({
+                        "_key": alert_key,
+                        "status": "new",
+                        "resolved_at": None,
+                        "last_seen_at": _utc_now(),
+                        "occurrence_count": (existing.get("occurrence_count") or 1) + 1,
+                        "reopened": True,
+                    })
+            except Exception:
+                pass
+            return alert_key
+        # 首次出现——走下方insert开新条目
+    else:
+        # 非去重模式（保留兼容：需要每次独立留痕的场合）
+        import uuid
+        alert_key = f"p27-alert-{ts}-{alert_type}-{uuid.uuid4().hex[:6]}"
     doc = {
         "_key": alert_key,
         "alert_type": alert_type,
@@ -112,15 +156,27 @@ def create_alert(db, alert_type, severity, details):
         "details": details,
         "status": "new",
         "created_at": _utc_now(),
+        "first_seen_at": _utc_now(),
+        "last_seen_at": _utc_now(),
+        "occurrence_count": 1,
         "resolved_at": None,
     }
     try:
         db.collection(MONITOR_ALERTS_COLLECTION).insert(doc)
-        print(f"  [ALERT {severity}] {alert_type}: {details.get('summary', '')}")
+        print(f"  [ALERT {severity}] {alert_type}: {summary}")
         return alert_key
     except Exception as e:
-        logger.error(f"创建alert失败: {e}")
-        return None
+        # 极端并发下同key插入撞车（两个monitor同时刻首报）——退化为计数更新
+        try:
+            db.collection(MONITOR_ALERTS_COLLECTION).update({
+                "_key": alert_key,
+                "last_seen_at": _utc_now(),
+                "occurrence_count": 2,
+            })
+            return alert_key
+        except Exception:
+            logger.error(f"创建alert失败: {e}")
+            return None
 
 
 def get_new_alerts(db):

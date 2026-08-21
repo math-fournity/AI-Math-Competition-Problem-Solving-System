@@ -102,6 +102,16 @@ map_path/prev_export）。round-1 只有5基础字段。
 可选：`run_key`/`round`(solve/handover) / `exec_seq`/`triggered_by_alert`(monitor_exec)
 > session_counter 文档（_key=p27_session_counter）存 counter 字段（原子递增分配 seq）。
 
+**p27_monitor_alerts 文档字段**（monitor_continuation.py:98-179，SOP_03 分诊依据）：
+`_key`(p27-alert-{type}-{hash10}，确定性hash=sha1(type+summary)[:10]，2026-08-21去重修复) /
+`alert_type`(34种，见§6清单) / `severity`(critical/warning/info) /
+`details`({summary,...}) / `status`(new/resolved) /
+`created_at`/`first_seen_at`(=created_at)/`last_seen_at`(最近检测时间) /
+`occurrence_count`(同状态重复检测累加) / `resolved_at` /
+可选：`reopened`(bool，resolved后状态回归重开) / `resolution_note`(批量resolve时写)
+> alert 生命周期（2026-08-21去重修复）：留库不删；同type+summary未resolve只保留一条，
+> 重复检测只刷occurrence_count/last_seen_at；resolve后状态回归→reopen同文档（key不变）。
+
 **Redis 队列 key 结构**（continuation_config.py:115-129）：
 - v2 方案（当前使用）：`p27:pending_handover`/`p27:pending_solve`（ZSET，score=优先级）/
   `p27:running_handover`/`p27:running_solve`/`p27:completed_handover`/`p27:completed_solve`/
@@ -186,6 +196,11 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 > SOP_01每轮自动输出，在认知闭包背景下阅读做分析推理（不是逐项打勾）。
 
 **alert_type 完整清单**（SOP_03 分类依据——代码中实际产生的 alert_type 字符串，共34种）：
+
+> ⚠️ **alert生命周期（2026-08-21去重修复）**：alert留库不删（痕迹保留）；同 type+summary
+> 且未resolve只保留一条（`_key`=hash，重复检测只刷 occurrence_count/last_seen_at，
+> 不再每轮膨胀——修复前1788个stuck残留一夜灌5.8万条）；处理后 status→resolved，
+> 查询都过滤 resolved。持续未处理的条件=一条持续计权的未resolve alert（正常状态）。
 
 > ⚠️ 命名映射：A9 检查项名 `stall_detection`，但代码 alert_type=`long_running`；
 > B6 检查项名 `truncation_pattern`，但代码 alert_type=`all_rounds_truncated`；

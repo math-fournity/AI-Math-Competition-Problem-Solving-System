@@ -65,7 +65,7 @@
 | 编号 | 问题 | 根因状态 | Exec Devin 的处理方式 |
 |---|---|---|---|
 | MON-A!01 | ~~`expected_concurrency` 不从 DB 读，session_health 误报~~ **已修复**（commit `edcb439`） | **已修复** | 正常处理即可——session_health 现在从 DB 读 concurrency |
-| MON-A!02 | alert 的 `_key` 冲突 | 根因已诊断，待 WP-02 修复 | 不重复诊断，REPORT 记录"已知问题待修复" |
+| MON-A!02 | ~~alert 的 `_key` 冲突~~ **已修复**（2026-08-21 去重修复，`create_alert` 幂等去重版） | **已修复** | 正常处理即可——alert 现在确定性 hash key + 去重 |
 | MON-A!03 | `rounds_log_export_missing` 大量出现 | **根因未诊断** | **优先诊断**——选 3-5 个 run 检查 work_dir 结构 + launcher 命令构造逻辑 |
 | MON-A!04 | `export_missing` 大量出现 | **根因未诊断** | **优先诊断**——选 2-3 个 run 检查 work_dir + is_completed 判定逻辑。可能与 MON-A!03 有关联 |
 | MON-A!05 | 850+ alert 堆积 | 根因已知（阶段2未完成） | 每轮主动 resolve 已处理的 alert，逐步消化堆积 |

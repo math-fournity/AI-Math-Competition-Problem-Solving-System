@@ -169,7 +169,7 @@
 | 编号 | 问题 | 根因状态 | Master Agent 的处理方式 | 详情文件 |
 |---|---|---|---|---|
 | MON-A!01 | ~~`expected_concurrency` 不从 DB 读，session_health 误报~~ **已修复**（commit `edcb439`） | **已修复** | 正常处理即可——session_health 现在从 DB 读 concurrency | `checklist/MON-A-issue-01.md` |
-| MON-A!02 | alert 的 `_key` 冲突 | 根因已诊断，待 WP-02 修复 | 不重复诊断，记录"已知问题待修复" | `checklist/MON-A-issue-02.md` |
+| MON-A!02 | ~~alert 的 `_key` 冲突~~ **已修复**（2026-08-21 去重修复，`create_alert` 幂等去重版） | **已修复** | 正常处理即可——alert 现在确定性 hash key + 去重 | `checklist/MON-A-issue-02.md` |
 | MON-A!03 | `rounds_log_export_missing` 大量出现 | **根因未诊断** | **优先诊断**——选3-5个run检查work_dir结构+launcher命令构造逻辑 | `checklist/MON-A-issue-03.md` |
 | MON-A!04 | `export_missing` 大量出现 | **根因未诊断** | **优先诊断**——选2-3个run检查work_dir+is_completed判定逻辑。可能与MON-A!03有关联 | `checklist/MON-A-issue-04.md` |
 | MON-A!05 | 850+ alert 堆积 | 根因已知（阶段2未完成） | 每轮主动resolve已处理的alert，逐步消化堆积 | `checklist/MON-A-issue-05.md` |

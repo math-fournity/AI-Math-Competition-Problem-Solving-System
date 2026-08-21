@@ -217,23 +217,29 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 
 ```json
 {
-  "_key": "p27-alert-{timestamp}-{type}-{随机后缀}",
+  "_key": "p27-alert-{alert_type}-{hash10}",
   "alert_type": "session_health | queue_stalled | rate_limit | ...",
   "severity": "critical | warning | info",
   "details": {
-    "summary": "一句话描述",
+    "summary": "一句话描述（去重键的组成部分）",
     "problem_id": "相关题目ID（如适用）",
     "run_key": "相关run的key（如适用）",
     ...其他上下文字段
   },
   "status": "new | resolved",
   "created_at": "ISO timestamp",
+  "first_seen_at": "ISO timestamp（=created_at）",
+  "last_seen_at": "ISO timestamp（最近一次检测到）",
+  "occurrence_count": 1,
   "resolved_at": null
 }
 ```
 
-> `_key` 的随机后缀为 016 勘误补丁（MON-A!02）：同一毫秒多条同类型 alert 不再撞 unique 约束。
-> `status` 枚举与代码一致（`new`/`resolved`，`resolve-alert` 命令写 `resolved`）。
+> **alert 生命周期（2026-08-21去重修复后）**：
+> - **留库不删**（痕迹保留硬约束8）——alert 永久留在 `p27_monitor_alerts` 作审计痕迹；
+> - **幂等去重**：`_key` = hash(alert_type + summary)。同一持续状态再次检测到时**不新建**，只把已有未resolve条目的 `occurrence_count`+1、`last_seen_at` 刷新——持续存在的问题=一条未处理alert持续计权，不再每120秒膨胀一条（修复前实测：1788个stuck残留×每轮告警×通宵=5.8万条，淹没SOP_03分诊）；
+> - **已处理标记**：处理后 `status: new→resolved` + `resolved_at`（`resolve-alert` 命令）；resolve后同状态再出现会开新条目（状态回归可见）；
+> - **查询侧**：所有未处理alert查询都带 `FILTER a.status != 'resolved'`——已resolve的历史不会再被拉取。
 
 **alert集合**：`p27_monitor_alerts`（独立于现有Pipe的`monitor_alerts`集合）
 

@@ -31,7 +31,7 @@
 
 ### per-run明细
 
-> snapshot_runs.json 包含全部919条run的明细数据。每条含：
+> snapshot_runs.json 包含全部run的明细数据（数量以snapshot为准，本批6082）。每条含：
 > `problem_id` / `status` / `final_status` / `rounds_count` / `current_round` / `last_method` / `last_completed` / `last_truncated` / `updated_at` / `work_dir`
 >
 > 需要查某道题的状态时，用 `python3 -c "import json; runs=json.load(open('snapshot_runs.json')); [print(r) for r in runs if r['problem_id']=='XXX']"` 查询。
