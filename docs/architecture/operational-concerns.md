@@ -397,3 +397,15 @@ session匹配修复、**finalize把proof文本入库**（continuation_results双
 - ✅ 健康 = launcher+monitor运行中 + devin cli活跃（pane有内容）+ 进度在推进
 - ⚠️ 需关注 = 有新alert + 失败率>15% + handover生成慢
 - ❌ 修复 = launcher/monitor挂了 + devin cli全卡住 + 进度停滞
+
+
+## N. 基础设施失败自动重试（WP-L，2026-08-21）
+
+平凡系统 retry_infrastructure 模式的双队列移植（`src/retry_infrastructure.py`）：
+
+- 扫描对象：`p27:failed` / `paudit:failed`（list，条目含 reason）
+- 分类：reason 经 legacy 映射（stall→failed_stall、stall_timeout→max_runtime_exceeded）
+  后 classify_failure——infra 重入 pending（priority=9999 队尾），model 留存
+- 计数：run 文档 `retry_count` 字段（惰性初始化），上限 MAX_RETRIES=3
+- 运行模式：--dry-run（零写入盘点）/ 默认单次 / --interval 循环（**常驻需用户批准**）
+- 审计特有：重试前检查 work_dir/proof.txt 存在（缺失=数据问题转人工）
