@@ -130,7 +130,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-G | WP-G-并发治理.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-G-执行记录.md（实验按用户裁定终止，051留档） |
 | WP-A | WP-A-门控docstring重写.md | ☐ 未开始 | | | | |
 | WP-B | WP-B-直接检查铁律rule.md | ☐ 未开始 | | | | |
-| WP-S | WP-S-资产保留.md | ☐ 未开始 | | | | |
+| WP-S | WP-S-资产保留.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-S-执行记录.md（六项全做；盘点报告050：export缺45%/handover缺92%） |
 | WP-I | WP-I-共享终态检测模块.md | ☐ 未开始 | | | | |
 | WP-J | WP-J-审计终态补全.md | ☐ 未开始 | | | | |
 | WP-K | WP-K-续传终态补全.md | ☐ 未开始 | | | | |

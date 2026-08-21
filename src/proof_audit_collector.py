@@ -5,6 +5,9 @@
 
 数据源是 ArangoDB 查询（不是 problem_list.json），因为审计的是续传系统的产出。
 
+资产保留声明（WP-S 2026-08-21）：审计 work_dir 与 export 不论成败永久保留
+（资产保留铁律）——失败审计的 conversation.json 是审计质量分析数据。
+
 步骤：
   1. 查 p27_continuation_runs 中 status=completed 且 audit_passed=None 的题
   2. 从 p27_continuation_results 获取 proof_text（双写备份）

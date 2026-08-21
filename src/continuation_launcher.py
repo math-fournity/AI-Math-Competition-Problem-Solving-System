@@ -141,7 +141,8 @@ def remove_old_proof(work_dir, round_num, started_at=None):
     放行前Master Agent应检查并论证：
     【检查项】（每项含查法+正常值）
     1. 要删的确实是旧proof → 查法：stat work_dir/proof.md的mtime < started_at
-    2. 上轮proof已归档 → 查法：ls work_dir/round*_proof.md（归档优先于删除）
+    2. 删除动作自动归档partial → 查法：删除后ls work_dir/round{N}_proof_partial.md
+       存在（非空旧proof必留档——资产保留铁律，WP-S 2026-08-21起）
     3. 无运行中session在写proof → 查法：find_active_session(db,run_key,pid)返回None
 
     【论证依据——放行/不放行判定】
@@ -159,6 +160,14 @@ def remove_old_proof(work_dir, round_num, started_at=None):
     if started_at is not None and proof.stat().st_mtime >= started_at:
         # 新proof（本轮写的）——不删，让完成判定处理它
         return
+    # 删前归档partial proof（WP-S，资产保留铁律的代码兑现）：无论有无boxed，
+    # 非空proof都是"AI推到哪里断掉"的物证。016 P0-2不受影响——work_dir/proof.md
+    # 仍被删除（防误判），只是删前先留档。
+    import shutil
+    if proof.stat().st_size > 0:
+        partial = Path(work_dir) / f"round{round_num}_proof_partial.md"
+        shutil.copy2(proof, partial)
+        logger.info(f"[{work_dir}] 旧proof归档为 {partial.name}（{proof.stat().st_size}B）后删除")
     proof.unlink()
     logger.info(f"[{work_dir}] 清理旧proof.md（启动R{round_num}前）")
 
@@ -1295,6 +1304,18 @@ def launch_batch(batch_id, concurrency=None,
                 round1_export = overwrite_round1_seed(
                     work_dir, seed_export, run_key, pid,
                     gate_ctx={"run_key": run_key, "pid": pid, "round": 1})
+
+                # 双写统一（WP-S 项2）：镜像同步到 traj 的 round1/exports/——
+                # 与 round2+ 的目录结构一致（033 实测旧 run 该位置两处皆无）。
+                # rounds_log 的 export 字段维持指向 work_dir 镜像（兼容既有检查）。
+                try:
+                    r1_traj = (CONTINUATION_TRAJECTORY_BASE / run_key /
+                               "round1" / "exports")
+                    r1_traj.mkdir(parents=True, exist_ok=True)
+                    import shutil as _shutil
+                    _shutil.copy2(round1_export, r1_traj / "conversation.json")
+                except Exception as _e:
+                    logger.warning(f"[{run_key}] round1 traj 双写失败(不阻塞): {_e}")
 
                 trunc, trunc_reason = is_truncated(str(round1_export))
                 # 016事故P0-2：产物归属校验——残留的旧proof.md（mtime早于刚拷贝的

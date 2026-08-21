@@ -240,7 +240,7 @@ python -m src.observability --stats --since 1h
 
 **审计系统同样适用**：审计的 `conversation.json` 无论审计是否成功，都必须保留——审计失败的 conversation.json 包含审计 AI 的推理过程，是分析审计质量的数据。
 
-**唯一允许的删除**：`remove_old_proof()`（`continuation_launcher.py:133`）在启动新一轮前清理上一轮残留的 `proof.md`——这是防止旧 proof 被误判为完成的必要操作（016 事故 P0-2 根因）。**但前提是上一轮的 proof 已归档为 `round{N}_proof.md`**（门闸检查项 2）。export/prompt/HANDOVER/tmux log 不在此列——它们永远不会被删除。
+**唯一允许的删除**：`remove_old_proof()`（`continuation_launcher.py`）在启动新一轮前清理上一轮残留的 `proof.md`——这是防止旧 proof 被误判为完成的必要操作（016 事故 P0-2 根因）。**删除前自动归档为 `round{N}_proof_partial.md`（2026-08-21 WP-S 起，无 boxed 的部分证明同样留档）**；成功轮归档仍为 `round{N}_proof.md`（门闸检查项 2）。export/prompt/HANDOVER/tmux log 不在此列——它们永远不会被删除。
 
 **当前存在的问题**（032 §七点六调查）：
 1. **round1 的 export 存放位置不统一**——round1 的 export 只存在于 work_dir 的 `round1_export.json`，不在 `round1/exports/conversation.json`（其他轮的存放位置）。需要统一（WP-S 行动项 1）

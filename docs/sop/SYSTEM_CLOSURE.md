@@ -107,7 +107,9 @@ p27_proof_audit_runs（审计run记录）/ p27_proof_audits（审计结果，含
 
 rounds_log 每条=5基础字段（round/export/truncated/completed/reason）+R2起补
 method/handover_success + 6个路径字段（export/prompt_path/proof_path/handover_path/
-map_path/prev_export）。round-1 只有5基础字段。
+map_path/prev_export）。round-1 只有5基础字段。旧proof删前自动归档为
+`round{N}_proof_partial.md`（WP-S，无boxed的部分证明留档——与成功轮的
+`round{N}_proof.md` 区分）；round1 的 seed 镜像自 WP-S 起双写到 traj 目录。
 
 **p27_sessions 文档字段**（session_registry.py:148-178，SOP_02 2c 检查依据）：
 `_key`(p27-s{seq}) / `seq`(全局序号，unique) / `session_name`(tmux名，unique) /

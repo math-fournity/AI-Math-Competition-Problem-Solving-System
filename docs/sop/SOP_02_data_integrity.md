@@ -25,7 +25,12 @@
 条目。它没有自己的 prompt/handover/proof（那是 R2 起才有的），唯一产物是
 `round1_export.json`（seed 镜像），所以只有 5 个基础字段。checks.py 对
 round-1 只必查 export。R2 起的条目才是完整结构（5基础字段 + method/
-handover_success + 6 个路径字段）：
+handover_success + 6 个路径字段）。
+
+> **WP-S 双位置说明（2026-08-21 起）**：round1 的 seed 镜像现在双写——
+> work_dir 的 `round1_export.json`（rounds_log export 字段仍指向此处，兼容既有
+> 检查）+ traj 的 `round1/exports/conversation.json`（与 R2+ 目录结构一致）。
+> 旧 run 双位置可能皆缺（早于 WP-S），checks.py 对缺失只提示不计 issue。
 
 ```python
 {

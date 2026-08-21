@@ -22,12 +22,13 @@ PROBLEM_LIST_FILE = PROJECT_ROOT / "data" / "poc_2.7" / "problem_list.json"
 
 
 def connect_db():
-    host = os.environ.get('ARANGO_HOST', 'http://localhost:8529')
-    dbname = os.environ.get('ARANGO_DB', 'xishujuzhen_math_glm52')
-    user = os.environ.get('ARANGO_USER', 'root')
-    password = os.environ.get('ARANGO_PASS', '')
-    c = ArangoClient(hosts=host)
-    return c.db(dbname, username=user, password=password)
+    """WP-S：改从 src.continuation_config 取连接参数（与其余脚本同源）——
+    原实现直读 env 的 ARANGO_PASS/ARANGO_PASSWORD 与项目实际凭证源不一致导致 401。"""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from src.continuation_config import (
+        ARANGO_HOST, ARANGO_DB, ARANGO_USER, ARANGO_PASSWORD)
+    c = ArangoClient(hosts=ARANGO_HOST)
+    return c.db(ARANGO_DB, username=ARANGO_USER, password=ARANGO_PASSWORD)
 
 
 def main():
@@ -44,11 +45,12 @@ def main():
     # 2. 查 p27_continuation_runs 中所有题
     db = connect_db()
     all_runs = list(db.aql.execute(
-        'FOR r IN p27_continuation_runs RETURN {key: r._key, pid: r.problem_id, status: r.status}',
+        'FOR r IN p27_continuation_runs RETURN {key: r._key, pid: r.problem_id, status: r.status, rounds_log: LENGTH(r.rounds_log)}',
         ttl=60))
     print(f"p27_continuation_runs 总数: {len(all_runs)}")
 
-    # 3. 分类
+    # 3. 分类（资产保留铁律：绝不删有 rounds_log 的 run——本脚本只处理
+    #    prepared 且无产出记录的条目；下方断言防未来改坏）
     to_remove = []  # 不在 problem_list.json 中 + prepared 状态
     keep_completed = []  # 不在 problem_list.json 中但已完成
     keep_valid = []  # 在 problem_list.json 中
@@ -57,6 +59,7 @@ def main():
         if r['pid'] in valid_pids:
             keep_valid.append(r)
         elif r['status'] == 'prepared':
+            assert not r.get('rounds_log'), f"有产出记录的 run 禁止删除: {r['key']}（rounds_log={r.get('rounds_log')}）"
             to_remove.append(r)
         else:
             keep_completed.append(r)

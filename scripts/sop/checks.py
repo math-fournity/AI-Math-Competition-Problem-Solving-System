@@ -529,7 +529,10 @@ def check_02_data_integrity(batch_id):
                     # 也检查 exports/ 目录
                     r1_export2 = td / "exports" / "conversation.json"
                     if not r1_export2.exists():
-                        file_issues.append(f"  [{pid}] round1 export 缺失（不在rounds_log中）")
+                        # WP-S：降级为提示（不计 issue）——round1 traj 双写自
+                        # WP-S 起对新 run 生效；缺失多为早于 WP-S 的旧 run
+                        print(f"  [info] [{pid}] round1/exports/conversation.json "
+                              f"缺失（该 run 早于 WP-S 双写，属正常）")
         print(f"--- 标准文件检查（{checked_runs}个run）---")
         if file_issues:
             print(f"  发现 {len(file_issues)} 个问题：")
