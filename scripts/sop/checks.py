@@ -143,95 +143,115 @@ def check_01_system_health(batch_id):
     _check_flow_snapshot()
     _check_system_panorama(batch_id)
     _check_audit_pipe_health()
+    _check_completed_sample_files()
+
+
+def _check_completed_sample_files():
+    """步骤01例行：completed 抽样实物验证（WP-D，直接检查铁律——028 教训）。
+
+    DB status=completed ≠ 硬盘有 proof.md。随机抽 5 个 completed run，
+    直接验证 proof 文件存在且含 boxed。缺失 → 醒目 ⚠️（028 信号）。
+    只读报告——处置按 028 流程交人工/AI 判断。
+    """
+    print("--- completed 抽样实物验证（直接检查，抽5）---")
+    try:
+        import random
+        from src.continuation_config import CONTINUATION_SOLVER_BASE
+        from src.continuation_db_schema import (
+            connect_db, CONTINUATION_RUNS_COLLECTION)
+        db = connect_db()
+        runs = db.collection(CONTINUATION_RUNS_COLLECTION)
+        completed = [r for r in runs.all() if r.get("status") == "completed"]
+        if not completed:
+            print("  （无 completed run 可抽样）")
+            return
+        sample = random.sample(completed, min(5, len(completed)))
+        missing = 0
+        for r in sample:
+            rk = r["_key"]
+            proof_path = None
+            for rl in reversed(r.get("rounds_log") or []):
+                pp = rl.get("proof_path")
+                if pp and Path(pp).exists():
+                    proof_path = Path(pp)
+                    break
+            if proof_path is None:
+                wd = CONTINUATION_SOLVER_BASE / rk
+                cand = wd / "proof.md"
+                if cand.exists():
+                    proof_path = cand
+            if proof_path is None:
+                missing += 1
+                print(f"  ⚠️ [{rk.split('_')[-1]}] DB=completed 但 proof 文件未找到"
+                      f"（028 信号！）")
+                continue
+            has_boxed = "\\boxed" in proof_path.read_text(errors="ignore")
+            if has_boxed:
+                print(f"  ✅ [{rk.split('_')[-1]}] proof 存在且含 boxed"
+                      f"（{proof_path.name}）")
+            else:
+                missing += 1
+                print(f"  ⚠️ [{rk.split('_')[-1]}] proof 存在但无 boxed"
+                      f"（{proof_path}）——完成判定与实物不符嫌疑")
+        if missing:
+            print(f"  ⚠️ 抽样 {missing}/{len(sample)} 异常——立即按 028 处置："
+                  f"暂停选题引用该批数据+人工核查")
+        else:
+            print(f"  ✅ 抽样 {len(sample)} 全部实物在案")
+    except Exception as e:
+        print(f"  ⚠️ completed 抽样异常: {e}")
+    print()
 
 
 def _check_audit_pipe_health():
-    """步骤01例行：Pipe 5 审计 Pipe 健康检查（A15-A18，见 dev-docs/029 §7.3）。
+    """步骤01例行：Pipe 5 审计 Pipe 快速概览（A15 队列停滞快速预警 + A18 计数）。
 
-    审计 Pipe 上线后，SOP_01 需要监控审计队列/完成/失败率/门闸状态。
+    WP-D 精简：A16（完成数）/A17（失败率与分布）已移交 SOP_07 check_07 项 1
+    （同数据源且升级为完整快照）——本函数只保留 01 视角的快速预警。
+    完整健康检查（产出实物验证/交叉验证/孤儿对账/PARSE_ERROR 堆积）→ 步骤 07。
     """
-    print("--- Pipe 5 审计 Pipe 健康（A15-A18）---")
+    print("--- Pipe 5 审计快速概览（详查见步骤 07）---")
     try:
         from src.proof_audit_redis_queue import get_redis, pending_count, running_count, completed_count, failed_count
-        from src.proof_audit_db_schema import connect_db
-        from src.proof_audit_config import (
-            PROOF_AUDIT_RUNS_COLLECTION, PROOF_AUDITS_COLLECTION,
-        )
 
         # Redis 队列状态
-        try:
-            r = get_redis()
-            r.ping()
-            stats = {
-                "pending": pending_count(r),
-                "running": running_count(r),
-                "completed": completed_count(r),
-                "failed": failed_count(r),
-            }
-            print(f"  Redis paudit: pending={stats['pending']} running={stats['running']} "
-                  f"completed={stats['completed']} failed={stats['failed']}")
+        r = get_redis()
+        r.ping()
+        stats = {
+            "pending": pending_count(r),
+            "running": running_count(r),
+            "completed": completed_count(r),
+            "failed": failed_count(r),
+        }
+        print(f"  Redis paudit: pending={stats['pending']} running={stats['running']} "
+              f"completed={stats['completed']} failed={stats['failed']}")
 
-            # A15: 队列停滞检测（简化版——pending>0 但 running=0）
-            if stats["pending"] > 0 and stats["running"] == 0:
-                print(f"  ⚠️ A15 audit_queue_stalled: pending={stats['pending']} 但 running=0")
-        except Exception as e:
-            print(f"  ⚠️ Redis 不可达: {e}")
+        # A15: 队列停滞快速预警（保留在 01——SOP 循环里最先看到停滞）
+        if stats["pending"] > 0 and stats["running"] == 0:
+            print(f"  ⚠️ A15 audit_queue_stalled: pending={stats['pending']} 但 running=0")
 
-        # DB 审计结果统计
-        db = connect_db()
-        try:
-            # A16: 审计完成数
-            total_audits = db.collection(PROOF_AUDITS_COLLECTION).count()
-            print(f"  A16 p27_proof_audits 总数: {total_audits}")
-
-            # A17: 审计失败率
-            if total_audits > 0:
-                fail_aql = (
-                    f"FOR a IN {PROOF_AUDITS_COLLECTION} "
-                    f"FILTER a.audit_status LIKE 'FAIL_%' "
-                    f"COLLECT WITH COUNT INTO c RETURN c"
-                )
-                fail_count = list(db.aql.execute(fail_aql, ttl=30))
-                fail_rate = (fail_count[0] / total_audits * 100) if fail_count else 0
-                print(f"  A17 审计失败率: {fail_rate:.1f}% ({fail_count[0]}/{total_audits})")
-                if fail_rate > 20:
-                    print(f"  ⚠️ A17 audit_failure_rate_high: 失败率>{20}%")
-
-            # 审计状态分布
-            dist_aql = (
-                f"FOR a IN {PROOF_AUDITS_COLLECTION} "
-                f"COLLECT status = a.audit_status WITH COUNT INTO c "
-                f"SORT c DESC RETURN {{status, count: c}}"
-            )
-            dist = list(db.aql.execute(dist_aql, ttl=30))
-            if dist:
-                print(f"  审计状态分布:")
-                for d in dist:
-                    print(f"    {d['status']}: {d['count']}")
-        except Exception as e:
-            print(f"  ⚠️ DB 查询失败: {e}")
-
-        # A18: 审计门闸等待
+        # A18 简化：waiting 的 AUDIT 门闸计数（闭包详单见 SOP_07 项 3 / --pending）
         try:
             from src.step_gate import COLLECTION
+            from src.continuation_db_schema import connect_db
+            db = connect_db()
             if db.has_collection(COLLECTION):
                 audit_pending = [
                     d for d in db.collection(COLLECTION).all()
                     if d.get("waiting_for") and "AUDIT" in d.get("_key", "")
                 ]
-                if audit_pending:
-                    print(f"  🔶 A18 audit_gate_waiting: {len(audit_pending)}个审计门闸在等放行")
-                    for doc in audit_pending:
-                        print(f"     {doc['_key']}: {doc.get('waiting_for')}")
-                else:
-                    print(f"  ✅ A18 无审计门闸在等")
+                n = len(audit_pending)
+                print(f"  A18 审计门闸等待放行: {n} 个"
+                      f"{'（详单见步骤07项3 / --pending）' if n else '✅'}")
         except Exception:
             pass
 
+        print("  审计系统完整健康检查（产出实物验证/交叉验证/孤儿对账/PARSE_ERROR堆积）"
+              "→ 见步骤 07")
     except ImportError:
         print("  （审计 Pipe 模块未安装）")
     except Exception as e:
-        print(f"  ⚠️ 审计 Pipe 健康检查失败: {e}")
+        print(f"  ⚠️ 审计 Pipe 快速概览失败: {e}")
     print()
 
 

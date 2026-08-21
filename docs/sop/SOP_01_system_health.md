@@ -21,7 +21,7 @@
 
 上方"自动化检查结果"是 `monitor_check_continuation.sh` 的输出，包含 8 项基础检查。你需要逐项阅读并判断系统是否健康。
 
-> **数字口径说明**：8 项基础检查 + 门闸Y通道 + 行为流水快照（016后新增）= check_01 实际输出 10 项；A13/A14（016新增）+ B1-B4（续传质量）等完整 14 项 A/B 类检查清单见 SYSTEM_CLOSURE §6。
+> **数字口径说明（WP-D 后）**：8 项基础检查 + 门闸Y通道 + 行为流水快照 + 系统全景 + 审计快速概览（A15 队列停滞预警/A18 计数式门闸——详查移交步骤07） + completed 抽样实物验证 = check_01 实际输出约 13 项；A13/A14 + B1-B4 等完整 A/B 类检查清单见 SYSTEM_CLOSURE §6。
 
 ---
 
@@ -106,6 +106,14 @@ echo $ARANGO_DB    # 必须输出 xishujuzhen_math_glm52，如果为空先 sourc
 
 ---
 
+
+### 2.1 completed 抽样实物异常的处置（WP-D 新增，028 教训）
+
+| 抽样结果 | 判断 | 处置 |
+|---|---|---|
+| proof 存在且含 boxed | 正常 | 无 |
+| DB=completed 但 proof 缺失/无 boxed | **数据完整性事故信号**（028 重现） | 立即按 028 处置：暂停选题引用该批数据+人工核查丢失面（可用 scripts/audit_asset_retention.py 盘点）|
+
 ## 你需要建立的 todo list
 
 根据检查结果建立 todo list：
@@ -182,8 +190,9 @@ python -m src.observability --event skip_orphan --since 2h
 ### 8.5 步进门闸——单步跟踪系统（016事故后新增）
 
 行为流水让你**看见**流动，门闸让你**卡住**流动。`@gated`装饰器把系统的
-9个语义动作（launcher 8个：启动/杀session/重入队/覆盖文件/写终态 +
-feeder 1个：初次入队）变成可单步跟踪的门闸。**hold住一个门闸后，系统
+13个语义动作（续传 9 个：launcher 8 个启动/杀session/重入队/覆盖文件/
+写终态/handover生成等 + feeder 1 个初次入队；审计 4 个：GATE-AUDIT-*，
+见 SOP_07 / `--list`）变成可单步跟踪的门闸。**hold住一个门闸后，系统
 在该动作点冻结等你放行**。
 
 **X/Y注意力模型（你只需在Y出现时操心）**：
