@@ -342,6 +342,22 @@ repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资�
 4. `source .env`
 5. `python -m monitoring.continuation_control status --batch-id p27-full`
 
+### 常用查询命令
+
+| 用途 | 命令 |
+|---|---|
+| 查询续传系统进度（status分布/completed数量） | `python -m scripts.query_progress` |
+| 查询 completed 题按 source 分布 | `python -m scripts.query_progress --by-source` |
+| 查询 completed 题按 round 分布 | `python -m scripts.query_progress --by-round` |
+| 全部维度 | `python -m scripts.query_progress --detail` |
+| 系统运行状态 | `python -m monitoring.continuation_control status` |
+| 题目来源导出（增量） | `python -m scripts.export_new_problems --batch-id p27-full` |
+| 题目来源重建（全量） | `python -m scripts.export_new_problems --batch-id p27-full --rebuild` |
+| 清洗不符合条件的 run | `python -m scripts.cleanup_continuation_runs --dry-run` |
+
+> 运行前必须 `source .env`（或 `source /Users/user/glm5.2-math-worktree/.env`）。
+> 目标题量 10,069 题（405 报告定义的 tier=1 模型能力失败题）。
+
 ### 目录结构
 
 见 `working-packages/README.md` 和 `checklist/README.md`
