@@ -530,7 +530,8 @@ def check_failure_rate(db, batch_id):
         return []
 
     failed_statuses = ["failed_timeout", "failed_stall", "dead_session", "rate_limited",
-                       "failed_connection", "launch_error"]
+                       "failed_connection", "launch_error",
+                       "ai_gave_up"]  # WP-K：模型放弃也是终态失败，计入失败率
     failed = sum(status_counts.get(s, 0) for s in failed_statuses)
     completed = status_counts.get("completed", 0)
     finished = failed + completed

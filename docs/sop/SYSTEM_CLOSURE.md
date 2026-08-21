@@ -62,6 +62,8 @@ running（DB+Redis，占并发槽）
      ├─ is_completed（proof有boxed+mtime本轮）→ finalize_run_completed → COMPLETED（终态）
      ├─ is_truncated（comp≥24000+rc>1000+msg=0）+ round<max → requeue_truncated → 回pending
      ├─ round==max → TRUNCATED_AT_MAX（终态）
+     ├─ pane含放弃模式（check_ai_gave_up，WP-K）→ ai_gave_up → FAILED（终态，
+     │   retry_eligible=False——模型能力边界不重试，防无意义重试 031 B6）
      └─ 既非完成也非截断 → dead_session → FAILED（终态）
 ```
 
@@ -196,6 +198,8 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 - 截断重入队：判定有据（comp≥24000+rc>1000+msg=0）；score=round_num排队尾
   （NX不被feeder重置）
 - completed：proof有boxed+mtime本轮；proof文本已入库（双写）；audit_passed决定是否进入选题池
+- ai_gave_up（WP-K）：模型能力边界的正常出口——pane含放弃模式、retry_eligible=False
+  （不重试）；占比随题难度分布，不触发 alert
 
 **审计 Pipe 正常状态**（dev-docs/029，SOP_01 A15-A18检查）：
 - paudit:pending：不该无限堆积（collector该入队后launcher该dequeue）

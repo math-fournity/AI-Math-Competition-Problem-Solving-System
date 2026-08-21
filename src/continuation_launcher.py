@@ -66,8 +66,8 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-# 失败分类与检测已迁移至共享模块（WP-I）——check_ai_gave_up 留给 WP-K 接线
-from src.devin_cli_failure_detection import classify_failure
+# 失败分类与检测已迁移至共享模块（WP-I）——check_ai_gave_up 由 WP-K 接线
+from src.devin_cli_failure_detection import classify_failure, check_ai_gave_up
 
 
 # =============================================================================
@@ -1553,6 +1553,49 @@ def launch_batch(batch_id, concurrency=None,
                             is_done = True
                             done_reason = f"truncated: {trunc_reason}"
                         else:
+                            # AI 主动放弃检测（WP-K / 030 需求 8）——放弃模式优先于
+                            # dead_session 分类：放弃是模型能力边界（model、不重试），
+                            # 误判为 dead_session（infra、retry_eligible=True）会导致
+                            # 自动重试上线后无意义重试（031 B6）。pane 取不到（session
+                            # 已死）时回落 dead_session 判定——尽力检测不阻塞。
+                            gave_up = check_ai_gave_up(pane_text or "")
+                            if gave_up:
+                                elapsed_sec = int(time.time() - info["started_at"])
+                                print(f"  [ai_gave_up] {pid} R{round_num} ({elapsed_sec}s) 命中模式: {gave_up}")
+                                log_event(logger, "warning", "ai_gave_up", problem_id=pid, round=round_num, elapsed=elapsed_sec, batch_id=batch_id)
+                                log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                         outcome="ai_gave_up", reason=f"放弃模式命中: {gave_up}")
+                                log_flow("run_failed", run_key=run_key, pid=pid,
+                                         round=round_num, reason="ai_gave_up")
+                                failed.append({"pid": pid, "round": round_num, "reason": "ai_gave_up"})
+                                to_remove.append(run_key)
+                                kill_session(session_name, run_key, pid, reason="ai_gave_up",
+                                             gate_ctx={"run_key": run_key, "pid": pid,
+                                                       "reason": "ai_gave_up", "elapsed": elapsed_sec})
+                                # 记录到rounds_log
+                                run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
+                                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
+                                rounds_log.append(make_round_log_entry(
+                                    round_num, export_path, False, False,
+                                    f"ai_gave_up(命中模式: {gave_up})", info,
+                                ))
+                                update_run(db, run_key, {
+                                    "status": "ai_gave_up",
+                                    "rounds_log": rounds_log,
+                                    "updated_at": utc_now(),
+                                    "verdict": make_verdict("ai_gave_up", "ai_gave_up"),
+                                    "failure_category": classify_failure("ai_gave_up"),
+                                    "retry_eligible": False,
+                                })
+                                remove_running(r, run_key)
+                                add_failed(r, {"run_key": run_key, "reason": "ai_gave_up"})
+                                update_stats(r)
+                                insert_event(db, batch_id, "continuation_failed", {
+                                    "pid": pid, "round": round_num, "reason": "ai_gave_up",
+                                    "elapsed": elapsed_sec,
+                                }, run_key=run_key)
+                                continue
+
                             # 既非完成也非截断——真正的dead_session
                             elapsed_sec = int(time.time() - info["started_at"])
                             print(f"  [dead_session] {pid} R{round_num} ({elapsed_sec}s)")
