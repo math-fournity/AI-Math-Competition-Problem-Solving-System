@@ -136,7 +136,7 @@ git commit（显式路径 add）→ 领下一个。
 | WP-K | WP-K-续传终态补全.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 0d32dbb | exec-log/WP-K-执行记录.md（ai_gave_up分支+sim门禁8断言过） |
 | WP-L | WP-L-基础设施失败自动重试.md | ✅ 完成（dry-run阶段；--once待批准） | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-L-执行记录.md（报告052：7 infra候选+23 model留存） |
 | WP-C | WP-C-SOP07新STEP.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | 见exec-log | exec-log/WP-C-执行记录.md（9步循环上线；端到端真跑8项全绿+PARSE_ERROR=1待人工） |
-| WP-D | WP-D-SOP01精简.md | ☐ 未开始 | | | | |
+| WP-D | WP-D-SOP01精简.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | d7e2c7e | exec-log/WP-D-执行记录.md（A16/A17移交+completed抽样直接检查落地） |
 | WP-E | WP-E-SOP04升级.md | ☐ 未开始 | | | | |
 | WP-Q | WP-Q-审计alert清单对齐.md | ☐ 未开始 | | | | |
 | WP-F | WP-F-文档同步.md | ☐ 未开始 | | | | |
