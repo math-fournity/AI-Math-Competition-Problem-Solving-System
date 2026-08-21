@@ -196,6 +196,27 @@ def run(backend):
     print(f"session/new: {c.session_id}")
     assert c.session_id, "无 sessionId"
 
+    # 模型选择 + 思考强度（2026-08-21 实测：不显式设置会落到内建 big-pickle，
+    # ox-alpha 默认 effort=low——skill §3.8）
+    if backend == "opencode":
+        rid = c._send("session/set_config_option", {
+            "sessionId": c.session_id, "configId": "model",
+            "value": "openrouter/stealth/ox-alpha"})
+        resp2 = c.wait_response(rid, 15)
+        opts = (resp2 or {}).get("configOptions", [])
+        cur = next((o.get("currentValue") for o in opts if o.get("id") == "model"), None)
+        print(f"set_config(model): 回显 {cur!r}")
+        assert cur == "openrouter/stealth/ox-alpha", f"模型未被接受: {cur}"
+        eff_opt = next((o for o in opts if o.get("id") == "effort"), None)
+        assert eff_opt, "切到 ox-alpha 后未出现 effort 项"
+        rid = c._send("session/set_config_option", {
+            "sessionId": c.session_id, "configId": "effort", "value": "max"})
+        resp3 = c.wait_response(rid, 15)
+        eff = next((o.get("currentValue") for o in (resp3 or {}).get("configOptions", [])
+                    if o.get("id") == "effort"), None)
+        print(f"set_config(effort=max): 回显 {eff!r}")
+        assert eff == "max", f"强度未被接受: {eff}"
+
     t0 = time.time()
     rid = c._send("session/prompt", {
         "sessionId": c.session_id,
