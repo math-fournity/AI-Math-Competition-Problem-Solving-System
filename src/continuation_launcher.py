@@ -52,7 +52,7 @@ from src.session_registry import (
 from src.continuation_redis_queue import (
     get_redis, enqueue_pending, dequeue_pending,
     add_running, remove_running, add_completed, add_failed,
-    update_stats, get_stats, clear_all, pending_count,
+    update_stats, get_stats, clear_all, pending_count, RUNNING_KEY,
 )
 from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
@@ -1950,7 +1950,7 @@ def stop_batch(batch_id, force=False):
         # 检查当前running数
         try:
             r = get_redis()
-            running_count = r.hlen(f"{REDIS_PREFIX}:running") if hasattr(r, 'hlen') else 0
+            running_count = r.hlen(RUNNING_KEY)
             print(f"  当前running: {running_count}个（等待自然完成）")
         except Exception:
             pass
