@@ -107,7 +107,7 @@ git commit（显式路径 add）→ 领下一个。
 |---|---|---|---|---|---|---|
 | **线 1** | | | | | | |
 | WP-N | WP-N-PARSE-ERROR修复.md | ✅ 完成 | Devin | 2026-08-21 | d9c59f0 | exec-log/WP-N-执行记录.md |
-| WP-P | WP-P-现场补救.md | ☐ 未开始 | | | | |
+| WP-P | WP-P-现场补救.md | ✅ 完成 | Claude(ox-alpha) | 2026-08-21 | a4c436b+见exec-log | exec-log/WP-P-执行记录.md（含收集器解析bug修复+差1根因报告） |
 | WP-H | WP-H-审计优雅停止.md | ☐ 未开始 | | | | |
 | WP-G | WP-G-并发治理.md | ☐ 未开始 | | | | |
 | WP-A | WP-A-门控docstring重写.md | ☐ 未开始 | | | | |

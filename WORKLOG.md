@@ -4,6 +4,28 @@
 
 ---
 
+## WP-P 现场补救 · 2026-08-21
+
+### 做了什么
+工作包WP-P（030需求1的事故现场补救）执行完毕：5个审计devin cli早已完成但launcher被杀导致结果无人收集。本次把结果收进来、清掉孤儿、修正三处状态。
+
+1. **修DB status**：5个"DB显示running实际已完成"的审计run，逐条亲眼验证DONE.md+export（137-293KB）后改为completed。脚本 scripts/fix_wp_p_running_status.py（dry-run先行）。commit 见 git log。
+2. **收集审计结果**：跑 result_collector 收集10条——9条PASS/PASS_WITH_CAVEAT入库 p27_proof_audits，1条（deepmath_103k_00000036）截断样本走 mark_parse_error（audit_passed=None+alert待人工，status不动）。
+3. **清Redis**：HDEL paudit:running 的5个成员，HLEN=0。
+4. **kill孤儿session**：5个paudit tmux session逐个验证DONE.md后kill（00000036的DONE.md内容是退出码1=devin异常退出，与其截断互证），归零。
+5. **差1核对**：见下方"重要发现"。
+
+### 重要发现1：result_collector解析bug（已修，commit a4c436b）
+extract_audit_from_export 写的是 source=='assistant'，实测export格式是 'agent'（续传/审计统一 system/user/agent）——10个真实export一个都提取不到，收集器从上线起就收不到任何东西。另发现"export存在但无文本"分支静默skip导致截断样本永远停在audit_status=null被反复重扫，已按029 §3.3接mark_parse_error。单测 scripts/test_wp_p_export_parse.py 10 PASS。
+
+### 重要发现2：差1根因（只报告未修复）
+paudit-p27-full-amo_bench_00000006 在DB prepared但不在Redis任何队列，审计从未跑过（work_dir空、无门闸痕迹）。证据链指向：07:50:39启动的第一个审计launcher实例（日志只有一行batch_start就消失）pop了字典序最小的06后、在audit_launch之前崩溃——dequeue(ZPOPMIN破坏性)到launch之间无try/except，key无声丢失。数据本身健康（proof_text 5327B）。处置：按WP-P纪律只报告；建议下批审计跑之前给该代码段加try/except（可并入WP-H），然后重新入队该key。
+
+### 终态
+p27_proof_audits=9（5 PASS+4 PASS_WITH_CAVEAT）；runs=131 prepared+10 completed+0 running；tmux paudit=0；paudit:running=0。130 pending保持原样未动（等WP-G实验决定怎么跑）。
+
+---
+
 ## 第0轮 · 2026-08-20
 
 ### 检查发现
