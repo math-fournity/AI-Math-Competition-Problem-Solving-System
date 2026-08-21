@@ -74,7 +74,7 @@
 
 ### `docs/patterns/StepGate.md` — 步进门闸设计范式（DB信号单步跟踪）
 
-让 Master Agent 能够"卡住"自动化系统的关键动作、检查之前的工作、再放行的通用设计范式。核心三条：①DB信号变量（动作前wait proceed 0→1，代码自清零再执行，信号由Master Agent置1）；②`@gated`装饰器统一封装（注册/流水/等待/DB降级）；③定位用函数名+docstring不用行号（函数名=日志标志grep直达，docstring=自包含文档经inspect自动收集进DB注册表，永不漂移）。范围铁律：只对**语义动作**设闸（有独立正确性标准、checklist写得出来的业务动作），底层I/O封装不设闸（多调用方标准不同），只读判定靠行为流水——全部等放行吞吐归零。起源于016事故（失控循环跑了18分钟Master Agent拦不住）。**覆盖问题场景**：需要单步调试/审计自动化系统时、给新Pipe加门闸时、理解hold/step/auto模式时。**依赖关系**：首次实现在 `src/step_gate.py`（9个语义动作闸=launcher 8+feeder 1；X/Y注意力模型——无Y不操心，checklist闭包经docstring反射传递，底层I/O封装不设闸）；配套行为流水 `src/observability.py`；操作文档在 `docs/sop/SOP_01_system_health.md` §8.5（SOP_01例程已接线Y通道）。
+让 Master Agent 能够"卡住"自动化系统的关键动作、检查之前的工作、再放行的通用设计范式。核心三条：①DB信号变量（动作前wait proceed 0→1，代码自清零再执行，信号由Master Agent置1）；②`@gated`装饰器统一封装（注册/流水/等待/DB降级）；③定位用函数名+docstring不用行号（函数名=日志标志grep直达，docstring=自包含文档经inspect自动收集进DB注册表，永不漂移）。范围铁律：只对**语义动作**设闸（有独立正确性标准、checklist写得出来的业务动作），底层I/O封装不设闸（多调用方标准不同），只读判定靠行为流水——全部等放行吞吐归零。起源于016事故（失控循环跑了18分钟Master Agent拦不住）。**覆盖问题场景**：需要单步调试/审计自动化系统时、给新Pipe加门闸时、理解hold/step/auto模式时。**依赖关系**：首次实现在 `src/step_gate.py`（9个语义动作闸；详见 `src/README.md`）；配套行为流水 `src/observability.py`；操作文档在 `docs/sop/SOP_01_system_health.md` §8.5（SOP_01例程已接线Y通道）。
 
 ### `docs/patterns/续传规范文档.md` — HANDOFF标准（交接文档续传方案）
 
@@ -86,7 +86,7 @@
 - 判定AI是否被截断/是否完成时
 - 理解续传的核心认知转变时——从"拼接thinking"到"交接研究"
 
-**依赖关系**：续传实现代码在 `src/continuation_*.py`（Pipe 4）；运行操作见 `docs/system/AnalysisSystemOps.md`。
+**依赖关系**：续传实现代码见 `src/README.md`（Pipe 4 全模块导航）；运行操作见 `docs/system/AnalysisSystemOps.md`。
 
 ---
 
