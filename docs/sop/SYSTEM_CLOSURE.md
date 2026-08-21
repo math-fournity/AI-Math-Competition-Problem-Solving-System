@@ -92,6 +92,7 @@ rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof�
 | **proof_audit_collector** | 收集completed题入审计队列（p27_proof_audit_runs） | completed题未入审计=选题池准入失效 |
 | **proof_audit_launcher** | 并发启动devin cli审计proof.md（门闸GATE-AUDIT-LAUNCH/KILL）；优雅停止（SIGINT，should_stop）+收尾即收集（completed判定后立即collect_one入库，三条退出路径统一兜底收集）；终态检测（WP-J：rate_limited/failed_connection/failed_token_limit/ai_gave_up 四类模式匹配+max_runtime_exceeded 超时改名+rate_limit全局暂停20分钟） | 审计失控=API配额浪费 |
 | **retry_infrastructure**（WP-L，未常驻）| 扫描 p27:failed/paudit:failed → infra 类重入 pending（priority=9999 队尾，retry_count≤3）→ model 类留存；默认只 dry-run/--once，常驻需用户批准 | 误重试 model 失败=浪费配额 |
+| **devin_cli_failure_detection**（WP-I）| devin cli 失败检测共享模块：AI_GAVE_UP/RATE_LIMIT/CONNECTION/TOKEN_LIMIT 模式 + INFRA/MODEL 分类集合 + classify_failure——续传/审计共用 | 检测模式分散双份维护 |
 | **proof_audit_result_collector** | 解析审计XML，写audit_passed，更新选题池准入（门闸GATE-AUDIT-FINALIZE-PASS/FAIL） | 审计结果未归档=选题池无准入门槛 |
 
 ## 5. 数据产出全景

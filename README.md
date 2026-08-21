@@ -15,6 +15,7 @@
 | **SOP** | `scripts/sop/` + `docs/sop/` | Master Agent 7x24 监控循环——9步循环脚本（01~07+Z+OP）+ 对应执行指令文档 + 系统级认知闭包 | `AGENTS.md`"Master Agent SOP 流程控制机制"段 → `python -m scripts.sop.run` |
 | **src** | `src/` + `src/sim/` | 续传解题管线实现代码——主管线4模块 + 支撑3模块 + 监控治理4模块 + 全流程模拟6模块 | `src/README.md`（4分组导航地图） |
 | **docs** | `docs/` | 架构/规范/模式/模板文档集——系统认知层 + 设计范式 + 架构设计 + 检查规范 + 模板 + SOP 文档 | 下方分类法第一~三节 |
+| **工作包** | `dev-docs/workpackages/` | 030~037 审计链收敛后的最终执行体系——总控 README（依赖图/铁律/状态表）+ 各 WP 执行文档 + exec-log 执行记录 | `dev-docs/workpackages/README.md` |
 
 > 三套资产的关系：**src 实现**解题管线 → **docs 描述**架构和规范 → **SOP 监控**src 的运行。
 > AI 工作时按需加载：改代码先读 `src/README.md` 找模块 → 查规范读 `docs/specs/` → 运行监控走 `scripts/sop/`。
