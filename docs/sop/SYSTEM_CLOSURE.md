@@ -279,12 +279,20 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 | `redis_connection` | 基础设施 | critical | 基础设施 | Redis不可达，等恢复 |
 | `flow_ledger_unavailable` | 基础设施 | warning | 基础设施 | 行为流水DB不可达 |
 | `ai_review_sample` | C类抽样 | info | 需AI判断 | 抽样标记needs_ai_review，SOP_04处理 |
-| `audit_queue_stalled` | 审计Pipe | critical | 需判断 | paudit:pending 15分钟无变化（dev-docs/029） |
-| `audit_completion_slow` | 审计Pipe | warning | 需判断 | 审计完成慢，可能需加并发 |
-| `audit_failure_rate_high` | 审计Pipe | warning | 需判断 | 审计失败率>20%，检查AGENTS.md模板 |
-| `cheating_detected` | 审计Pipe | critical | 数据问题 | FAIL_CHEATING的题需人工复查 |
-| `audit_parse_error` | 审计Pipe | warning | 需判断 | 审计AI无法解析proof，人工处理 |
-| `audit_gate_waiting` | 审计Pipe | info | 需AI判断 | 审计门闸在等放行，Master Agent查看--pending |
+| `cheating_detected` | 审计Pipe | critical | 数据问题 | FAIL_CHEATING的题需人工复查（产生点：result_collector audit_finalize_fail） |
+| `audit_parse_error` | 审计Pipe | warning | 需判断 | 审计AI无法解析proof，人工处理（产生点：result_collector mark_parse_error，WP-N） |
+
+**审计 Pipe 的 SOP 检查提示（非 DB alert——不入 alert 队列，SOP_03 分诊不适用；由
+SOP_01/SOP_07 检查输出承载，WP-Q 对齐）**：
+- `audit_queue_stalled`：paudit:pending 堆积而 running=0 → SOP_01 A15 输出
+- `audit_failure_rate_high`：失败率 >20% → SOP_07 项 1 警告输出
+- `audit_gate_waiting`：审计门闸在等放行 → SOP_01 A18 计数 / SOP_07 项 3 闭包输出
+
+> 变更注记（2026-08-21 WP-Q 对齐）：审计 alert 6 种 → **DB alert 2 种**
+> （cheating_detected / audit_parse_error，均 result_collector 产生）+ **SOP 提示 3 种**
+> （queue_stalled / failure_rate_high / gate_waiting）+ **删除 1 种**（audit_completion_slow：
+> 无任何承载代码，SOP_07 也未实现该形态——诚实删行）。monitor 不加审计检查的边界裁定
+> 见 031 WP-Q / 036 §四.2。
 
 **异常信号**（看到就警觉）：
 - 016失控循环：churn_suspects非空 / session数暴涨 / 同题高频launch → 立即kill launcher+清队列
