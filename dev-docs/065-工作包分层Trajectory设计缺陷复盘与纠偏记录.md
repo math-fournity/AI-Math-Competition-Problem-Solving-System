@@ -454,9 +454,12 @@ README、src README、058、064、模板 README 已加入本补正入口。本 0
 - `1f6d439`：WP-03 初次证据回填。
 
 初次实现中的三角色模板、资产合同和无答案 fixture 仍然有效。本次是在其上补齐分层 reader
-实体接口和跨包职责，不撤销历史。纠偏实现 commit 和最终测试结果将在提交后回填 WP-03
-执行记录及工作包总控。
+实体接口和跨包职责，不撤销历史。纠偏 commit 和最终测试结果已回填 WP-03 执行记录及
+工作包总控。
 
 提交前直接验证：WP-03补正回归7/7 PASS；Python编译、reader manifest JSON、行尾与
 `git diff --check`通过；065实物存在且README入口已可解析。纠偏未运行生产系统、未修改
 DB/Redis/key、未处理用户`tmp/`。
+
+纠偏实现提交：`d0496449cc9afa06c4956270deee6cde8984fabc`。提交态重新运行
+`scripts/test_wp03_prompt_contract.py`，7/7 PASS；工作树只剩未跟踪`tmp/`。

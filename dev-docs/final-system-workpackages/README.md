@@ -119,7 +119,7 @@ WP-01/04/06/09不负责trajectory reader，不得借纠偏扩项。设计问题�
 |---|---|---|---|---|
 | 01 | `dc09839` | 9窗口单测+v2测试；never 10/10；window_resume 9/9；chaos 31/31 | DB/flow/硬盘/进程/Redis直接抽查 | 未迁移生产历史TRUNCATED；形式化继续待WP-05 |
 | 02 | | | | |
-| 03 | `707b4ac` + 053补正待提交 | 7项prompt/reader/fixture/资产合同离线回归 | reader共同CLI/使用证据；fixture无答案；未改launcher | backend parser/生产接线待WP-02/07/12 |
+| 03 | `707b4ac` + `d049644`补正 | 7项prompt/reader/fixture/资产合同离线回归 | reader共同CLI/使用证据；fixture无答案；未改launcher | backend parser/生产接线待WP-02/07/12 |
 | 04 | `bf0b2ac` | 7项Lean/Python/归档/跨Round回归；WP-03 6项回归 | 真实Lean 4.33.1；sorry退出0仍报escape；未改launcher | 充分性裁决待WP-05，生产接线待WP-02 |
 | 05 | | | | |
 | 06 | | | | |
