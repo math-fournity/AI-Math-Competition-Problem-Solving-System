@@ -77,3 +77,53 @@ p27_proof_audits=9（5 PASS+4 PASS_WITH_CAVEAT）；runs=131 prepared+10 complet
 - **85个round1 export缺失**：全部是prepared run（没跑过），不是bug。check_02对prepared run也检查round1 export，过于严格。
 - **29个DB孤儿run**：属于其他batch（full-analysis-v2-r*），不影响p27-full。
 - **系统开始正常运转**：launcher在dequeue，1个solve session在跑。并发数调到5后应该会启动更多session。
+
+---
+
+## 2026-08-21 本会话完整工作记录（WP-N 到 v2 管线构建与运行）
+
+### 线1工作包执行（全部18包完成）
+- **WP-N**: PARSE_ERROR修复——mark_parse_error替代audit_finalize_fail（commit d9c59f0）
+- **WP-P**: 现场补救——收集10审计+清5孤儿session+差1根因报告（commit ea9f246）
+- **WP-H**: 审计优雅停止+收尾即收集——SIGINT接线+collect_one提取（commit 4615f8c）
+- **WP-G**: 并发治理——5处写死清零+DB batch唯一权威（commit a6f6255重落盘+ce5a018补遗）
+- **WP-U1~U8**: 线2调查全部完成（报告042-048+总报告049）
+- **WP-A**: 审计4门控docstring 4要素重写（commit 810063e）
+- **WP-B**: 直接检查铁律rule（commit 9c37209）
+- **WP-S**: 资产保留六项——partial归档+盘点050（commit f98289a）
+- **WP-I**: 共享终态检测模块（commit 9e6b48f）
+- **WP-J**: 审计终态四类检测+超时改名（commit bba1fdd）
+- **WP-K**: ai_gave_up分支+sim门禁过（commit 0d32dbb）
+- **WP-L**: 重试dry-run——7 infra候选待批（commit c50933a）
+- **WP-C**: SOP_07新STEP——9步循环上线（commit 8c39d93）
+- **WP-D**: SOP_01精简+completed抽样（commit d7e2c7e）
+- **WP-E**: C7/C8四步复核法+--scope audit（commit aba72ca）
+- **WP-Q**: alert清单对齐2+3分类（commit dc044ab）
+- **WP-F**: 全量文档对齐14项矩阵+040报告（commit 6b19e43）
+- **WP-R**: prompt双份渲染修复（commit e03b4d3）
+
+### v2管线构建与运行
+- **053号文档吸收**：观察者/解题者递归消化链架构（另一会话实证：v1六轮全灭→v2六轮完成）
+- **v2_pipeline核心模块**：铁律15断言链+通知采集+BUDGET_STARVED指纹+递归接力编排
+- **三模板泛化**：prompt_round1/observer/solver（PROBLEM/ROUND_NUM/PREV_NUM/OC_TRAJ_PATH占位符）
+- **形式化验证强制**：prompt_round1+solver新增整体形式化验证要求段
+- **批量运行器**：run_v2_batch.py从DB拉prepared题→调v2管线→写DB
+- **生产运行**：tmux v2-batch以concurrency=1运行，3题已处理（1 COMPLETED+2 budget_starved）
+
+### 全局配置
+- opencode rules：long-commands-use-tmux / explicit-model-and-effort / global-config-git-commit
+- devin rules：explicit-model-and-effort
+- AGENTS.md：v2管线说明段+适度依赖边界判据第4条+双rule引用
+
+### 发现的问题
+- 多会话git冲突：另一会话reset挤掉WP-G提交（a6f6255重落盘解决）
+- continuation_control stop管辖盲区：v2-batch和pipe-*不在stop范围（AGENTS.md已补v2说明段）
+- export管道截断：64KB管道缓冲限制（subprocess capture限制——改用文件重定向可解）
+- ox-alpha有效输出上限32000≠模型卡131072——阈值须以实测校准
+- R5瞬时异常：opencode进程2秒退出（0输出）——v2架构自动自愈，原因未查明
+
+### 等用户拍板
+- 049 D1-D7决策点（V系列启动闸门）
+- WP-L --once实跑（7个infra候选）
+- WP-R2重写版（v2接力落地到-p生产模式）
+- PARSE_ERROR=1人工复审

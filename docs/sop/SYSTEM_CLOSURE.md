@@ -36,6 +36,11 @@ proof_audit_collector → proof_audit_launcher → proof_audit_result_collector
   审计通过=进入选题池；审计失败=排除或重做（FAIL_INCOMPLETE→prepared）
 ```
 
+=== v2 解题管线（OpenCode ACP，开发中）===
+src/v2_pipeline.py → run_v2_batch.py → SOP_07 监控
+  观察者/解题者递归消化链 + OpenCode ACP + Ox Alpha
+  与 p27 续传管线独立启停——详见 AGENTS.md"v2 解题管线"段
+
 支撑模块（不在主管线上但被各模块依赖）：
 - `continuation_config` — 全局配置常量（DB集合名/Redis key/模型/路径/门闸ID/判定阈值）
 - `continuation_db_schema` — DB连接+集合管理+AQL封装
