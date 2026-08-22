@@ -103,7 +103,7 @@ WP-03、04、06 是可先做的独立底座；WP-01 涉及核心状态语义，�
 | 01 | `dc09839` | 9窗口单测+v2测试；never 10/10；window_resume 9/9；chaos 31/31 | DB/flow/硬盘/进程/Redis直接抽查 | 未迁移生产历史TRUNCATED；形式化继续待WP-05 |
 | 02 | | | | |
 | 03 | `707b4ac` | 6项prompt/fixture/资产合同离线回归 | 三模板严格渲染；fixture无答案/外部路径；未改launcher | 真实模型回归和生产接线待WP-10/WP-02 |
-| 04 | 待填写 | 7项Lean/Python/归档/跨Round回归；WP-03 6项回归 | 真实Lean 4.33.1；sorry退出0仍报escape；未改launcher | 充分性裁决待WP-05，生产接线待WP-02 |
+| 04 | `bf0b2ac` | 7项Lean/Python/归档/跨Round回归；WP-03 6项回归 | 真实Lean 4.33.1；sorry退出0仍报escape；未改launcher | 充分性裁决待WP-05，生产接线待WP-02 |
 | 05 | | | | |
 | 06 | | | | |
 | 07 | | | | |
