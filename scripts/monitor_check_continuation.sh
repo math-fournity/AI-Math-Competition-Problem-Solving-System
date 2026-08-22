@@ -83,7 +83,7 @@ echo "     - proof_missing → COMPLETED但无proof.md，需重跑"
 echo "     - proof_no_boxed → proof.md无boxed答案，需检查是否真正完成"
 echo "     - proof_too_small → proof.md太小，可能内容不完整"
 echo "     - handover_missing → v2方案但无HANDOVER.md，Pipe A失败"
-echo "     - all_rounds_truncated → 5轮全截断，可能是真正的思维错误"
+echo "     - all_rounds_truncated → 历史数学Round均截断，判断编排质量和继续优先级"
 echo "     [C类AI review]"
 echo "     - ai_review_sample → 读proof.md和HANDOVER.md，按C1-C5标准逐项检查"
 echo "     处理完alert后用 --resolve-alert <key> 标记为fixed"
@@ -195,14 +195,16 @@ else:
                     proof_has_boxed += 1
     print(f'  proof.md: 存在={proof_exists}, 有boxed={proof_has_boxed}, 太小={proof_too_small}')
 
-    # 截断模式统计
+    # 连续截断模式统计：窗口结束不是思维错误，只是继续候选
     all_truncated = 0
     for r in runs:
-        if r.get('final_status') == 'TRUNCATED_AT_MAX':
-            rounds = r.get('rounds_log', [])
-            if len(rounds) >= 3 and all(rd.get('truncated', False) for rd in rounds):
+        if (r.get('status') == 'window_exhausted'
+                or r.get('final_status') == 'TRUNCATED_AT_MAX'):
+            rounds = [rd for rd in r.get('rounds_log', [])
+                      if rd.get('round_window_consumed', True)]
+            if rounds and all(rd.get('truncated', False) for rd in rounds):
                 all_truncated += 1
-    print(f'  5轮全截断（可能思维错误）: {all_truncated}')
+    print(f'  历史数学Round均截断（仍可继续）: {all_truncated}')
 
     # 平均轮次
     completed_rounds = [len(r.get('rounds_log', [])) for r in runs if r.get('final_status') == 'COMPLETED']
@@ -214,41 +216,34 @@ echo ""
 echo "  >> 需要检查："
 echo "     - proof.md存在数 vs COMPLETED数——不匹配说明有proof_missing"
 echo "     - 有boxed数 vs 存在数——不匹配说明有proof_no_boxed"
-echo "     - 5轮全截断数——这些是真正的思维错误候选"
-echo "     - COMPLETED平均轮次——如果>4说明大部分题需要很多轮才能完成"
+echo "     - 连续截断题——判断编排质量和继续优先级，不得据窗口次数判永久失败"
+echo "     - COMPLETED平均轮次——只描述已解题历史，不构成总Round上限"
 
-# --- 检查6: 通过率判定（对照415号§7.1）---
+# --- 检查6: 确认解出率与继续资格 ---
 echo ""
-echo "=== 6. 通过率判定（415号§7.1）==="
+echo "=== 6. 确认解出率与继续资格 ==="
 cd "$PROJ_ROOT"
 $PY -c "
 import sys; sys.path.insert(0, '.')
 from src.continuation_db_schema import connect_db
 db = connect_db()
-aql = 'FOR run IN p27_continuation_runs FILTER run.batch_id == @bid FILTER run.final_status != null COLLECT fs = run.final_status WITH COUNT INTO c RETURN {final_status: fs, count: c}'
-cursor = db.aql.execute(aql, bind_vars={'bid': '$BATCH_ID'}, ttl=60)
-dist = {r['final_status']: r['count'] for r in cursor}
-total = sum(dist.values())
-completed = dist.get('COMPLETED', 0)
-truncated = dist.get('TRUNCATED_AT_MAX', 0)
-if total > 0:
-    pass_rate = completed / total
-    print(f'  COMPLETED={completed} / total={total} = {pass_rate:.1%}')
-    if pass_rate >= 0.80:
-        print(f'  判定: 大部分是截断错误 → POC-2.5需要重新选题，Pipe 1判定基础有严重问题')
-    elif pass_rate >= 0.50:
-        print(f'  判定: 部分截断错误，部分思维错误 → 失败的题进入POC-2.5b')
-    else:
-        print(f'  判定: 大部分是真正的思维错误 → POC-2.5候选题基础基本成立')
-    print(f'  通过标准: COMPLETED≥50% → {\"通过\" if pass_rate >= 0.50 else \"未通过（当前进度）\"}')
-else:
-    print(f'  无已完成的run，无法判定')
+aql = 'FOR run IN p27_continuation_runs FILTER run.batch_id == @bid RETURN {status: run.status, final_status: run.final_status, eligible: run.continuation_eligible}'
+runs = list(db.aql.execute(aql, bind_vars={'bid': '$BATCH_ID'}, ttl=60))
+total = len(runs)
+completed = sum(1 for r in runs if r.get('final_status') == 'COMPLETED')
+resumable = sum(1 for r in runs if r.get('eligible') is True and r.get('final_status') != 'COMPLETED')
+window_ended = sum(1 for r in runs if r.get('status') == 'window_exhausted')
+legacy = sum(1 for r in runs if r.get('final_status') == 'TRUNCATED_AT_MAX')
+rate = completed / total if total else 0
+print(f'  已确认COMPLETED={completed} / total={total} = {rate:.1%}')
+print(f'  continuation_eligible={resumable}, window_exhausted={window_ended}, legacy_TRUNCATED_AT_MAX={legacy}')
+print('  说明: 未确认正确的题保留继续资格；窗口用完不能推断思维错误或永久失败')
 " 2>&1
 echo ""
 echo "  >> 需要检查："
-echo "     - 通过率是否≥50%？这是POC-2.7的通过标准（415号§7.1）"
-echo "     - 如果通过率<50%，检查续传机制是否需要改进（v2交接文档自动化）"
-echo "     - 对TRUNCATED_AT_MAX的题，检查是否有proof.md但答案错误→真正的思维错误"
+echo "     - window_exhausted/历史TRUNCATED_AT_MAX是否仍可查询并有next_round"
+echo "     - continuation_eligible异常为false时，查状态同步或历史兼容"
+echo "     - 确认解出率只用于进度观察，不用于给未解题判永久失败"
 
 # --- 检查7: 系统健康（并发数+handover状态+devin cli活跃度）---
 echo ""

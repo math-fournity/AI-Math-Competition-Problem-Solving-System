@@ -160,6 +160,18 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
             log_event(logger, "info", "skip_run", problem_id=pid, reason="已完成")
             skipped += 1
             continue
+        if existing and (
+                existing.get("final_status") is not None
+                or existing.get("status") != "prepared"):
+            # WP-01：所有未正确完成的状态理论上都可继续，但中断/窗口结束/
+            # 失败状态必须通过显式window resume留下reason。普通collector不能在
+            # 重跑时无声把它们改回prepared，避免运行中或暂停题意外重复占槽。
+            print(f"  [skip] {pid}: 当前状态={existing.get('status')}/"
+                  f"{existing.get('final_status')}，需显式开启新调度窗口")
+            log_event(logger, "info", "skip_run", problem_id=pid,
+                      reason="需要显式开启新调度窗口")
+            skipped += 1
+            continue
 
         # 创建工作目录
         work_dir = CONTINUATION_SOLVER_BASE / run_key
@@ -189,6 +201,10 @@ def collect_and_prepare(batch_id, limit=None, filter_prefix=None):
             "status": "prepared",
             "final_status": None,
             "rounds_log": [],
+            "round_window_id": 0,
+            "round_window_status": "pending",
+            "round_window_history": [],
+            "continuation_eligible": True,
             "created_at": utc_now(),
             "updated_at": utc_now(),
         }

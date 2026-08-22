@@ -5,21 +5,19 @@
 > 各步骤 SOP（L1）只补充该步骤特有的增量知识——系统级知识全在这里，不重复。
 > Gate 论证依据（L2）引用本闭包的 §3 生命周期 / §6 判定框架。
 
-> **目标态警示（2026-08-22）**：本文主体仍描述当前 legacy 实现，尤其“达到最大轮次即
-> TRUNCATED_AT_MAX 永久终态”不再是最终产品语义。用户已裁定 Round 数只是本次调度窗口
-> 默认额度，未正确解答的题理论上可无限继续；候选 proof 还必须经过充分形式化验证和独立
-> 审计。最终目标见 `dev-docs/057~063`，当前差距见064。未来实现完成前，SOP 判断必须同时
-> 区分“当前代码会怎么做”和“目标系统应该怎么做”。
+> **实施边界（2026-08-22）**：WP-01 已把最大轮次迁移为本次调度窗口默认额度；窗口用完
+> 写 `window_exhausted` 而非永久终态，未正确解答的题可从下一绝对 Round 继续。候选 proof
+> 的充分形式化验证与独立审计仍待 WP-04/05。最终目标见 `dev-docs/057~063`，当前差距见064。
 
 ---
 
 ## 1. 系统使命
 
-对失败的数学题启动续传解题管线——通过多轮 handover→solve 循环，让 devin cli
-接力解题，直至题目解出、AI 放弃、或达到最大轮次（默认5轮）。
+对失败的数学题启动长期续传解题管线——通过多轮 handover→solve 循环，让 devin cli
+接力解题。本次窗口额度用完只让出资源；AI 放弃只暂停当前实例；未正确解答的题未来仍可继续。
 
-一句话：**续传解题，判定截断 vs 思维错误**。截断=token不够（续传能救）；思维错误=
-方向出错（续传救不了）。每道题是一条管线，管线内部顺序调用 devin cli（handover
+一句话：**长期续传解题，保存证据并持续逼近正确答案**。截断、AI放弃和窗口结束都不是
+题目永久不可解；系统不再用固定窗口次数推断“思维错误”。每道题是一条管线，管线内部顺序调用 devin cli（handover
 和 solve 不会同时跑），故**系统并发数 = 同时在跑的管线条数 = devin cli 实例数上限**。
 详见 `docs/architecture/solve-pipeline.md` 和 AGENTS.md"核心概念"段。
 
@@ -71,15 +69,15 @@ running（DB+Redis，占并发槽）
   ↓ devin 跑完，写 export + DONE.md
   ↓ launcher judge：
      ├─ is_completed（proof有boxed+mtime本轮）→ finalize_run_completed → COMPLETED（终态）
-     ├─ is_truncated（comp≥24000+rc>1000+msg=0）+ round<max → requeue_truncated → 回pending
-     ├─ round==max → TRUNCATED_AT_MAX（终态）
-     ├─ pane含放弃模式（check_ai_gave_up，WP-K）→ ai_gave_up → FAILED（终态，
-     │   retry_eligible=False——模型能力边界不重试，防无意义重试 031 B6）
+     ├─ is_truncated + 当前窗口仍有额度 → requeue_truncated → 回pending
+     ├─ 当前窗口额度用完 → window_exhausted（非终态，不进completed/failed，未来可继续）
+     ├─ pane含放弃模式 → ai_gave_up（当前实例暂停，retry_eligible=False，未来可显式继续）
      └─ 既非完成也非截断 → dead_session → FAILED（终态）
 ```
 
-**正常生命周期**：prepared → pending → running → [截断→重入队→再running]循环
-（最多 max_rounds 轮）→ COMPLETED 或 TRUNCATED_AT_MAX 或 FAILED。
+**正常生命周期**：prepared → pending → running → [截断→重入队→再running]循环；本次
+`round_window_size` 用完→window_exhausted，未来显式resume→prepared并从下一绝对Round继续。
+只有确认完成才写COMPLETED；基础设施/模型异常保留恢复或继续资格。
 
 **round-1 是 seed 预检轮**：launcher 首次取件时对 seed export 重判截断/完成，补录
 rounds_log 条目。R2 起才是真正的续传轮（有 prompt/handover/proof）。正常轮序 [1,2,3..]
@@ -160,7 +158,7 @@ map_path/prev_export）。round-1 只有5基础字段。旧proof删前自动归�
 | `DEFAULT_MAX_RUNTIME_SECONDS` | 1800 | 单轮最大运行时间（30分钟） |
 | `DEFAULT_STALL_SECONDS` | 600 | 无活动判定 stall 阈值（10分钟） |
 | `DEFAULT_POLL_SECONDS` | 15 | launcher 轮询间隔 |
-| `DEFAULT_MAX_ROUNDS` | 5 | 最多续传轮次 |
+| `DEFAULT_ROUND_WINDOW_SIZE` | 5 | 每次调度窗口默认处理的数学Round数（非题目寿命） |
 | `HANDOVER_TIMEOUT_SECONDS` | 600 | handover devin cli 超时（10分钟） |
 | `TRUNC_COMP_TOKENS_MIN` | 24000 | completion_tokens≥此值判定截断 |
 | `DEVIN_MODEL` | glm-5-2 | devin cli 模型（必须显式指定） |
@@ -211,7 +209,8 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 - 截断重入队：判定有据（comp≥24000+rc>1000+msg=0）；score=round_num排队尾
   （NX不被feeder重置）
 - completed：proof有boxed+mtime本轮；proof文本已入库（双写）；audit_passed决定是否进入选题池
-- ai_gave_up（WP-K）：模型能力边界的正常出口——pane含放弃模式、retry_eligible=False
+- ai_gave_up（WP-K/WP-01）：当前实例的模型结果——pane含放弃模式、
+  retry_eligible=False（不做同配置立即自动重试），continuation_eligible=True（未来可显式继续）
   （不重试）；占比随题难度分布，不触发 alert
 - failed 队列：infra 类会被 retry_infrastructure 回收（≤3 次，队尾重入）；
   model 类留存是 Profile 数据不清理
@@ -278,7 +277,7 @@ SOP_01的SESS深度检查覆盖这12点——注册表脱节(A10/A13)是重点�
 | `proof_no_boxed` | B2 | warning | 数据问题 | proof存在但无boxed答案 |
 | `handover_missing` | B4 | critical | 数据问题 | 判断handover devin是否失败 |
 | `handover_too_small` | B5 | warning | 数据问题 | 记录 |
-| `all_rounds_truncated` | B6（truncation_pattern） | warning | 需判断 | 5轮全截断→可能token不够 |
+| `all_rounds_truncated` | B6（truncation_pattern） | warning | 需判断 | 历史数学Round均截断→仍可继续，判断编排/模型/优先级 |
 | `status_anomaly` | B7（final_status_distribution） | info | 需判断 | 分析具体异常 |
 | `rounds_log_duplicate_round` | B8 | critical | 代码bug | 重复轮号=旧数据或bug复发 |
 | `rounds_log_missing_field` | B8 | warning | 代码bug | 查make_round_log_entry |

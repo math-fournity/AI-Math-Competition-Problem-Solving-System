@@ -32,7 +32,7 @@ SCENARIOS = {
         "runs": 1,
         "solve": {"2": "truncate", "3": "complete"},
         "handover": "ok",
-        "max_rounds": 5,
+        "round_window_size": 5,
         "expect_final": "COMPLETED",
     },
     # 第一次续传就解出：R2直接完成
@@ -41,17 +41,20 @@ SCENARIOS = {
         "runs": 1,
         "solve": {"2": "complete"},
         "handover": "ok",
-        "max_rounds": 5,
+        "round_window_size": 5,
         "expect_final": "COMPLETED",
     },
-    # 永远截断：走到TRUNCATED_AT_MAX
+    # 永远截断：本次窗口结束，但题目仍可继续
     "never": {
-        "description": "永远截断——TRUNCATED_AT_MAX分支",
+        "description": "永远截断——window_exhausted非永久终态",
         "runs": 1,
         "solve": {"*": "truncate"},
         "handover": "ok",
-        "max_rounds": 3,
-        "expect_final": "TRUNCATED_AT_MAX",
+        "round_window_size": 3,
+        "expect_final": None,
+        "expect_status": "window_exhausted",
+        "expect_queue": "none",
+        "expect_window_history": 1,
     },
     # devin退出但无proof无有效export：dead_session判定+清理
     "dead": {
@@ -59,7 +62,7 @@ SCENARIOS = {
         "runs": 1,
         "solve": {"2": "dead"},
         "handover": "ok",
-        "max_rounds": 5,
+        "round_window_size": 5,
         "expect_final": None,  # dead_session不是final_status，查status字段
         "expect_status": "dead_session",
     },
@@ -69,7 +72,7 @@ SCENARIOS = {
         "runs": 1,
         "solve": {"2": "stall"},
         "handover": "ok",
-        "max_rounds": 5,
+        "round_window_size": 5,
         "expect_final": None,
         "expect_status": "failed_stall",
         "stall_seconds": 20,
@@ -80,7 +83,7 @@ SCENARIOS = {
         "runs": 1,
         "solve": {"2": "truncate", "3": "complete"},
         "handover": "timeout",
-        "max_rounds": 5,
+        "round_window_size": 5,
         "expect_final": "COMPLETED",
         "handover_timeout_seconds": 15,
     },
@@ -90,8 +93,22 @@ SCENARIOS = {
         "runs": 4,
         "solve": {"*": "truncate"},
         "handover": "ok",
-        "max_rounds": 3,
-        "expect_final": "TRUNCATED_AT_MAX",
+        "round_window_size": 3,
+        "expect_final": None,
+        "expect_status": "window_exhausted",
+        "expect_queue": "none",
+        "expect_window_history": 1,
+    },
+    # 两次调度窗口：窗口1处理R1/R2并结束；显式恢复后窗口2从R3完成。
+    "window_resume": {
+        "description": "跨两个调度窗口继续——绝对Round不重置",
+        "runs": 1,
+        "solve": {"2": "truncate", "3": "complete"},
+        "handover": "ok",
+        "round_window_size": 2,
+        "windows": 2,
+        "expect_final": "COMPLETED",
+        "expect_window_history": 1,
     },
 }
 

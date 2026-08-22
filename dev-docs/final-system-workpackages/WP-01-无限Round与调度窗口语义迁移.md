@@ -4,6 +4,7 @@
 > **依赖**：无
 > **核心风险**：当前 `TRUNCATED_AT_MAX` 是永久 completed；错误迁移会丢失继续资格或
 > 重复运行旧 Round。
+> **状态**：✅ 完成（实现与证据见 `exec-log/WP-01-执行记录.md`）
 
 ## 一、目标
 
@@ -79,11 +80,11 @@ Redis queue、result collector、monitor、`src/sim/{scenarios,assert_final,run_
 
 ## 八、验收 checklist
 
-- [ ] 窗口用完不永久 completed/failed
-- [ ] 未解题可再次调度并从下一 Round 继续
-- [ ] 绝对 Round 编号和资产不覆盖
-- [ ] 历史状态兼容和 dry-run 报告存在
-- [ ] Gate/flow 理由正确
-- [ ] sim 跨窗口通过
-- [ ] 未改生产 DB
-- [ ] 文档同步
+- [x] 窗口用完不永久 completed/failed
+- [x] 未解题可再次调度并从下一 Round 继续
+- [x] 绝对 Round 编号和资产不覆盖
+- [x] 历史状态兼容和 dry-run 报告存在
+- [x] Gate/flow 理由正确
+- [x] sim 跨窗口通过
+- [x] 未改生产 DB
+- [x] 文档同步

@@ -50,14 +50,19 @@ def audit_db(db):
     for (status, fs), n in combo.most_common():
         print(f"  status={status:<14} final_status={str(fs):<18} {n}")
 
-    hard_fail = [r for r in runs if r.get("final_status") in
-                 ("TRUNCATED_AT_MAX", "ABANDONED", "FAILED")]
-    print(f"[终态失败题] TRUNCATED_AT_MAX/ABANDONED/FAILED: {len(hard_fail)}")
+    legacy_window_end = [r for r in runs if r.get("final_status") == "TRUNCATED_AT_MAX"]
+    resumable = [r for r in runs if (
+        r.get("status") in ("window_exhausted", "ai_gave_up")
+        or r.get("final_status") in ("TRUNCATED_AT_MAX", "ABANDONED", "FAILED")
+    )]
+    print(f"[历史窗口终态] legacy TRUNCATED_AT_MAX: {len(legacy_window_end)}")
+    print(f"[明确可继续候选] 新窗口结束/AI放弃/历史失败状态: {len(resumable)}")
 
     started_unsolved = [r for r in runs
-                        if r.get("status") == "prepared"
+                        if r.get("status") in ("prepared", "window_exhausted")
                         and len(r.get("rounds_log") or []) > 0]
-    print(f"[启动过但停在prepared的题] rounds_log非空: {len(started_unsolved)}")
+    print(f"[启动过仍未确认正确] prepared/window_exhausted且rounds_log非空: "
+          f"{len(started_unsolved)}")
 
     trunc, infra = [], []
     for r in started_unsolved:
@@ -100,7 +105,7 @@ def audit_disk(runs, trunc):
     print(f"[截断题数据留存] round2 conversation.json存在: {kept}/{len(trunc)}")
 
     lost = 0
-    completed = [r for r in runs if r.get("status") == "completed"]
+    completed = [r for r in runs if r.get("final_status") == "COMPLETED"]
     for r in completed:
         if not (CONTINUATION_TRAJECTORY_BASE / r["_key"]
                 / "round2" / "exports" / "conversation.json").is_file():
@@ -139,9 +144,9 @@ def main():
     audit_disk(runs, trunc)
     audit_sessions_db()
     section("结论口径")
-    print("""终态失败(TRUNCATED_AT_MAX等)计数=最终判死的题；
-prepared+rounds_log非空=启动过但卡在中间态的题（含AI截断与基础设施失败两类），
-它们是未来TRUNCATED_AT_MAX的直接候选池。两者勿混淆。""")
+    print("""TRUNCATED_AT_MAX是旧代码把调度窗口用完误写成永久终态的历史数据，
+不能据此判数学失败；window_exhausted/ai_gave_up/历史失败题都保留未来继续资格。
+默认Round数只限制一次调度窗口，绝对Round历史不重置。""")
     return 0
 
 

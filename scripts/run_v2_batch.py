@@ -34,7 +34,9 @@ def main():
     ap = argparse.ArgumentParser(description="v2 批量解题运行器")
     ap.add_argument("--batch-id", default="v2-p27-full")
     ap.add_argument("--limit", type=int, default=0, help="最多做几题（0=无限）")
-    ap.add_argument("--max-rounds", type=int, default=10, help="每题最大接力轮数")
+    ap.add_argument("--round-window-size", "--max-rounds",
+                    dest="round_window_size", type=int, default=10,
+                    help="每题本次调度窗口Round数；--max-rounds为兼容别名")
     ap.add_argument("--start-from", help="从此 problem_id 开始")
     args = ap.parse_args()
 
@@ -83,14 +85,27 @@ def main():
         try:
             t0 = time.time()
             result = solve_problem(problem_text, str(traj_dir),
-                                   max_rounds=args.max_rounds)
+                                   round_window_size=args.round_window_size)
             elapsed = round(time.time() - t0, 0)
 
             completed = result.get("completed", False)
-            new_status = "completed" if completed else "budget_starved"
+            new_status = "completed" if completed else "window_exhausted"
+
+            v2_history = list(run_doc.get("v2_window_history") or [])
+            v2_history.append({
+                "start_round": result.get("window_start_round"),
+                "end_round": result.get("next_round", 1) - 1,
+                "rounds": result.get("window_rounds"),
+                "completed": completed,
+                "ended_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            })
 
             runs.update({"_key": rk,
                          "status": new_status,
+                         "final_status": "COMPLETED" if completed else None,
+                         "continuation_eligible": not completed,
+                         "next_round": result.get("next_round"),
+                         "v2_window_history": v2_history,
                          "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                          "v2_result": json.dumps(result, ensure_ascii=False)[:5000]})
 

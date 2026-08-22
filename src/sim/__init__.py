@@ -10,7 +10,7 @@ proof/DONE/HANDOVER再退出。世界的全部输出就是文件+进程行为，
   scenarios.py    剧本库——每个剧本对应launcher的一条真实分支路径
   fake_devin.py   剧本演员——被launch_solve/start_handover在tmux里启动
   setup.py        造批次——fixture题目+截断态seed export+prepared runs
-  run_sim.py      编排——setup→真feeder→真launcher→等终态→断言→清场
-  assert_final.py 终态断言——DB终态/rounds_log/flow事件链/016不变量
+  run_sim.py      编排——setup→真feeder→真launcher→等窗口收场→断言→清场
+  assert_final.py 收场断言——DB状态/窗口历史/rounds_log/flow/016不变量
   teardown.py     清场——tmux/Redis/DB/文件（--keep可保留现场）
 """

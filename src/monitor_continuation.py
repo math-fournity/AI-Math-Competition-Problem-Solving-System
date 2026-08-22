@@ -531,7 +531,7 @@ def check_failure_rate(db, batch_id):
 
     failed_statuses = ["failed_timeout", "failed_stall", "dead_session", "rate_limited",
                        "failed_connection", "launch_error",
-                       "ai_gave_up"]  # WP-K：模型放弃也是终态失败，计入失败率
+                       "ai_gave_up"]  # 本实例失败率；ai_gave_up不剥夺题目未来继续资格
     failed = sum(status_counts.get(s, 0) for s in failed_statuses)
     completed = status_counts.get("completed", 0)
     finished = failed + completed
@@ -702,11 +702,12 @@ def check_handover_completeness(db, batch_id, sample_size=10):
 
 
 def check_truncation_pattern(db, batch_id):
-    """B6: 5轮全截断的题——可能是真正的思维错误"""
+    """B6: 连续截断的未解题——可继续研究，不据窗口次数判思维错误。"""
     aql = (
         f"FOR run IN {CONTINUATION_RUNS_COLLECTION} "
         f"FILTER run.batch_id == @bid "
-        f"FILTER run.final_status == 'TRUNCATED_AT_MAX' "
+        f"FILTER run.status == 'window_exhausted' "
+        f"   OR run.final_status == 'TRUNCATED_AT_MAX' "
         f"RETURN run"
     )
     cursor = db.aql.execute(aql, bind_vars={"bid": batch_id}, ttl=120)
@@ -716,12 +717,14 @@ def check_truncation_pattern(db, batch_id):
     all_truncated = []
     for run in runs:
         rounds_log = run.get("rounds_log", [])
-        if len(rounds_log) >= 5 and all(r.get("truncated", False) for r in rounds_log):
+        consumed = [r for r in rounds_log if r.get("round_window_consumed", True)]
+        if consumed and all(r.get("truncated", False) for r in consumed):
             all_truncated.append(run.get("problem_id", "?"))
 
     if all_truncated:
         alerts.append(("all_rounds_truncated", "warning", {
-            "summary": f"{len(all_truncated)}道题5轮全截断——可能是真正的思维错误",
+            "summary": (f"{len(all_truncated)}道题历史数学Round均截断——"
+                        "仍可开启新窗口，需判断编排/模型/继续优先级"),
             "problem_ids": all_truncated[:20],
             "count": len(all_truncated),
         }))
@@ -754,7 +757,8 @@ def check_status_anomaly(db, batch_id):
             }))
         if truncated_rate > 0.8:
             alerts.append(("status_anomaly", "info", {
-                "summary": f"TRUNCATED_AT_MAX占比{truncated_rate:.0%}——大部分是思维错误",
+                "summary": (f"历史TRUNCATED_AT_MAX占比{truncated_rate:.0%}——"
+                            "这是旧窗口终态数据，不能据此判思维错误；应盘点迁移继续"),
                 "distribution": dist,
             }))
     return alerts
@@ -1172,7 +1176,9 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=1):
         total_done = sum(v for k, v in status_counts.items() if k not in ("prepared", "running"))
         total = sum(status_counts.values())
         print(f"  [status] {json.dumps(status_counts)}")
-        print(f"  [progress] {total_done}/{total} ({100*total_done//total if total else 0}%)")
+        print(f"  [window_settled] {total_done}/{total} "
+              f"({100*total_done//total if total else 0}%)；"
+              "window_exhausted不等于题目永久完成")
 
         # final_status分布
         aql2 = (
@@ -1194,7 +1200,7 @@ def run_monitor_loop(batch_id, interval=120, expected_concurrency=1):
 
         # 检查退出条件
         if status_counts.get("prepared", 0) == 0 and status_counts.get("running", 0) == 0:
-            print("  所有任务已完成，监控Pipe退出")
+            print("  本次调度窗口已全部收场（未解题未来仍可继续），监控Pipe退出")
             log_event(logger, "info", "monitor_all_done", batch_id=batch_id, check_count=check_count)
             break
 

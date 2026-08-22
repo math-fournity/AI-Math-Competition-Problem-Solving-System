@@ -44,8 +44,8 @@ def setup_sim_env(extra=None):
     return env
 
 
-def wait_all_final(batch_id, run_keys, timeout):
-    """轮询DB等全部run到达终态（final_status非空或status为终态）。"""
+def wait_all_settled(batch_id, run_keys, timeout):
+    """轮询DB等全部run结束本次调度（含非永久window_exhausted）。"""
     from src.continuation_config import CONTINUATION_RUNS_COLLECTION
     from src.continuation_db_schema import connect_db
     db = connect_db()
@@ -56,7 +56,9 @@ def wait_all_final(batch_id, run_keys, timeout):
         for rk in run_keys:
             doc = runs.get(rk) or {}
             if doc.get("final_status") is None and doc.get("status") not in (
-                    "dead_session", "failed_stall", "unknown_state", "launch_error"):
+                    "window_exhausted", "ai_gave_up", "dead_session",
+                    "failed_stall", "failed_timeout", "unknown_state",
+                    "launch_error", "rate_limited", "failed_connection"):
                 pending += 1
         if pending == 0:
             return True
@@ -107,53 +109,76 @@ def main():
     # 2. setup造批次
     run_keys = build_batch(batch_id, args.scenario, args.runs)
 
-    launcher_log = PROJECT_ROOT / "tmp" / "sim" / f"{batch_id}-launcher.log"
-    launcher_log.parent.mkdir(parents=True, exist_ok=True)
+    launcher_log_dir = PROJECT_ROOT / "tmp" / "sim"
+    launcher_log_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # 3. 真feeder入队
-        print("\n--- feeder（真代码） ---")
-        feed = subprocess.run(
-            [sys.executable, "-m", "src.continuation_feeder", "--batch-id", batch_id],
-            capture_output=True, text=True, timeout=120, env=child_env,
-            cwd=str(PROJECT_ROOT))
-        print(feed.stdout.strip() or feed.stderr.strip()[:500])
+        windows = int(sc.get("windows", 1))
+        ok = True
+        for window_no in range(1, windows + 1):
+            # 3. 真feeder入队
+            print(f"\n--- feeder（真代码，窗口{window_no}/{windows}） ---")
+            feed = subprocess.run(
+                [sys.executable, "-m", "src.continuation_feeder", "--batch-id", batch_id],
+                capture_output=True, text=True, timeout=120, env=child_env,
+                cwd=str(PROJECT_ROOT))
+            print(feed.stdout.strip() or feed.stderr.strip()[:500])
 
-        # 4. 真launcher调度（SIGINT优雅停止）
-        print("\n--- launcher（真代码，SIM_MODE=1）---")
-        print(f"  日志: {launcher_log}")
-        launcher_cmd = [
-            sys.executable, "-m", "src.continuation_launcher",
-            "--batch-id", batch_id,
-            "--concurrency", str(args.concurrency),
-            "--max-rounds", str(sc.get("max_rounds", 5)),
-            "--poll-seconds", str(args.poll_seconds),
-        ]
-        if sc.get("stall_seconds"):
-            launcher_cmd += ["--stall-seconds", str(sc["stall_seconds"])]
-        with open(launcher_log, "w") as lf:
-            launcher = subprocess.Popen(
-                launcher_cmd, stdout=lf, stderr=subprocess.STDOUT,
-                env=child_env, cwd=str(PROJECT_ROOT),
-                start_new_session=True)  # 新进程组——SIGINT不波及run_sim
+            # 4. 真launcher调度（SIGINT优雅停止）
+            launcher_log = launcher_log_dir / f"{batch_id}-w{window_no}-launcher.log"
+            print("\n--- launcher（真代码，SIM_MODE=1）---")
+            print(f"  日志: {launcher_log}")
+            launcher_cmd = [
+                sys.executable, "-m", "src.continuation_launcher",
+                "--batch-id", batch_id,
+                "--concurrency", str(args.concurrency),
+                "--round-window-size", str(sc.get("round_window_size", 5)),
+                "--poll-seconds", str(args.poll_seconds),
+            ]
+            if sc.get("stall_seconds"):
+                launcher_cmd += ["--stall-seconds", str(sc["stall_seconds"])]
+            with open(launcher_log, "w") as lf:
+                launcher = subprocess.Popen(
+                    launcher_cmd, stdout=lf, stderr=subprocess.STDOUT,
+                    env=child_env, cwd=str(PROJECT_ROOT),
+                    start_new_session=True)
 
-        # 5. 等全部run终态
-        print(f"--- 等待终态（timeout={args.timeout}s）---", flush=True)
-        ok = wait_all_final(batch_id, run_keys, args.timeout)
-        if not ok:
-            print("❌ 超时：部分run未到终态。tail launcher日志：")
-            tail = launcher_log.read_text().splitlines()[-15:]
-            print("\n".join("  " + l for l in tail))
+            # 5. 等全部run结束本次窗口
+            print(f"--- 等待窗口收场（timeout={args.timeout}s）---", flush=True)
+            window_ok = wait_all_settled(batch_id, run_keys, args.timeout)
+            ok = ok and window_ok
+            if not window_ok:
+                print("❌ 超时：部分run未结束本次窗口。tail launcher日志：")
+                tail = launcher_log.read_text().splitlines()[-15:]
+                print("\n".join("  " + l for l in tail))
 
-        # 6. 停launcher（SIGINT优雅）+ 等退出
-        launcher.send_signal(signal.SIGINT)
-        try:
-            launcher.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            launcher.kill()
-            print("  ⚠️ launcher未在30秒内退出，已kill")
+            # 6. 停launcher（SIGINT优雅）+ 等退出
+            if launcher.poll() is None:
+                launcher.send_signal(signal.SIGINT)
+                try:
+                    launcher.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    launcher.kill()
+                    print("  ⚠️ launcher未在30秒内退出，已kill")
 
-        # 7. 终态断言
+            if window_no < windows:
+                # sim显式开启下一窗口：只调用与生产管理脚本相同的纯字段函数；
+                # 实际入队仍由下一轮真feeder完成。
+                from src.continuation_db_schema import connect_db, update_run
+                from src.continuation_config import CONTINUATION_RUNS_COLLECTION
+                from src.round_window import resume_window_fields
+                db = connect_db()
+                runs = db.collection(CONTINUATION_RUNS_COLLECTION)
+                for rk in run_keys:
+                    doc = runs.get(rk) or {}
+                    if doc.get("status") != "window_exhausted":
+                        raise RuntimeError(
+                            f"{rk}: 中间窗口期望window_exhausted，实际{doc.get('status')}")
+                    update_run(db, rk, resume_window_fields(
+                        doc, reason=f"sim_window_{window_no + 1}"))
+                print(f"  [sim] 已显式开启窗口{window_no + 1}，下一轮feeder将入队")
+
+        # 7. 最终断言
         exit_code = run_assertions(batch_id, run_keys, sc)
 
     finally:

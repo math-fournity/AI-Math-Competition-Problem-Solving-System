@@ -34,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.continuation_config import (
-    DEFAULT_CONCURRENCY, DEFAULT_MAX_ROUNDS,
+    DEFAULT_ROUND_WINDOW_SIZE,
     DEFAULT_MAX_RUNTIME_SECONDS, DEFAULT_STALL_SECONDS, DEFAULT_POLL_SECONDS,
 )
 
@@ -47,8 +47,14 @@ def main():
                         default="all", help="执行步骤")
     parser.add_argument("--limit", type=int, help="限制题数（collect阶段，测试用）")
     parser.add_argument("--filter-prefix", help="题目ID前缀过滤")
-    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help="并发数")
-    parser.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS, help="最大续传轮次")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="并发数（不传则用DB batch记录）")
+    parser.add_argument(
+        "--round-window-size", "--max-rounds",
+        dest="round_window_size", type=int,
+        default=DEFAULT_ROUND_WINDOW_SIZE,
+        help="本次调度窗口默认处理的数学Round数；--max-rounds为兼容别名",
+    )
     parser.add_argument("--method", choices=["v1", "v2"], default="v2", help="续传方案")
     parser.add_argument("--max-runtime", type=int, default=DEFAULT_MAX_RUNTIME_SECONDS, help="单轮最大运行时间（秒）")
     parser.add_argument("--stall-seconds", type=int, default=DEFAULT_STALL_SECONDS, help="stall判定时间（秒）")
@@ -106,7 +112,7 @@ def main():
         launch_batch(
             args.batch_id,
             concurrency=args.concurrency,
-            max_rounds=args.max_rounds,
+            round_window_size=args.round_window_size,
             max_runtime=args.max_runtime,
             stall_seconds=args.stall_seconds,
             poll_seconds=args.poll_seconds,

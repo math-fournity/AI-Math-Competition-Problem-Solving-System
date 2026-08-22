@@ -69,8 +69,9 @@ INFRA_FAILURES = {
     "dead_session", "crash_recovered",
 }
 
-# 模型能力失败（不可重试，是数据）。ai_gave_up 与 max_runtime_exceeded 为
-# WP-J/WP-K 引入的新终态预留（031 B6：防放弃题被误重试；WP-J 的超时改名）。
+# 非基础设施结果（不做“同配置立即自动重试”，但题目仍可在未来显式继续）。
+# truncated_at_max仅兼容历史failed队列；WP-01起新窗口用window_exhausted且不入
+# failed队列。ai_gave_up防止无意义立即重试，不代表题目永久不可解。
 MODEL_FAILURES = {
     "failed_timeout", "failed_stall", "failed_no_proof",
     "truncated_at_max", "ai_gave_up",

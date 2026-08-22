@@ -7,9 +7,9 @@
 > **系统级认知**：`docs/sop/SYSTEM_CLOSURE.md`（架构/生命周期/判定框架，每次SOP注入）。
 > **根目录引导地图**：`README.md`（全 repo 文档分类法索引）。
 
-> **当前/目标边界（2026-08-22）**：本文件导航的是当前代码；当前仍以最大轮次写
-> `TRUNCATED_AT_MAX`，生产 launcher 仍只有 v1/v2。最终目标已改为无限可续传的调度窗口、
-> 专职观察者/解题者、形式化充分性审计、OpenCode key lease 和目标最大并发30，见
+> **当前/目标边界（2026-08-22）**：WP-01 已把最大轮次迁移为无限可续传的调度窗口；
+> 生产 launcher 仍只有 v1/v2，专职观察者/解题者、形式化充分性审计、OpenCode key lease
+> 和目标最大并发30仍待后续工作包，见
 > `dev-docs/057~064` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
 
 ---
@@ -17,8 +17,8 @@
 ## 目录角色
 
 `src/` 是续传解题管线（Solve Pipeline）的实现代码。系统只有这一条管线——
-对失败的数学题启动多轮 handover→solve 循环，让 devin cli 接力解题，直至解出、
-AI 放弃、或达到最大轮次（默认5轮）。Pipe 1/2/3（分析/审计/选题）已删除。
+对失败的数学题启动多轮 handover→solve 循环，让 devin cli 接力解题；每次调度窗口默认
+处理若干数学 Round，窗口用完后题目保持可继续。Pipe 1/2/3（分析/审计/选题）已删除。
 
 管线内部顺序调用 devin cli：一道题任意时刻最多 1 个 devin cli 在为它工作
 （handover 或 solve，不会同时）。**系统并发数 = 同时在跑的管线条数 =
@@ -54,15 +54,15 @@ continuation_collector → continuation_feeder → continuation_launcher → con
 
 并发引擎：dequeue → launch devin cli → judge（截断/完成/放弃）→ requeue/done。
 复用 analysis_launcher 的 stall/rate_limit/zombie 检测模式，适配多轮续传逻辑。
-核心差异：多轮续传（最多 max_rounds 轮）、v2方案双pipe（先 handover 再 solve）、
+核心差异：多轮续传（`round_window_size` 只限制本次窗口）、v2方案双pipe（先 handover 再 solve）、
 完成判定（proof.md 含 `\boxed`）、更长 timeout（30分钟）。
 
 **覆盖问题场景**：失控循环（016：同题高频启动）；截断误判（017 P0：真实截断被误判
-dead_session）；并发控制（DB batch 记录覆盖命令行参数）；终态判定（COMPLETED/
-TRUNCATED_AT_MAX/FAILED）；round-1 seed 预检轮。
+dead_session）；并发控制（DB batch 记录覆盖命令行参数）；窗口结束
+（`window_exhausted`非永久终态）；round-1 seed 预检轮。
 **用法**：
 ```
-python -m src.continuation_launcher --batch-id p27-full --concurrency 1 --max-rounds 5 --method v2
+python -m src.continuation_launcher --batch-id p27-full --concurrency 1 --round-window-size 5 --method v2
 python -m src.continuation_launcher --status --batch-id p27-full
 python -m src.continuation_launcher --stop --batch-id p27-full
 ```
@@ -82,16 +82,25 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 
 ---
 
-## 二、支撑模块（3个，被各模块依赖）
+## 二、支撑模块（4个，被各模块依赖）
 
 ### `continuation_config.py` — 全局配置常量
 
 全局配置常量：DB 集合名 / Redis key 结构 / 模型（DEVIN_MODEL=glm-5-2）/ 路径 /
-门闸 ID / 判定阈值（并发/超时/stall/截断token/最大轮次）。
+门闸 ID / 判定阈值（并发/超时/stall/截断token/调度窗口）。
 
 **覆盖问题场景**：配置漂移=各模块引用不一致；SOP_01/05 判断依据；devin cli model
 必须显式指定（铁律10）。完整参数表见 `SYSTEM_CLOSURE.md` §5"关键配置参数"。
 **依赖**：被所有 continuation_* 模块 import。
+
+### `round_window.py` — 无限续传的调度窗口领域逻辑
+
+不连接 DB/Redis 的纯逻辑：开启/结束/暂停/恢复窗口、记录数学 Round 是否消耗窗口额度、
+计算下一绝对 Round。窗口额度只限制本次默认处理量，不建立题目寿命上限。
+
+**覆盖问题场景**：跨窗口继续时 Round 号重复；基础设施失败误耗数学额度；历史
+`TRUNCATED_AT_MAX` 恢复时丢失旧证据；窗口结束误进永久终态。
+**依赖**：launcher、窗口管理脚本和 sim 调用；所有入队/回收动作仍走现有 Gate。
 
 ### `continuation_db_schema.py` — DB 连接+集合管理
 

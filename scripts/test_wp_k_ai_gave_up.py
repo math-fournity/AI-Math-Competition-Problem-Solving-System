@@ -50,7 +50,8 @@ def main():
         check(f"不命中: {t[:40]!r}", hit is None)
 
     print("\n=== 分类语义（本 WP 的全部意义）===")
-    check("ai_gave_up 分类 = model（不可重试）", classify_failure("ai_gave_up") == "model")
+    check("ai_gave_up 分类 = model（不立即自动重试，未来可显式继续）",
+          classify_failure("ai_gave_up") == "model")
     check("对照 dead_session 分类 = infra（可重试——误判后果所在）",
           classify_failure("dead_session") == "infra")
 

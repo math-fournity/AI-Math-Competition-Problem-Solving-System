@@ -121,14 +121,14 @@ OP 运营知识刷新（每轮末尾注入，突破AGENTS.md 16K限制）
 
 **7a. 策略有效性判断**
 - v2方案（HANDOVER+map）的完成率 vs v1方案（如果有v1数据）——v2是否真的比v1好？
-- 5轮续传上限是否够？统计达到 max_rounds 的 run 比例——如果大量 run 都跑到 max_rounds 还没完成，说明上限太低
+- 调度窗口大小是否影响题目间公平？统计window_exhausted与后续resume；窗口大小不是题目寿命，不能据此判死
 - 当前 model（glm-5-2）是否胜任？完成率是否和 model 能力匹配？
 
 **7b. 系统产出价值判断**
 - 当前完成率（如 13.2%）是否在可接受范围？——和预期对比，和历史批次对比
 - COMPLETED 的 proof 是否真的是正确解？——抽样验证 C1 判断结果，确认解出率可信
 - 续传是否真的比单轮更好？——对比 round 1 直接完成 vs 多轮续传完成的比例，评估续传增量价值
-- TRUNCATED_AT_MAX 的题是否值得加大 max_rounds？——如果大量题跑到 5 轮还没完成但每轮有进展，可能上限太低
+- window_exhausted题是否仍有净进展、何时值得开启新窗口？历史TRUNCATED_AT_MAX只作可继续候选，不据此判思维错误
 
 **7c. 系统性问题诊断**
 - 按题源完成率差异（如 oda/polymath 全 0% vs deepmath 31.7%）——是 prompt 对这些题源不适用？是 model 对这些题型不胜任？是这些 run 还没跑到？
@@ -174,7 +174,7 @@ OP 运营知识刷新（每轮末尾注入，突破AGENTS.md 16K限制）
 - 当前批次的 COMPLETED/total 通过率是多少？
 - 通过率高（>30%）→ 续传解题有效，管线运行正常
 - 通过率低（<10%）→ 需诊断：model 不胜任？prompt 不适用？题目太难？
-- TRUNCATED_AT_MAX 占比高 → 可能需要加大 max_rounds 或优化 handover 质量
+- window_exhausted占比高 → 判断窗口公平、编排质量和继续优先级；不得把它解释为题目永久失败
 - FAILED（dead_session）占比高 → 可能是基础设施问题或判定逻辑问题
 
 #### AUDIT-07: 审计报告产出

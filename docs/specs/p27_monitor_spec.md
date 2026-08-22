@@ -57,8 +57,8 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 | B3. proof_too_small | proof_too_small | warning | <1KB | proof.md太小，可能内容不完整 |
 | B4. handover_completeness | handover_missing | critical | — | v2方案的round无HANDOVER.md |
 | B5. handover_completeness | handover_too_small | warning | <500B | HANDOVER.md太小，可能不完整 |
-| B6. truncation_pattern | all_rounds_truncated | warning | 5轮全截断 | 5轮全部TRUNCATED，可能是思维错误 |
-| B7. final_status_distribution | status_anomaly | info | — | final_status分布异常（全TRUNCATED或全ERROR） |
+| B6. truncation_pattern | all_rounds_truncated | warning | 历史数学Round全截断 | 仍可继续；判断编排/模型/继续优先级，不判永久思维错误 |
+| B7. final_status_distribution | status_anomaly | info | — | final_status分布异常（历史TRUNCATED占比高或全ERROR） |
 | B8. rounds_log_integrity | rounds_log_missing_field | warning | — | rounds_log缺必需字段（round/export/truncated/completed/reason）。round=1是seed预检轮（2026-08-20起补录，只含5基础字段，无prompt/handover/proof——属正常） |
 | B8. rounds_log_integrity | rounds_log_export_missing | critical | — | rounds_log的export指向的文件不存在 |
 | B8. rounds_log_integrity | rounds_log_handover_missing | critical | — | rounds_log的handover_path指向的文件不存在（handover_success=True时） |
@@ -156,12 +156,14 @@ Monitor Pipe持续监控POC-2.7续传批次的运行健康，把**应该由Maste
 - **warning条件**：HANDOVER.md <500B
 
 #### B6. all_rounds_truncated
-- **检查方法**：`final_status='TRUNCATED_AT_MAX'`的run，检查rounds_log中每轮的truncated字段
-- **warning条件**：5轮全部truncated=True → 可能是真正的思维错误（不是截断错误）
+- **检查方法**：`status='window_exhausted'`或历史`final_status='TRUNCATED_AT_MAX'`的run，
+  检查消耗数学窗口额度的rounds_log条目
+- **warning条件**：历史数学Round全部truncated=True → 该题仍可开启新窗口；交Master Agent
+  判断编排、模型、验证欠账和继续优先级，不能据窗口次数判永久思维错误
 
 #### B7. status_anomaly
 - **检查方法**：final_status分布统计
-- **info条件**：全TRUNCATED_AT_MAX或全ERROR → 数据/机制问题
+- **info条件**：历史TRUNCATED_AT_MAX占比异常高→提示迁移/旧机制影响；全ERROR→数据/机制问题
 
 #### B8. rounds_log_integrity
 - **检查方法**：抽样10条有rounds_log的run，检查每条记录的字段完整性和路径有效性

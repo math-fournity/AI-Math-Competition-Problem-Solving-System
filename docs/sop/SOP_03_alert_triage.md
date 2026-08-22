@@ -48,7 +48,7 @@
 | `proof_no_boxed` | proof存在但无boxed（B2） | 数据问题 | 记录 |
 | `handover_missing` | HANDOVER.md不存在（B4） | 数据问题 | 判断handover devin是否失败 |
 | `handover_too_small` | HANDOVER.md过小（B5） | 数据问题 | 记录 |
-| `all_rounds_truncated` | 5轮全截断（B6 truncation_pattern） | 需判断 | 分析截断原因（token不够？） |
+| `all_rounds_truncated` | 历史数学Round均截断（B6） | 需判断 | 分析编排/模型/继续优先级；不得判永久失败 |
 | `status_anomaly` | 状态分布异常（B7） | 需判断 | 分析具体异常 |
 | `rounds_log_duplicate_round` | rounds_log重复轮号（B8） | 代码bug | 旧数据或bug复发 |
 | `rounds_log_missing_field` | rounds_log字段缺失（B8） | 代码bug | 查make_round_log_entry |

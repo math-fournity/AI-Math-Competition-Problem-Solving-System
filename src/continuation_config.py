@@ -77,7 +77,11 @@ DEVIN_PERMISSION_MODE = "dangerous"
 DEFAULT_MAX_RUNTIME_SECONDS = 1800   # 30分钟（续传单轮可能thinking spin很久）
 DEFAULT_STALL_SECONDS = 600          # 10分钟无活动判定为stall（续传解题thinking可能很长）
 DEFAULT_POLL_SECONDS = 15            # 轮询间隔
-DEFAULT_MAX_ROUNDS = 5               # 最多续传5轮
+# 每次调度窗口默认处理5个数学Round；不是题目生命周期上限。未正确解答的题
+# 在窗口结束后保持可继续，未来窗口从下一绝对Round接续（WP-01）。
+DEFAULT_ROUND_WINDOW_SIZE = 5
+# 兼容旧import；新代码使用DEFAULT_ROUND_WINDOW_SIZE。
+DEFAULT_MAX_ROUNDS = DEFAULT_ROUND_WINDOW_SIZE
 
 # === 截断判定 ===
 TRUNC_COMP_TOKENS_MIN = 24000        # completion_tokens >= 24000 判定为截断

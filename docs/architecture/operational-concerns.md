@@ -196,11 +196,13 @@ if old_proof.exists():
     old_proof.unlink()  # 删除上一轮的proof.md
 ```
 
-### 多轮逻辑（`launch_batch()`）
+### 多轮窗口逻辑（`launch_batch()`）
 
 ```python
-for each run:
-    for round in 1..max_rounds:
+for each scheduled run:
+    ensure_active_round_window(size=round_window_size)
+    while current_window_has_capacity:
+        round = next_absolute_round(run.rounds_log)
         if round == 1:
             # 用原始export
             prompt = build_initial_prompt(problem_text)
@@ -221,15 +223,17 @@ for each run:
             mark_run_completed(run_key, "COMPLETED")
             break
         elif is_truncated(export):
-            # 截断——继续下一轮
-            continue
+            record_round_and_consume_window_slot()
+            if current_window_has_capacity:
+                requeue_truncated()  # 窗口内自动继续
+            else:
+                mark_window_exhausted()  # 非永久终态，未来可继续
+            break
         else:
             # 异常
             mark_run_failed(run_key, "ERROR")
             break
-    else:
-        # max_rounds轮后仍未完成
-        mark_run_completed(run_key, "TRUNCATED_AT_MAX")
+    # 未来显式resume：清空窗口字段→prepared→feeder Gate→下一绝对Round
 ```
 
 ### 新Pipe是否需要多轮续传
@@ -246,7 +250,9 @@ for each run:
 ### 实现
 
 - `results.json`记录已完成的题——`continuation_collector.py`的`collect_and_prepare()`检查已有结果，跳过已完成的题
-- DB中run记录的status字段——`prepared`/`running`/`completed`/`failed_*`，恢复时只处理`prepared`和`failed_*`的run
+- DB中run记录的status字段——`prepared`/`running`/`window_exhausted`/
+  `completed`/`failed_*`。普通恢复只处理prepared/pending_retry；window_exhausted
+  需要带reason显式开启新窗口，防止重启后单题立刻再次独占资源。
 - Redis队列——`clear_all()`清空后重新feed，或不清空直接继续（优雅停止模式下队列保留）
 
 ### 恢复方法
@@ -365,7 +371,7 @@ sim首日运行捕获5个真bug（全部已修+回归全绿），**launcher重�
 | P0 | 截断判定被dead分支抢占，多轮续传引擎不可达 | 真实截断全被误判dead_session（4712实证）；核心使命的截断半边失效 |
 | P1 | 主循环退出条件漏handover_pending | 批次最后一题走v2时被晾半路 |
 | P1 | rounds_log不补录round-1条目→R2重跑一次 | 多耗一轮handover+solve；round2产物被二次启动覆盖 |
-| P2 | TRUNCATED_AT_MAX不写run_completed流水 | 黑匣子漏终态 |
+| P2 | 窗口结束不写round_window_exhausted流水 | 看不见题目为何让出资源/何时可继续 |
 | P2 | 四处failed终态不写run_failed流水 | 黑匣子漏终态 |
 
 **018事故**：sim收尾时teardown护栏不对称（缺文件根检查）+手动env漏设

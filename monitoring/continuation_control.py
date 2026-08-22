@@ -49,6 +49,7 @@ from src.session_registry import (
     get_session as _get_session,
 )
 from src.continuation_db_schema import connect_db as _connect_db
+from src.continuation_config import DEFAULT_ROUND_WINDOW_SIZE
 
 # tmux session命名
 LAUNCHER_SESSION = "p27-launcher"
@@ -237,7 +238,7 @@ def cmd_start(args):
         f"cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.continuation_launcher "
         f"--batch-id {args.batch_id} "
         f"{conc_arg}"
-        f"--max-rounds {args.max_rounds} "
+        f"--round-window-size {args.round_window_size} "
         f"--method {args.method}"
     )
     start_service("launcher", launcher_cmd, LAUNCHER_SESSION, auto_restart=True)
@@ -702,7 +703,12 @@ def main():
     p_start.add_argument("--batch-id", required=True, help="批次ID")
     p_start.add_argument("--concurrency", type=int, default=None,
                          help="并发数（不传则 launcher 从 DB batch 读；DB 也无则报错退出）")
-    p_start.add_argument("--max-rounds", type=int, default=5, help="最大续传轮次")
+    p_start.add_argument(
+        "--round-window-size", "--max-rounds",
+        dest="round_window_size", type=int,
+        default=DEFAULT_ROUND_WINDOW_SIZE,
+        help="本次调度窗口默认处理的数学Round数；--max-rounds为兼容别名",
+    )
     p_start.add_argument("--method", choices=["v1", "v2"], default="v2", help="续传方案")
     p_start.add_argument("--monitor-interval", type=int, default=120, help="Monitor Pipe检查间隔（秒）")
     p_start.set_defaults(func=cmd_start)

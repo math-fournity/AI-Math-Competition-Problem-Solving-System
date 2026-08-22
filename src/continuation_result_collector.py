@@ -41,12 +41,13 @@ def collect_batch_results(batch_id):
     print(f"=== 续传结果收集: {batch_id} ===")
     print(f"  总run数: {len(runs)}")
 
-    # 按final_status分类
+    # final_status为空时按当前状态分类。window_exhausted/ai_gave_up不是永久
+    # 终态，必须在汇总中可见，不能都折叠成PENDING或思维错误。
     from collections import Counter
     status_counts = Counter()
     for run in runs:
-        fs = run.get("final_status", "PENDING")
-        status_counts[fs] += 1
+        label = run.get("final_status") or run.get("status") or "PENDING"
+        status_counts[label] += 1
 
     print(f"\n  最终状态分布:")
     total = len(runs)
@@ -54,20 +55,21 @@ def collect_batch_results(batch_id):
         pct = count / total * 100 if total else 0
         print(f"    {status:25s} {count:>4} ({pct:.0f}%)")
 
-    # 通过率判定（415号§7.1）
+    # WP-01：这里只报告已确认完成与可继续题，不再用窗口用完比例推断
+    # “思维错误”。数学真理性确认将在WP-04/05接入形式化审计。
     completed = status_counts.get("COMPLETED", 0)
-    truncated = status_counts.get("TRUNCATED_AT_MAX", 0)
-    pass_rate = completed / total if total else 0
+    legacy_truncated = status_counts.get("TRUNCATED_AT_MAX", 0)
+    window_exhausted = status_counts.get("window_exhausted", 0)
+    ai_gave_up = status_counts.get("ai_gave_up", 0)
+    confirmed_rate = completed / total if total else 0
 
-    print(f"\n  通过率判定（415号§7.1）:")
-    print(f"    COMPLETED={completed} / total={total} = {pass_rate:.1%}")
-    if pass_rate >= 0.80:
-        verdict = "大部分是截断错误 → POC-2.5需要重新选题"
-    elif pass_rate >= 0.50:
-        verdict = "部分截断错误，部分思维错误 → 失败的题进入POC-2.5b"
-    else:
-        verdict = "大部分是真正的思维错误 → POC-2.5候选题基础基本成立"
-    print(f"    判定: {verdict}")
+    print(f"\n  当前确认/继续资格:")
+    print(f"    COMPLETED={completed} / total={total} = {confirmed_rate:.1%}")
+    print(f"    window_exhausted={window_exhausted}（未来可开启新窗口）")
+    print(f"    ai_gave_up={ai_gave_up}（本实例放弃，题目仍可继续）")
+    print(f"    legacy TRUNCATED_AT_MAX={legacy_truncated}（历史状态，可迁移继续）")
+    verdict = "未确认正确的题保留继续资格；窗口用完不再作为思维错误判据"
+    print(f"    说明: {verdict}")
 
     # 按前缀分布
     prefix_counts = Counter()
@@ -85,7 +87,11 @@ def collect_batch_results(batch_id):
     for run in runs:
         pid = run.get("problem_id", "")
         results[pid] = {
+            "status": run.get("status"),
             "final_status": run.get("final_status"),
+            "continuation_eligible": run.get("continuation_eligible", False),
+            "next_round": run.get("next_round"),
+            "round_window_history": run.get("round_window_history", []),
             "rounds": run.get("rounds_log", []),
             "final_export": run.get("proof_path"),
         }
@@ -108,9 +114,11 @@ def collect_batch_results(batch_id):
         for status, count in status_counts.most_common():
             pct = count / total * 100 if total else 0
             f.write(f"| {status} | {count} | {pct:.0f}% |\n")
-        f.write(f"\n## 通过率判定\n\n")
-        f.write(f"COMPLETED={completed} / total={total} = {pass_rate:.1%}\n\n")
-        f.write(f"**判定**: {verdict}\n\n")
+        f.write(f"\n## 当前确认/继续资格\n\n")
+        f.write(f"COMPLETED={completed} / total={total} = {confirmed_rate:.1%}\n\n")
+        f.write(f"window_exhausted={window_exhausted}；ai_gave_up={ai_gave_up}；"
+                f"legacy TRUNCATED_AT_MAX={legacy_truncated}\n\n")
+        f.write(f"**说明**: {verdict}\n\n")
         f.write(f"## 前缀分布\n\n")
         f.write(f"| 前缀 | 题数 |\n|---|---|\n")
         for prefix, count in prefix_counts.most_common():
@@ -118,7 +126,10 @@ def collect_batch_results(batch_id):
 
     print(f"  汇总报告已保存: {report_path}")
 
-    log_event(logger, "info", "collect_results_done", batch_id=batch_id, total=total, completed=completed, pass_rate=pass_rate)
+    log_event(logger, "info", "collect_results_done", batch_id=batch_id,
+              total=total, completed=completed,
+              confirmed_rate=confirmed_rate,
+              window_exhausted=window_exhausted)
 
     return results
 

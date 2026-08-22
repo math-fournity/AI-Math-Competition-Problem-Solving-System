@@ -115,6 +115,10 @@ def build_batch(batch_id, scenario_name, runs=None):
             "status": "prepared",
             "final_status": None,
             "rounds_log": [],
+            "round_window_id": 0,
+            "round_window_status": "pending",
+            "round_window_history": [],
+            "continuation_eligible": True,
             "created_at": now,
             "updated_at": now,
         }

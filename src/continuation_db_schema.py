@@ -5,9 +5,14 @@
 
 集合结构：
   p27_continuation_batches: 批次记录
-  p27_continuation_runs:    每道题的续传run记录（含rounds_log、final_status等）
+  p27_continuation_runs:    每道题的长期续传run记录（含rounds_log、窗口、final_status等）
   p27_continuation_events:  事件流
-  p27_continuation_results: 最终续传结果（COMPLETED/TRUNCATED_AT_MAX + proof路径）
+  p27_continuation_results: 已完成proof的结果副本；窗口结束不写入此集合
+
+WP-01窗口字段（schema-less Arango文档，按运行写入）：
+  round_window_id/status/start_round/size/rounds_used/history
+  continuation_eligible/next_round
+`window_exhausted`是当前调度窗口结束，不是final_status或题目永久失败。
 """
 
 from .continuation_config import (

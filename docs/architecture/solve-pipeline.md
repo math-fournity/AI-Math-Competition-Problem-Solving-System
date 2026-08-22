@@ -2,9 +2,9 @@
 
 > **用途**：定义"解题管线"这个核心概念，作为并发控制的语义基础。任何讨论"系统并发""devin cli 实例数"时，必须先理解本文件。
 
-> **目标态修订（2026-08-22）**：本文后续“最大轮次=永久终态”是当前 legacy 实现事实，
-> 不是最终需求。最终系统把它解释为本次调度窗口额度；未正确解答且未被用户明确放弃的题
-> 可跨窗口无限续传。候选 proof 须经形式化充分性审计。权威目标见 `dev-docs/057~064`。
+> **实施状态（2026-08-22）**：WP-01 已把“最大轮次”迁移为本次调度窗口额度；未正确
+> 解答且未被用户明确放弃的题可跨窗口无限续传。候选 proof 的形式化充分性审计仍待
+> WP-04/05。权威目标见 `dev-docs/057~064`。
 
 ---
 
@@ -19,7 +19,8 @@
   → 失败
   → Pipe 4 续传循环：
       handover 生成（devin cli）→ solve 解题（devin cli）→ handover → solve → ...
-  → 终态：解出 / AI 放弃 / 达到最大轮次（当前=5轮）
+  → 本次窗口收场：候选解出 / AI放弃暂停 / window_exhausted
+  → 未确认正确时，未来显式开启新窗口并从下一绝对Round继续
 ```
 
 **关键性质：管线内部是顺序调用 devin cli 的。** 一道题在任意时刻最多只有 1 个 devin cli 在为它工作（要么在 handover，要么在 solve，不会同时）。
@@ -89,17 +90,19 @@ while ... len(running) + len(handover_pending) < concurrency ...
 
 ---
 
-## 6. 终态判定
+## 6. 窗口收场与题目终态
 
-一条管线结束的条件（当前实现）：
+当前实现区分“本次窗口收场”和“题目最终正确”：
 
-| 终态 | 判定 | 含义 |
+| 事件 | 判定 | 含义 |
 |---|---|---|
-| 解出 | `proof.md` 存在且含 `\boxed` | AI 给出了最终答案 |
-| AI 放弃 | devin cli 输出放弃信号 | AI 主动放弃 |
-| 达到最大轮次 | `current_round > max_rounds`（当前=5）| 续传 5 轮仍未解出，标记 `TRUNCATED_AT_MAX` |
+| 候选解出 | `proof.md` 存在且含 `\boxed` | 当前仍写COMPLETED；形式化最终门槛待WP-04/05 |
+| AI放弃 | devin cli 输出放弃信号 | 暂停当前实例，`continuation_eligible=True`，可显式继续 |
+| 窗口额度用完 | `round_window_rounds_used >= round_window_size` | `window_exhausted`，`final_status=null`，未来继续 |
 
-代码依据：`src/continuation_launcher.py:1223`（max_rounds 判定）、`continuation_config.py:95`（PROOF_COMPLETE_MARKER）、`continuation_config.py:88`（DEFAULT_MAX_ROUNDS=5）。
+绝对Round编号由rounds_log连续保存；`scripts/manage_continuation_windows.py` 默认dry-run，
+显式resume只把run恢复为prepared，实际入队继续经过现有feeder Gate。历史
+`TRUNCATED_AT_MAX`只做兼容读取，未经用户批准不批量迁移。
 
 ---
 

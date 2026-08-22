@@ -1,11 +1,11 @@
-"""assert_final.py — sim终态断言层
+"""assert_final.py — sim当前调度窗口收场断言层
 
 一个sim批次跑完后，从四个独立来源核对系统行为是否符合剧本期望：
-  1. DB终态     —— 每个run的final_status/status、rounds_log轮序
-  2. Redis队列  —— completed/failed归属、pending清空、running清空
+  1. DB状态     —— final_status/status、窗口历史、rounds_log轮序
+  2. Redis队列  —— completed/failed/窗口结束不入终态队列、pending/running清空
   3. 行为流水   —— run_completed/run_failed事件存在；016不变量：
                    同一run无5秒内重复launch_solve（失控循环特征）、
-                   launch次数不超轮数上限
+                   launch次数不超本次窗口额度合理范围
   4. tmux       —— 无sim批次残留session
 
 rounds_log轮序只报告不强断（017发现launcher疑似round off-by-one：
@@ -69,7 +69,7 @@ def check_db(db, run_keys, scenario):
             continue
         expect_final = scenario.get("expect_final")
         expect_status = scenario.get("expect_status")
-        if expect_final and doc.get("final_status") != expect_final:
+        if expect_final is not None and doc.get("final_status") != expect_final:
             failed.append(f"{rk}: final_status={doc.get('final_status')} 期望{expect_final}")
         else:
             passed.append(f"{rk}: final_status={doc.get('final_status')}")
@@ -82,10 +82,25 @@ def check_db(db, run_keys, scenario):
             warned.append(f"{rk}: rounds_log有重复轮号 {rounds}（疑似off-by-one，见017）")
         else:
             passed.append(f"{rk}: rounds_log轮序 {rounds}")
+        expected_history = scenario.get("expect_window_history")
+        if expected_history is not None:
+            history = doc.get("round_window_history") or []
+            if len(history) != expected_history:
+                failed.append(
+                    f"{rk}: round_window_history={len(history)} 期望{expected_history}")
+            else:
+                passed.append(f"{rk}: round_window_history={len(history)}")
+        if doc.get("status") == "window_exhausted":
+            if doc.get("final_status") is not None:
+                failed.append(f"{rk}: window_exhausted却有final_status")
+            elif not doc.get("continuation_eligible"):
+                failed.append(f"{rk}: window_exhausted却不可继续")
+            else:
+                passed.append(f"{rk}: 窗口结束且未来可继续")
     return passed, failed, warned
 
 
-def check_redis(r, run_keys):
+def check_redis(r, run_keys, scenario):
     from src.continuation_redis_queue import (
         COMPLETED_KEY, FAILED_KEY, PENDING_KEY, RUNNING_KEY)
     passed, failed, warned = [], [], []
@@ -110,8 +125,14 @@ def check_redis(r, run_keys):
         return out
     completed = _members(COMPLETED_KEY)
     failed_set = _members(FAILED_KEY)
+    expect_queue = scenario.get("expect_queue")
     for rk in run_keys:
-        if rk in completed:
+        if expect_queue == "none":
+            if rk in completed or rk in failed_set:
+                failed.append(f"{rk}: window_exhausted不应进入completed/failed队列")
+            else:
+                passed.append(f"{rk}: 未进入永久终态队列")
+        elif rk in completed:
             passed.append(f"{rk}: 在completed队列")
         elif rk in failed_set:
             passed.append(f"{rk}: 在failed队列")
@@ -129,10 +150,11 @@ def check_flow(events, run_keys, scenario):
     for rk in run_keys:
         evs = by_run.get(rk, [])
         names = [e["event"] for e in evs]
-        if "run_completed" in names or "run_failed" in names:
-            passed.append(f"{rk}: 有终态flow事件")
+        if ("run_completed" in names or "run_failed" in names
+                or "round_window_exhausted" in names):
+            passed.append(f"{rk}: 有本次运行收场flow事件")
         else:
-            failed.append(f"{rk}: 无run_completed/run_failed事件")
+            failed.append(f"{rk}: 无run_completed/run_failed/round_window_exhausted事件")
 
         # 016不变量1：同一run无RAPID_RELAUNCH内重复launch_solve
         launches = [e for e in evs if e["event"] == "launch_solve"]
@@ -140,16 +162,22 @@ def check_flow(events, run_keys, scenario):
             gap = (b.get("ts_ms", 0) - a.get("ts_ms", 0)) / 1000
             if gap < RAPID_RELAUNCH_SECONDS:
                 failed.append(f"{rk}: {gap:.1f}秒内重复launch_solve（失控循环特征）")
-        # 016不变量2：launch次数 ≤ max_rounds+1（R1不launch，R2起最多max轮）
-        max_rounds = scenario.get("max_rounds", 5)
-        if len(launches) > max_rounds:
-            failed.append(f"{rk}: launch_solve {len(launches)}次 > max_rounds {max_rounds}")
+        # 016不变量2：launch次数不超过各窗口额度总和（R1 seed不launch，
+        # 因此这是保守上界）。
+        window_size = scenario.get("round_window_size", 5)
+        windows = scenario.get("windows", 1)
+        launch_limit = window_size * windows
+        if len(launches) > launch_limit:
+            failed.append(
+                f"{rk}: launch_solve {len(launches)}次 > 窗口合理上界{launch_limit}")
         else:
-            passed.append(f"{rk}: launch_solve共{len(launches)}次（上限{max_rounds}）")
+            passed.append(
+                f"{rk}: launch_solve共{len(launches)}次（窗口合理上界{launch_limit}）")
 
     # 快速重入队风暴检测（016特征：requeue事件密度）
     requeues = [e for e in events if e["event"] == "requeue"]
-    if len(requeues) > len(run_keys) * (scenario.get("max_rounds", 5) + 2):
+    window_budget = scenario.get("round_window_size", 5) * scenario.get("windows", 1)
+    if len(requeues) > len(run_keys) * (window_budget + 2):
         failed.append(f"requeue事件{len(requeues)}个——超出轮数合理范围")
     return passed, failed, warned
 
@@ -180,7 +208,7 @@ def run_assertions(batch_id, run_keys, scenario):
     all_pass, all_fail, all_warn = [], [], []
     for fn, args in [
         (check_db, (db, run_keys, scenario)),
-        (check_redis, (r, run_keys)),
+        (check_redis, (r, run_keys, scenario)),
         (check_flow, (events, run_keys, scenario)),
         (check_tmux, (batch_id,)),
     ]:

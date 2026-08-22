@@ -5,7 +5,7 @@
   round1: 解题者（仅题目 → 工作笔记 + proof）
   round2: 观察者（前轮档案 → 分析笔记）
   round3: 解题者（分析笔记 → 继续推进）
-  ...交替直到 COMPLETED 或 max_rounds
+  ...交替直到 COMPLETED 或本次Round调度窗口结束；未解题可从下一Round继续
 
 用法（模块导入）：
     from src.v2_pipeline import solve_problem
@@ -314,19 +314,35 @@ def load_template(name):
     return (TEMPLATES / name).read_text()
 
 
-def solve_problem(problem_text, output_dir, max_rounds=10):
-    """完整 v2 接力：一道题从 round1 到 COMPLETED 或 max_rounds。
+def _next_archived_round(output_dir):
+    """从归档目录确定下一绝对Round；跨调度窗口不重置。"""
+    rounds_dir = Path(output_dir) / "rounds"
+    nums = []
+    if rounds_dir.exists():
+        for path in rounds_dir.glob("round*"):
+            try:
+                nums.append(int(path.name.removeprefix("round")))
+            except ValueError:
+                continue
+    return max(nums, default=0) + 1
+
+
+def solve_problem(problem_text, output_dir, round_window_size=10):
+    """运行一个 v2 调度窗口；未完成时保留资产供未来窗口继续。
 
     返回 dict：{status, rounds_completed, total_time_sec, proof_path, rounds: [...]}
     """
+    if round_window_size <= 0:
+        raise ValueError("round_window_size 必须是正整数")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     oc_traj_src = Path.home() / ".config/opencode/skills/oc-trajectory/scripts/oc_traj.py"
 
     rounds_results = []
     start = time.time()
+    start_round = _next_archived_round(output_dir)
 
-    for n in range(1, max_rounds + 1):
+    for n in range(start_round, start_round + round_window_size):
         # 角色判定
         if n == 1:
             role = "solver_initial"
@@ -372,7 +388,7 @@ def solve_problem(problem_text, output_dir, max_rounds=10):
 
         # 运行本轮
         print(f"\n{'='*50}", flush=True)
-        print(f"Round {n} · {role} · max_rounds={max_rounds}", flush=True)
+        print(f"Round {n} · {role} · round_window_size={round_window_size}", flush=True)
         print(f"{'='*50}", flush=True)
 
         result = run_round(n, role, prompt, round_work)
@@ -400,13 +416,19 @@ def solve_problem(problem_text, output_dir, max_rounds=10):
 
     total_time = round(time.time() - start, 0)
     final_status = rounds_results[-1]["final_status"] if rounds_results else "UNKNOWN"
+    completed = any(r.get("has_boxed") for r in rounds_results)
 
     summary = {
         "problem_chars": len(problem_text),
-        "total_rounds": len(rounds_results),
+        "window_start_round": start_round,
+        "window_rounds": len(rounds_results),
+        "total_rounds": start_round - 1 + len(rounds_results),
+        "next_round": start_round + len(rounds_results),
         "total_time_sec": total_time,
         "final_status": final_status,
-        "completed": any(r.get("has_boxed") for r in rounds_results),
+        "completed": completed,
+        "window_exhausted": not completed,
+        "continuation_eligible": not completed,
         "rounds": rounds_results,
     }
 
@@ -414,8 +436,10 @@ def solve_problem(problem_text, output_dir, max_rounds=10):
         json.dumps(summary, ensure_ascii=False, indent=1))
 
     print(f"\n{'='*50}")
-    print(f"接力结束: {final_status} | {len(rounds_results)} 轮 | "
-          f"{total_time:.0f}s | completed={summary['completed']}")
+    print(f"本次窗口结束: {final_status} | 绝对R{start_round}-R"
+          f"{summary['next_round'] - 1} | {total_time:.0f}s | "
+          f"completed={summary['completed']} | "
+          f"continuation_eligible={summary['continuation_eligible']}")
     print(f"{'='*50}", flush=True)
 
     return summary
@@ -427,10 +451,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="v2 递归消化链单题管线")
     ap.add_argument("--problem-file", required=True)
     ap.add_argument("--output-dir", required=True)
-    ap.add_argument("--max-rounds", type=int, default=10)
+    ap.add_argument("--round-window-size", "--max-rounds",
+                    dest="round_window_size", type=int, default=10,
+                    help="本次调度窗口Round数；--max-rounds为兼容别名")
     args = ap.parse_args()
 
     problem = Path(args.problem_file).read_text()
-    result = solve_problem(problem, args.output_dir, args.max_rounds)
+    result = solve_problem(problem, args.output_dir, args.round_window_size)
     sys.exit(0 if result.get("completed") else 1)
-

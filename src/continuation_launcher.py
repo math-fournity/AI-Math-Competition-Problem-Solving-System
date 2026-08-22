@@ -4,13 +4,13 @@
 适配POC-2.7的多轮续传逻辑。
 
 核心差异（vs analysis_launcher）：
-  1. 多轮续传——每道题最多max_rounds轮，每轮检测截断/完成
+  1. 多轮续传——每次调度窗口默认处理若干Round，未解题可跨窗口继续
   2. v2方案双pipe——每轮先Pipe A生成HANDOVER.md，再Pipe B解题
   3. 完成判定——proof.md存在且有boxed答案（不是XML标记）
   4. 更长timeout——续传单轮可能thinking spin很久（30分钟 vs 分析5分钟）
 
 用法：
-  python -m src.continuation_launcher --batch-id p27-full --concurrency 1 --max-rounds 5 --method v2
+  python -m src.continuation_launcher --batch-id p27-full --concurrency 1 --round-window-size 5 --method v2
   python -m src.continuation_launcher --status --batch-id p27-full
   python -m src.continuation_launcher --stop --batch-id p27-full
 """
@@ -31,7 +31,7 @@ from src.continuation_config import (
     D_TRAJ_DIR, MAPPER_SCRIPT, CONTINUE_SPEC,
     DEVIN_MODEL, DEVIN_PERMISSION_MODE,
     DEFAULT_MAX_RUNTIME_SECONDS,
-    DEFAULT_STALL_SECONDS, DEFAULT_POLL_SECONDS, DEFAULT_MAX_ROUNDS,
+    DEFAULT_STALL_SECONDS, DEFAULT_POLL_SECONDS, DEFAULT_ROUND_WINDOW_SIZE,
     TRUNC_COMP_TOKENS_MIN, PROOF_COMPLETE_MARKER, PROOF_FILE_NAME,
     RATE_LIMIT_PATTERNS, CONNECTION_PATTERNS,
     INFRA_FAILURES, MAX_RETRIES,
@@ -58,6 +58,17 @@ from monitoring.shared_logger import get_logger, log_event
 from monitoring.graceful_shutdown import register_shutdown, should_stop
 from src.observability import log_flow
 from src.step_gate import gated, sync_registry_to_db
+from src.round_window import (
+    RUN_STATUS_WINDOW_EXHAUSTED,
+    WINDOW_STATUS_ACTIVE,
+    WINDOW_STATUS_COMPLETED,
+    ensure_active_window,
+    exhaust_window_fields,
+    has_window_capacity,
+    next_absolute_round,
+    pause_window_fields,
+    record_round_consumption,
+)
 
 logger = get_logger("continuation_launcher")
 
@@ -224,6 +235,52 @@ def make_round_log_entry(round_num, export_path, truncated, completed, reason,
     if archived_proof_path:
         entry["proof_path"] = archived_proof_path
     return entry
+
+
+def append_round_with_window(run_doc, entry, *, consumed):
+    """把round记录与窗口额度更新组装成一次DB update所需字段。
+
+    consumed=False用于纯基础设施失败：保留独立Round资产，但不浪费本次
+    数学工作窗口额度。
+    """
+    window_update, window_metadata = record_round_consumption(
+        run_doc, int(entry["round"]), consumed=consumed)
+    entry.update(window_metadata)
+    rounds_log = list(run_doc.get("rounds_log") or [])
+    rounds_log.append(entry)
+    combined_doc = dict(run_doc)
+    combined_doc.update(window_update)
+    combined_doc["rounds_log"] = rounds_log
+    return combined_doc, {"rounds_log": rounds_log, **window_update}
+
+
+def mark_round_window_exhausted(db, run_key, pid, batch_id, run_doc,
+                                end_round, reason, extra_update=None):
+    """结束本次调度窗口，但不把题目写成永久终态或失败队列。"""
+    combined_doc = dict(run_doc)
+    if extra_update:
+        combined_doc.update(extra_update)
+    update = exhaust_window_fields(
+        combined_doc, end_round=end_round, reason=reason, now=utc_now())
+    if extra_update:
+        update.update(extra_update)
+    update["verdict"] = make_verdict(
+        "window_exhausted", reason, "high", False)
+    update_run(db, run_key, update)
+    insert_event(db, batch_id, "continuation_window_exhausted", {
+        "pid": pid,
+        "end_round": end_round,
+        "next_round": end_round + 1,
+        "window_id": combined_doc.get("round_window_id"),
+        "window_size": combined_doc.get("round_window_size"),
+        "rounds_used": combined_doc.get("round_window_rounds_used"),
+        "reason": reason,
+    }, run_key=run_key)
+    log_flow("round_window_exhausted", run_key=run_key, pid=pid,
+             round=end_round, next_round=end_round + 1,
+             window_id=combined_doc.get("round_window_id"),
+             reason=reason, batch_id=batch_id)
+    return update
 
 
 def is_truncated(export_path, since_ts=None):
@@ -825,6 +882,7 @@ def kill_session(session_name, run_key, pid, reason):
     触发场景（reason字段区分）：
     - reason=completed：run完成，证明已归档，正常清理；
     - reason=truncated：round截断转入下一轮，旧session让位；
+    - reason=window_exhausted：本次窗口额度用完，资产已归档，未来仍可续传；
     - reason=dead_session：devin cli退出但无proof，判定死亡后清理。
 
     为什么追踪这个动作：
@@ -864,13 +922,15 @@ def requeue_truncated(r, run_key, pid, round_num):
     【检查项】（每项含查法+正常值）
     1. 截断判据完整 → 查法：observability --run-key看judge事件的comp≥24000+rc>1000+msg=0
     2. rounds_log+export正确 → 查法：DB run的rounds_log最后一条round==round_num且export路径存在
-    3. 未到max → 查法：round_num < DB batch的max_rounds(默认5)
+    3. 当前调度窗口仍有额度 → 查法：DB run的round_window_rounds_used
+       < round_window_size；窗口额度不是题目生命周期上限
     4. score未被feeder重置 → 查法：ZRANGE p27:pending查该key的score==round_num(非0)
 
     【论证依据——放行/不放行判定】
     可放行：1✓+2✓+3✓+4✓。理由：多轮续传正常流转——截断判定有据、轮次记录完整、
-       未到上限、优先级正确排队尾。重入队后该题等下一轮启动，不产生016循环
-    不可放行：1✗(截断判据不完整)→016核心根因(误判截断→失控)；3✗(到max)→应走TRUNCATED_AT_MAX不重入队；
+       本次窗口仍有额度、优先级正确排队尾。重入队后该题等下一轮启动，不产生016循环
+    不可放行：1✗(截断判据不完整)→016核心根因(误判截断→失控)；
+       3✗(本次窗口额度已用完)→应保存现场并进入window_exhausted，未来显式开启新窗口；
        4✗(score被重置回0)→016 P0-3根因重现(NX失效)
     """
     enqueue_pending(r, run_key, priority=round_num)
@@ -907,15 +967,18 @@ def finalize_run_completed(db, r, run_key, pid, round_num, done_reason,
     completed_list = []
     archived_proof = Path(archived_proof)
     run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-    rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-    rounds_log.append(make_round_log_entry(
+    entry = make_round_log_entry(
         round_num, export_path, False, True, done_reason,
         info, archived_proof_path=str(archived_proof),
-    ))
+    )
+    _, round_update = append_round_with_window(
+        run_doc or {}, entry, consumed=True)
     update_run(db, run_key, {
+        **round_update,
         "status": "completed",
         "final_status": "COMPLETED",
-        "rounds_log": rounds_log,
+        "round_window_status": WINDOW_STATUS_COMPLETED,
+        "continuation_eligible": False,
         "proof_path": str(archived_proof),
         "ended_at": utc_now(),
         "updated_at": utc_now(),
@@ -952,7 +1015,7 @@ def finalize_run_completed(db, r, run_key, pid, round_num, done_reason,
 # 并发批量续传（核心——复用analysis_launcher的stall/rate_limit/zombie模式）
 # =============================================================================
 def launch_batch(batch_id, concurrency=None,
-                 max_rounds=DEFAULT_MAX_ROUNDS,
+                 round_window_size=DEFAULT_ROUND_WINDOW_SIZE,
                  max_runtime=DEFAULT_MAX_RUNTIME_SECONDS,
                  stall_seconds=DEFAULT_STALL_SECONDS,
                  poll_seconds=DEFAULT_POLL_SECONDS,
@@ -967,12 +1030,16 @@ def launch_batch(batch_id, concurrency=None,
       - zombie session清理（完成后kill-session）
       - dead_session检测（session退出但无完成标记）
 
-    新增：多轮续传逻辑（每道题最多max_rounds轮）
+    Round窗口：一次调度默认处理round_window_size个数学Round；窗口用完
+    释放资源但题目保持可继续，不是永久终态。
     """
+    if round_window_size <= 0:
+        raise ValueError("round_window_size 必须是正整数")
     logger.info(f"启动续传批次 batch={batch_id} concurrency={concurrency} method={method}")
-    log_event(logger, "info", "batch_start", batch_id=batch_id, concurrency=concurrency, method=method, max_rounds=max_rounds)
+    log_event(logger, "info", "batch_start", batch_id=batch_id, concurrency=concurrency,
+              method=method, round_window_size=round_window_size)
     log_flow("batch_start", run_key=None, batch_id=batch_id, concurrency=concurrency,
-             method=method, max_rounds=max_rounds)
+             method=method, round_window_size=round_window_size)
     # 步进门闸：把@gated装饰器收集的门闸目录同步到DB（Master Agent可见）
     try:
         sync_registry_to_db()
@@ -1012,7 +1079,7 @@ def launch_batch(batch_id, concurrency=None,
         "updated_at": utc_now(),
         "concurrency": concurrency,
         "method": method,
-        "max_rounds": max_rounds,
+        "round_window_size": round_window_size,
     })
 
     pending_in_redis = pending_count(r)
@@ -1041,9 +1108,11 @@ def launch_batch(batch_id, concurrency=None,
     handover_pending = {}  # {run_key: {hinfo, pid, work_dir, ...}}——handover生成中，占并发槽（与running合计不超过concurrency）
     completed = []
     failed = []
+    paused = []
     rate_limit_paused_until = 0
 
-    print(f"  开始并发续传（concurrency={concurrency}, max_rounds={max_rounds}, method={method}）...")
+    print(f"  开始并发续传（concurrency={concurrency}, "
+          f"round_window_size={round_window_size}, method={method}）...")
 
     while True:
         # 退出条件（017-sim发现：原条件漏了handover_pending——批次最后一题走v2
@@ -1173,6 +1242,8 @@ def launch_batch(batch_id, concurrency=None,
                 "last_activity": now_ts,
                 "last_pane_hash": "",
                 "round_metadata": round_metadata,
+                "round_window_id": run_doc.get("round_window_id"),
+                "round_window_size": run_doc.get("round_window_size"),
             }
 
             update_run(db, h_run_key, {
@@ -1258,22 +1329,7 @@ def launch_batch(batch_id, concurrency=None,
             problem_text = run_doc.get("problem_text", "")
             seed_export = run_doc.get("seed_export", "")
             existing_rounds = run_doc.get("rounds_log", [])
-            current_round = len(existing_rounds) + 1
-
-            if current_round > max_rounds:
-                update_run(db, run_key, {
-                    "status": "completed",
-                    "final_status": "TRUNCATED_AT_MAX",
-                    "updated_at": utc_now(),
-                    "verdict": make_verdict("truncated_at_max", "max_rounds_reached"),
-                })
-                add_completed(r, {"run_key": run_key, "final_status": "TRUNCATED_AT_MAX"})
-                update_stats(r)
-                # 017-sim补：TRUNCATED_AT_MAX也是整题终态，必须进行为流水黑匣子
-                log_flow("run_completed", run_key=run_key, pid=pid,
-                         round=current_round, final_status="TRUNCATED_AT_MAX",
-                         batch_id=batch_id)
-                continue
+            current_round = next_absolute_round(run_doc)
 
             if not work_dir or not Path(work_dir).exists():
                 logger.error(f"work_dir不存在: {work_dir}")
@@ -1283,6 +1339,38 @@ def launch_batch(batch_id, concurrency=None,
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed", "work_dir_not_found", "high", True),
                 })
+                update_stats(r)
+                continue
+
+            # WP-01：开启或恢复“本次调度窗口”。窗口size只限制本次默认处理
+            # 多少个数学Round，不与绝对current_round比较，也不判题目永久失败。
+            window_state, window_start_update = ensure_active_window(
+                run_doc, round_window_size, now=utc_now())
+            if window_start_update:
+                update_run(db, run_key, window_start_update)
+                run_doc.update(window_start_update)
+                log_event(logger, "info", "round_window_started",
+                          problem_id=pid, run_key=run_key,
+                          window_id=window_state["id"],
+                          start_round=window_state["start_round"],
+                          round_window_size=window_state["size"],
+                          batch_id=batch_id)
+                log_flow("round_window_started", run_key=run_key, pid=pid,
+                         round=window_state["start_round"],
+                         window_id=window_state["id"],
+                         round_window_size=window_state["size"],
+                         batch_id=batch_id)
+
+            # 崩溃恢复兜底：若上一轮已把used写满但未完成窗口收尾，取件时
+            # 补写window_exhausted；不进completed/failed队列。
+            if not has_window_capacity(run_doc):
+                mark_round_window_exhausted(
+                    db, run_key, pid, batch_id, run_doc,
+                    end_round=current_round - 1,
+                    reason="round_window_quota_reached_before_launch",
+                )
+                paused.append({"pid": pid, "round": current_round - 1,
+                               "reason": RUN_STATUS_WINDOW_EXHAUSTED})
                 update_stats(r)
                 continue
 
@@ -1319,9 +1407,17 @@ def launch_batch(batch_id, concurrency=None,
                          outcome="round1_precheck",
                          reason=f"trunc={trunc}({trunc_reason}), comp={comp}({comp_reason})")
                 if comp and not trunc:
+                    round1_entry = make_round_log_entry(
+                        1, str(round1_export), False, True,
+                        f"round1_precheck: {comp_reason}", None)
+                    _, round1_update = append_round_with_window(
+                        run_doc, round1_entry, consumed=True)
                     update_run(db, run_key, {
+                        **round1_update,
                         "status": "completed",
                         "final_status": "COMPLETED",
+                        "round_window_status": WINDOW_STATUS_COMPLETED,
+                        "continuation_eligible": False,
                         "updated_at": utc_now(),
                         "verdict": make_verdict("completed", "round1_already_complete"),
                     })
@@ -1334,16 +1430,34 @@ def launch_batch(batch_id, concurrency=None,
                 # 不补录，导致R2截断后current_round仍=2，round 2被重跑一次
                 # （sim solve3实证rounds_log=[2,2,3]，多耗一次handover+solve）。
                 # 补录后轮序为[1,2,3...]，round 1的历史在DB中完整可见。
-                update_run(db, run_key, {
-                    "rounds_log": existing_rounds + [
-                        make_round_log_entry(1, str(round1_export), trunc, False,
-                                             f"round1_precheck: {trunc_reason}", None)],
-                })
+                round1_entry = make_round_log_entry(
+                    1, str(round1_export), trunc, False,
+                    f"round1_precheck: {trunc_reason}", None)
+                combined_doc, round1_update = append_round_with_window(
+                    run_doc, round1_entry, consumed=True)
+                update_run(db, run_key, round1_update)
+                run_doc.update(round1_update)
+
+                # 窗口size=1等场景：R1 seed重判已消耗本次额度，保存现场并
+                # 让出槽位，未来新窗口从R2继续。
+                if not has_window_capacity(combined_doc):
+                    mark_round_window_exhausted(
+                        db, run_key, pid, batch_id, combined_doc,
+                        end_round=1,
+                        reason="round_window_quota_reached_after_round1",
+                        extra_update=round1_update,
+                    )
+                    paused.append({"pid": pid, "round": 1,
+                                   "reason": RUN_STATUS_WINDOW_EXHAUSTED})
+                    update_stats(r)
+                    continue
 
                 round_num = 2
                 prev_export = str(round1_export)
             else:
-                prev_round_info = existing_rounds[-1]
+                prev_round_info = max(
+                    existing_rounds,
+                    key=lambda item: int(item.get("round") or 0))
                 prev_export = prev_round_info.get("export", "")
                 round_num = current_round
 
@@ -1394,6 +1508,8 @@ def launch_batch(batch_id, concurrency=None,
                         "started_at": now_ts, "started_at_iso": now_iso,
                         "last_activity": now_ts, "last_pane_hash": "",
                         "round_metadata": round_metadata,
+                        "round_window_id": run_doc.get("round_window_id"),
+                        "round_window_size": run_doc.get("round_window_size"),
                     }
                     update_run(db, run_key, {
                         "status": "running", "tmux_session": session_name,
@@ -1464,6 +1580,8 @@ def launch_batch(batch_id, concurrency=None,
                     "started_at": now_ts, "started_at_iso": now_iso,
                     "last_activity": now_ts, "last_pane_hash": "",
                     "round_metadata": round_metadata,
+                    "round_window_id": run_doc.get("round_window_id"),
+                    "round_window_size": run_doc.get("round_window_size"),
                 }
                 update_run(db, run_key, {
                     "status": "running", "tmux_session": session_name,
@@ -1565,34 +1683,40 @@ def launch_batch(batch_id, concurrency=None,
                                 log_event(logger, "warning", "ai_gave_up", problem_id=pid, round=round_num, elapsed=elapsed_sec, batch_id=batch_id)
                                 log_flow("judge", run_key=run_key, pid=pid, round=round_num,
                                          outcome="ai_gave_up", reason=f"放弃模式命中: {gave_up}")
-                                log_flow("run_failed", run_key=run_key, pid=pid,
+                                log_flow("round_paused", run_key=run_key, pid=pid,
                                          round=round_num, reason="ai_gave_up")
-                                failed.append({"pid": pid, "round": round_num, "reason": "ai_gave_up"})
+                                paused.append({"pid": pid, "round": round_num,
+                                               "reason": "ai_gave_up"})
                                 to_remove.append(run_key)
                                 kill_session(session_name, run_key, pid, reason="ai_gave_up",
                                              gate_ctx={"run_key": run_key, "pid": pid,
                                                        "reason": "ai_gave_up", "elapsed": elapsed_sec})
                                 # 记录到rounds_log
                                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                                rounds_log.append(make_round_log_entry(
+                                gave_up_entry = make_round_log_entry(
                                     round_num, export_path, False, False,
                                     f"ai_gave_up(命中模式: {gave_up})", info,
-                                ))
+                                )
+                                combined_doc, round_update = append_round_with_window(
+                                    run_doc or {}, gave_up_entry, consumed=True)
+                                pause_update = pause_window_fields(
+                                    combined_doc, end_round=round_num,
+                                    reason="ai_gave_up", now=utc_now())
                                 update_run(db, run_key, {
+                                    **round_update,
+                                    **pause_update,
                                     "status": "ai_gave_up",
-                                    "rounds_log": rounds_log,
-                                    "updated_at": utc_now(),
                                     "verdict": make_verdict("ai_gave_up", "ai_gave_up"),
                                     "failure_category": classify_failure("ai_gave_up"),
                                     "retry_eligible": False,
+                                    "continuation_eligible": True,
                                 })
                                 remove_running(r, run_key)
                                 add_failed(r, {"run_key": run_key, "reason": "ai_gave_up"})
                                 update_stats(r)
-                                insert_event(db, batch_id, "continuation_failed", {
+                                insert_event(db, batch_id, "continuation_paused", {
                                     "pid": pid, "round": round_num, "reason": "ai_gave_up",
-                                    "elapsed": elapsed_sec,
+                                    "elapsed": elapsed_sec, "next_round": round_num + 1,
                                 }, run_key=run_key)
                                 continue
 
@@ -1611,17 +1735,19 @@ def launch_batch(batch_id, concurrency=None,
                                                    "reason": "dead_session", "elapsed": elapsed_sec})
                             # 记录到rounds_log
                             run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                            rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                            rounds_log.append(make_round_log_entry(
-                                round_num, export_path, False, False, f"dead_session({elapsed_sec}s)", info,
-                            ))
+                            entry = make_round_log_entry(
+                                round_num, export_path, False, False,
+                                f"dead_session({elapsed_sec}s)", info)
+                            _, round_update = append_round_with_window(
+                                run_doc or {}, entry, consumed=False)
                             update_run(db, run_key, {
+                                **round_update,
                                 "status": "dead_session",
-                                "rounds_log": rounds_log,
                                 "updated_at": utc_now(),
                                 "verdict": make_verdict("dead_session", "dead_session"),
                                 "failure_category": classify_failure("dead_session"),
                                 "retry_eligible": True,
+                                "continuation_eligible": True,
                             })
                             remove_running(r, run_key)
                             add_failed(r, {"run_key": run_key, "reason": "dead_session"})
@@ -1665,70 +1791,83 @@ def launch_batch(batch_id, concurrency=None,
                     # 016事故P0-2：since_ts校验——旧残留export不算本轮产物
                     trunc, trunc_reason = is_truncated(export_path,
                                                        since_ts=info["started_at"])
-                    if trunc and round_num < max_rounds:
-                        # 截断——需要继续续传，重新入队
-                        print(f"  [truncated] {pid} R{round_num} — {trunc_reason}, 将继续R{round_num+1}")
-                        log_event(logger, "info", "truncated", problem_id=pid, round=round_num, reason=trunc_reason, next_round=round_num+1, batch_id=batch_id)
-                        run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                        rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                        rounds_log.append(make_round_log_entry(
-                            round_num, export_path, True, False, trunc_reason, info,
-                        ))
-                        update_run(db, run_key, {
-                            "status": "prepared",  # 重新标记为prepared，等下一轮
-                            "rounds_log": rounds_log,
-                            "updated_at": utc_now(),
-                        })
+                    if trunc:
+                        run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key) or {}
+                        entry = make_round_log_entry(
+                            round_num, export_path, True, False, trunc_reason, info)
+                        combined_doc, round_update = append_round_with_window(
+                            run_doc, entry, consumed=True)
                         to_remove.append(run_key)
-                        kill_session(session_name, run_key, pid, reason="truncated",
-                                     gate_ctx={"run_key": run_key, "pid": pid,
-                                               "reason": "truncated", "round": round_num})
-                        remove_running(r, run_key)
-                        # 重新入队（低优先级，避免阻塞新题）——门闸GATE-REQUEUE-TRUNCATED
-                        requeue_truncated(r, run_key, pid, round_num,
-                                          gate_ctx={"run_key": run_key, "pid": pid,
-                                                    "round": round_num, "reason": trunc_reason})
-                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
-                                 outcome="truncated", reason=trunc_reason)
-                        log_flow("requeue", run_key=run_key, pid=pid,
-                                 priority=round_num, reason=f"truncated_r{round_num}")
+
+                        if has_window_capacity(combined_doc):
+                            # 本次窗口仍有额度——自动进入下一绝对Round。
+                            print(f"  [truncated] {pid} R{round_num} — {trunc_reason}, "
+                                  f"本窗口继续R{round_num+1}")
+                            log_event(
+                                logger, "info", "truncated",
+                                problem_id=pid, round=round_num,
+                                reason=trunc_reason, next_round=round_num + 1,
+                                window_id=combined_doc.get("round_window_id"),
+                                window_used=combined_doc.get("round_window_rounds_used"),
+                                window_size=combined_doc.get("round_window_size"),
+                                batch_id=batch_id)
+                            update_run(db, run_key, {
+                                **round_update,
+                                "status": "prepared",
+                                "final_status": None,
+                                "continuation_eligible": True,
+                                "next_round": round_num + 1,
+                                "updated_at": utc_now(),
+                            })
+                            kill_session(
+                                session_name, run_key, pid, reason="truncated",
+                                gate_ctx={"run_key": run_key, "pid": pid,
+                                          "reason": "truncated", "round": round_num})
+                            remove_running(r, run_key)
+                            # 现有GATE-REQUEUE-TRUNCATED继续承载窗口内自动流转。
+                            requeue_truncated(
+                                r, run_key, pid, round_num,
+                                gate_ctx={"run_key": run_key, "pid": pid,
+                                          "round": round_num, "reason": trunc_reason})
+                            log_flow("judge", run_key=run_key, pid=pid, round=round_num,
+                                     outcome="truncated", reason=trunc_reason,
+                                     window_id=combined_doc.get("round_window_id"))
+                            log_flow("requeue", run_key=run_key, pid=pid,
+                                     priority=round_num,
+                                     reason=f"truncated_r{round_num}_within_window")
+                            insert_event(db, batch_id, "continuation_truncated", {
+                                "pid": pid, "round": round_num,
+                                "reason": trunc_reason,
+                                "next_round": round_num + 1,
+                            }, run_key=run_key)
+                        else:
+                            # 本次窗口额度用完——不写永久终态、不进completed/failed；
+                            # 保存现场并等待未来显式开启新窗口。
+                            print(f"  [window_exhausted] {pid} R{round_num} — "
+                                  f"本次窗口{combined_doc.get('round_window_rounds_used')}/"
+                                  f"{combined_doc.get('round_window_size')}已用完，"
+                                  f"未来可继续R{round_num+1}")
+                            log_event(
+                                logger, "info", "round_window_exhausted",
+                                problem_id=pid, round=round_num,
+                                reason=trunc_reason, next_round=round_num + 1,
+                                window_id=combined_doc.get("round_window_id"),
+                                batch_id=batch_id)
+                            mark_round_window_exhausted(
+                                db, run_key, pid, batch_id, combined_doc,
+                                end_round=round_num,
+                                reason=f"round_window_quota_reached: {trunc_reason}",
+                                extra_update=round_update,
+                            )
+                            paused.append({"pid": pid, "round": round_num,
+                                           "reason": RUN_STATUS_WINDOW_EXHAUSTED})
+                            kill_session(
+                                session_name, run_key, pid, reason="window_exhausted",
+                                gate_ctx={"run_key": run_key, "pid": pid,
+                                          "reason": "window_exhausted",
+                                          "round": round_num})
+                            remove_running(r, run_key)
                         update_stats(r)
-                        insert_event(db, batch_id, "continuation_truncated", {
-                            "pid": pid, "round": round_num, "reason": trunc_reason,
-                        }, run_key=run_key)
-                    elif trunc and round_num >= max_rounds:
-                        # 截断且已达最大轮次——TRUNCATED_AT_MAX
-                        print(f"  [truncated_max] {pid} R{round_num} — 达到max_rounds={max_rounds}")
-                        log_event(logger, "info", "truncated_max", problem_id=pid, round=round_num, max_rounds=max_rounds, batch_id=batch_id)
-                        log_flow("judge", run_key=run_key, pid=pid, round=round_num,
-                                 outcome="truncated_at_max", reason=f"达到max_rounds={max_rounds}")
-                        run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                        rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                        rounds_log.append(make_round_log_entry(
-                            round_num, export_path, True, False, trunc_reason, info,
-                        ))
-                        update_run(db, run_key, {
-                            "status": "completed",
-                            "final_status": "TRUNCATED_AT_MAX",
-                            "rounds_log": rounds_log,
-                            "ended_at": utc_now(),
-                            "updated_at": utc_now(),
-                            "verdict": make_verdict("truncated_at_max", "max_rounds_reached"),
-                        })
-                        to_remove.append(run_key)
-                        kill_session(session_name, run_key, pid, reason="truncated_at_max",
-                                     gate_ctx={"run_key": run_key, "pid": pid,
-                                               "reason": "truncated_at_max", "round": round_num})
-                        remove_running(r, run_key)
-                        add_completed(r, {"run_key": run_key, "final_status": "TRUNCATED_AT_MAX"})
-                        update_stats(r)
-                        insert_event(db, batch_id, "continuation_truncated_at_max", {
-                            "pid": pid, "round": round_num, "reason": trunc_reason,
-                        }, run_key=run_key)
-                        # 017-sim补：TRUNCATED_AT_MAX终态进行为流水黑匣子
-                        log_flow("run_completed", run_key=run_key, pid=pid,
-                                 round=round_num, final_status="TRUNCATED_AT_MAX",
-                                 batch_id=batch_id)
                     else:
                         # 既没截断也没完成——异常状态
                         log_event(logger, "warning", "unknown_status", problem_id=pid, round=round_num, batch_id=batch_id)
@@ -1739,15 +1878,16 @@ def launch_batch(batch_id, concurrency=None,
                                      gate_ctx={"run_key": run_key, "pid": pid,
                                                "reason": "unknown_state", "round": round_num})
                         run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                        rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                        rounds_log.append(make_round_log_entry(
-                            round_num, export_path, False, False, "unknown_state", info,
-                        ))
+                        entry = make_round_log_entry(
+                            round_num, export_path, False, False, "unknown_state", info)
+                        _, round_update = append_round_with_window(
+                            run_doc or {}, entry, consumed=True)
                         update_run(db, run_key, {
+                            **round_update,
                             "status": "unknown_state",
-                            "rounds_log": rounds_log,
                             "updated_at": utc_now(),
                             "verdict": make_verdict("unknown_state", "unknown_state"),
+                            "continuation_eligible": True,
                         })
                         remove_running(r, run_key)
                         add_failed(r, {"run_key": run_key, "reason": "unknown_state"})
@@ -1796,17 +1936,19 @@ def launch_batch(batch_id, concurrency=None,
 
                 # 记录到rounds_log
                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                rounds_log.append(make_round_log_entry(
-                    round_num, export_path, False, False, f"{detected_error}({elapsed_sec}s)", info,
-                ))
+                entry = make_round_log_entry(
+                    round_num, export_path, False, False,
+                    f"{detected_error}({elapsed_sec}s)", info)
+                _, round_update = append_round_with_window(
+                    run_doc or {}, entry, consumed=False)
                 update_run(db, run_key, {
+                    **round_update,
                     "status": detected_error,
-                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict(detected_error, detected_error),
                     "failure_category": classify_failure(detected_error),
                     "retry_eligible": classify_failure(detected_error) == "infra",
+                    "continuation_eligible": True,
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": detected_error})
@@ -1842,17 +1984,19 @@ def launch_batch(batch_id, concurrency=None,
                     print(f"  [stuck] {session_key} 标记stuck，不kill（等DONE.md或用户授意）")
                 # 不调用tmux_kill
                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                rounds_log.append(make_round_log_entry(
-                    round_num, export_path, False, False, f"timeout({elapsed_sec}s)", info,
-                ))
+                entry = make_round_log_entry(
+                    round_num, export_path, False, False,
+                    f"timeout({elapsed_sec}s)", info)
+                _, round_update = append_round_with_window(
+                    run_doc or {}, entry, consumed=True)
                 update_run(db, run_key, {
+                    **round_update,
                     "status": "failed_timeout",
-                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_timeout", "max_runtime_exceeded"),
                     "failure_category": classify_failure("failed_timeout"),
                     "retry_eligible": False,
+                    "continuation_eligible": True,
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "timeout"})
@@ -1879,17 +2023,19 @@ def launch_batch(batch_id, concurrency=None,
                     print(f"  [stuck] {session_key} 标记stuck，不kill（等DONE.md或用户授意）")
                 # 不调用tmux_kill
                 run_doc = db.collection(CONTINUATION_RUNS_COLLECTION).get(run_key)
-                rounds_log = run_doc.get("rounds_log", []) if run_doc else []
-                rounds_log.append(make_round_log_entry(
-                    round_num, export_path, False, False, f"stall(idle {idle_sec}s)", info,
-                ))
+                entry = make_round_log_entry(
+                    round_num, export_path, False, False,
+                    f"stall(idle {idle_sec}s)", info)
+                _, round_update = append_round_with_window(
+                    run_doc or {}, entry, consumed=True)
                 update_run(db, run_key, {
+                    **round_update,
                     "status": "failed_stall",
-                    "rounds_log": rounds_log,
                     "updated_at": utc_now(),
                     "verdict": make_verdict("failed_stall", "stall_detected"),
                     "failure_category": classify_failure("failed_stall"),
                     "retry_eligible": False,
+                    "continuation_eligible": True,
                 })
                 remove_running(r, run_key)
                 add_failed(r, {"run_key": run_key, "reason": "stall"})
@@ -1920,6 +2066,7 @@ def launch_batch(batch_id, concurrency=None,
     print(f"\n=== 批次完成 ===")
     print(f"  completed: {len(completed)}")
     print(f"  failed: {len(failed)}")
+    print(f"  paused/resumable: {len(paused)}")
 
     # 更新batch记录
     from collections import Counter
@@ -1928,11 +2075,14 @@ def launch_batch(batch_id, concurrency=None,
         status_counts["completed"] += 1
     for f in failed:
         status_counts[f["reason"]] += 1
+    for p in paused:
+        status_counts[p["reason"]] += 1
 
     update_batch(db, batch_id, {
         "status": "completed",
         "completed_count": len(completed),
         "failed_count": len(failed),
+        "paused_count": len(paused),
         "status_counts": dict(status_counts),
         "ended_at": utc_now(),
     })
@@ -2061,7 +2211,12 @@ def main():
     parser.add_argument("--batch-id", required=True, help="批次ID")
     parser.add_argument("--concurrency", type=int, default=None,
                         help="并发数（不传则用 DB batch 记录；两者皆无则报错退出）")
-    parser.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
+    parser.add_argument(
+        "--round-window-size", "--max-rounds",
+        dest="round_window_size", type=int,
+        default=DEFAULT_ROUND_WINDOW_SIZE,
+        help="本次调度窗口默认处理的数学Round数；--max-rounds为兼容别名",
+    )
     parser.add_argument("--method", choices=["v1", "v2"], default="v2")
     parser.add_argument("--max-runtime", type=int, default=DEFAULT_MAX_RUNTIME_SECONDS)
     parser.add_argument("--stall-seconds", type=int, default=DEFAULT_STALL_SECONDS)
@@ -2082,7 +2237,7 @@ def main():
     launch_batch(
         args.batch_id,
         concurrency=args.concurrency,
-        max_rounds=args.max_rounds,
+        round_window_size=args.round_window_size,
         max_runtime=args.max_runtime,
         stall_seconds=args.stall_seconds,
         poll_seconds=args.poll_seconds,
