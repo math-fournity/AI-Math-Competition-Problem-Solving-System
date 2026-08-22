@@ -16,8 +16,10 @@ trajectory 中，笔记只是索引。尤其要注意：前轮最后一次更新
 
 - 前轮目录：`{PREV_ROUND_DIR}`
 - 前轮工作笔记（可能不存在）：`{PREV_WORK_NOTES_PATH}`
-- trajectory 面包屑/scan 结果：`{MAP_PATH}`
-- 前轮原始 conversation：`{EXPORT_PATH}`
+- 分层 trajectory reader：`{TRAJECTORY_TOOL_PATH}`
+- 完整原始 trajectory 根：`{TRAJECTORY_ROOT}`
+- 面包屑/scan缓存（仅辅助，不是原始现场替代品）：`{MAP_PATH}`
+- conversation导出（仅兜底，可能截断）：`{EXPORT_PATH}`
 - 你的输出：`{NOTES_PATH}`
 
 不得读取测试 fixture 的期望输出、后续轮目录、最终 proof 或任何答案资产。
@@ -26,20 +28,29 @@ trajectory 中，笔记只是索引。尤其要注意：前轮最后一次更新
 
 你的预算要用于理解和落盘，不用于无差别通读。严格按以下顺序：
 
-1. **scan**：先读 `{MAP_PATH}`，建立前轮思路分段、大致字符/行范围和工具事件概览；
-2. **tail**：根据地图定位并必读 `{EXPORT_PATH}` 最后的思考区段，收殓笔记更新后的进展；
-3. **search**：只围绕前轮工作笔记中的结论、死路、未执行计划和形式化对象定位段落；
-4. **read**：按地图给出的少量行号/区间定点下钻，禁止通读完整 conversation；
+1. **scan**：第一步必须实际运行
+   `python3 {TRAJECTORY_TOOL_PATH} scan {TRAJECTORY_ROOT} --json`，以稳定idx查看全部模型/
+   reasoning/message/tool/error/usage事件的短概览，不展开正文；
+2. **tail**：实际运行
+   `python3 {TRAJECTORY_TOOL_PATH} tail {TRAJECTORY_ROOT} --chars 8000`，必读最后思考/事件，
+   收殓笔记更新后的盲区；
+3. **search**：运行
+   `python3 {TRAJECTORY_TOOL_PATH} search {TRAJECTORY_ROOT} --pattern '<对象>'`，只围绕前轮
+   结论、死路、未执行计划和形式化对象定位；
+4. **inspect**：按scan给出的少量idx定点执行，例如
+   `python3 {TRAJECTORY_TOOL_PATH} inspect {TRAJECTORY_ROOT} --idx 42 --message 6 --reasoning`
+   或加 `--tool-input/--tool-result/--error`；禁止通读完整 conversation；
 5. 每理清一块就立即写入 `{NOTES_PATH}`，落盘优先于追求一次性完美。
 
-若前轮没有工作笔记，仍按 scan→tail→定点 read 重建现场；不要因此退化成全文通读。更早
+`{MAP_PATH}`和`{EXPORT_PATH}`只能帮助定位/兜底，不能代替上述reader和完整原始trajectory。
+若前轮没有工作笔记，仍按 scan→tail→定点 inspect 重建现场；不要因此退化成全文通读。更早
 轮次已由递归链消化，只有发现明确疑点时才按来源锚点下钻，并把修正单列。
 
 # `{NOTES_PATH}` 的七节合同
 
 1. **题目与全局状态**：候选结论、各分支状态和可信度；不得把猜想写成定理。
 2. **当前真实前沿**：紧邻前轮推进到哪里；为关键结论提供“由 X 经 Y 得 Z”级推导骨架、
-   来源轮次和 trajectory 锚点，不得只复述裸结论。
+   来源轮次以及 idx/message/tool trajectory 锚点，不得只复述裸结论。
 3. **死路清单**：方向、失败位置、反例或死因，以及可复用的局部结果。
 4. **下一解题者的单一主缺口**：只指定一个最重要的 lemma/缺口，给建议和可判定验收条件；
    其他事项放次要队列。
@@ -56,3 +67,5 @@ trajectory 中，笔记只是索引。尤其要注意：前轮最后一次更新
 - 不把有限搜索当普遍证明，不把形式化命令退出 0 当充分性的全部。
 
 完成前确认 `{NOTES_PATH}` 已存在且包含七节。这份分析笔记就是你本轮的全部价值。
+系统会从你的tool调用/`round_result.json`核对scan、tail和定点inspect证据；只写出一份格式
+漂亮的notes但没有使用分层reader，不算完成观察者架构。

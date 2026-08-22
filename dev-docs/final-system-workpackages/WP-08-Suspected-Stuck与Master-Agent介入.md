@@ -18,7 +18,7 @@ SOP_01及报表、observability、必要的Gate docstring和演练测试。
 
 ## 二、前置认知
 
-读 057、058、063、WP-02/07执行记录；再读 ACP通知实现、monitor、SOP_01/checks/report、
+读 057、058、063、065、WP-02/07执行记录；再读分层trajectory reader合同、ACP通知实现、monitor、SOP_01/checks/report、
 StepGate、observability、session registry、rate limit和stall历史（016/034/035/036）。
 
 ## 三、证据包
@@ -26,12 +26,15 @@ StepGate、observability、session registry、rate limit和stall历史（016/034
 实现最小结构/报表，包含：run/round/role/instance、silent duration、last event、process alive、
 pending tool/permission、provider error、prompt response、运行时长、notes/proof/formal mtime、
 key内部ID、同key/多key横向概览、notification尾部路径。
+证据从WP-07/12同一reader/runtime事实取得：最后idx/event、pending tool/error、tail路径；不另造
+只看pane文本的浅层trajectory解释器，也不让程序分析数学内容。
 
 不打印secret；不强行计算根因概率。
 
 ## 四、实施任务
 
 1. 可靠活动时间更新：thought/message/tool/permission/response/error。
+   reader的scan/inspect输出是查证入口，但suspected判定只消费客观时间/状态。
 2. 静默阈值来自配置；超过只标 suspected，不写永久终态。
 3. SOP_01/checks/report列候选和查法，不新增SOP步骤。
 4. 提供安全动作原语：发送一次“继续”、结束Round并刷新资产、基础设施重启/换lease。

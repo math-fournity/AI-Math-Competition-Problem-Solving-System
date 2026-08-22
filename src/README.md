@@ -10,7 +10,7 @@
 > **当前/目标边界（2026-08-22）**：WP-01 已把最大轮次迁移为无限可续传的调度窗口；
 > 生产 launcher 仍只有 v1/v2，专职观察者/解题者、形式化充分性审计、OpenCode key lease
 > 和目标最大并发30仍待后续工作包，见
-> `dev-docs/057~064` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
+> `dev-docs/057~065` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
 
 ---
 
@@ -82,7 +82,7 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 
 ---
 
-## 二、支撑模块（6个，被各模块依赖）
+## 二、支撑模块（7个，被各模块依赖）
 
 ### `continuation_config.py` — 全局配置常量
 
@@ -123,6 +123,16 @@ stderr和运行元数据；扫描明显 `sorry/admit/axiom`、secret、外部路
 **用法**：`python -m src.formal_verification --help`。
 **依赖**：标准库；本机工具按命令调用，不连接 DB/Redis/Gate。详细语义见
 `docs/architecture/formal-delivery.md`。
+
+### `trajectory_reader_contract.py` — 分层 trajectory reader 机器合同
+
+冻结053既有要求的共同能力：scan/tail/search/inspect、稳定idx、reasoning/tool/error下钻、
+reader manifest、scan row和observer实际使用证据。不解析具体backend；legacy/OpenCode/Devin
+小型reader分别由WP-02/07/12实现，避免通用平台膨胀。
+
+**覆盖问题场景**：只有conversation map却声称完整消化；notes存在但observer未调用工具；
+scan偷塞完整reasoning；backend切换后trajectory阅读能力退化。
+**依赖**：标准库；行为说明见 `docs/architecture/layered-trajectory-reader.md`。
 
 ### `continuation_db_schema.py` — DB 连接+集合管理
 
@@ -249,6 +259,7 @@ SOLVER_BASE 不在 /Volumes/data，三重满足才执行。018事故教训：tea
 | 配置漂移 / model 参数 / 阈值 | `continuation_config` |
 | v3 prompt 渲染 / 占位符漂移 | `prompt_contract` |
 | formal源码归档 / 命令日志 / rounds_log字段 | `formal_verification` |
+| observer分层trajectory接口 / 使用证据 | `trajectory_reader_contract` |
 | DB 连接 / 集合结构 | `continuation_db_schema` |
 | 队列原子性 / Redis key 结构 | `continuation_redis_queue` |
 | alert 不产生 / A类B类检查 | `monitor_continuation` |

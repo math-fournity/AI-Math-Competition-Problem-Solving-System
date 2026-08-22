@@ -17,6 +17,12 @@ from src.prompt_contract import (  # noqa: E402
     render_prompt,
     validate_all_templates,
 )
+from src.trajectory_reader_contract import (  # noqa: E402
+    build_reader_command,
+    make_read_evidence,
+    validate_reader_manifest,
+    validate_scan_rows,
+)
 
 
 FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "1962"
@@ -30,6 +36,8 @@ def sample_values(role):
         "PREV_NUM": "7",
         "PREV_ROUND_DIR": "rounds/round7",
         "PREV_WORK_NOTES_PATH": "rounds/round7/工作笔记.md",
+        "TRAJECTORY_TOOL_PATH": "trajectory_reader.py",
+        "TRAJECTORY_ROOT": "inputs/round7/trajectory",
         "MAP_PATH": "rounds/round7/conversation_map.md",
         "EXPORT_PATH": "rounds/round7/conversation.json",
         "NOTES_PATH": "rounds/round8/分析笔记.md",
@@ -71,7 +79,11 @@ def test_role_and_formal_boundaries():
     assert "不写 `proof.md`" in observer
     assert observer.index("**scan**") < observer.index("**tail**")
     assert observer.index("**tail**") < observer.index("**search**")
-    assert observer.index("**search**") < observer.index("**read**")
+    assert observer.index("**search**") < observer.index("**inspect**")
+    assert "{TRAJECTORY_TOOL_PATH}" in observer
+    assert "{TRAJECTORY_ROOT}" in observer
+    assert "--tool-input/--tool-result/--error" in observer
+    assert "不能代替上述reader和完整原始trajectory" in observer
     for section in (
         "题目与全局状态", "当前真实前沿", "死路清单", "单一主缺口",
         "对更早档案的修正", "形式化覆盖状态", "验证欠账与资产状态",
@@ -165,6 +177,43 @@ def test_mixed_prompt_is_not_default_asset():
     assert not list((PROJECT_ROOT / "templates").glob("**/prompt_roundN.md"))
     readme = (PROJECT_ROOT / "templates" / "README.md").read_text()
     assert "混合模板" in readme and "不得在生产默认路径恢复" in readme
+
+
+def test_layered_trajectory_reader_contract():
+    manifest = json.loads(
+        (FIXTURE_ROOT / "trajectory_reader_manifest.json").read_text())
+    checked = validate_reader_manifest(manifest)
+    assert checked["backend"] == "fixture_acp"
+    assert build_reader_command(manifest, "scan")[-1] == "--json"
+    assert build_reader_command(manifest, "tail", chars=8000)[-2:] == ["--chars", "8000"]
+    assert "--pattern" in build_reader_command(manifest, "search", pattern="lemma")
+    inspect = build_reader_command(
+        manifest, "inspect", idx=42, message=6, reasoning=True,
+        tool_input=True, tool_result=True, error=True)
+    for token in ("--idx", "--message", "--reasoning", "--tool-input", "--tool-result", "--error"):
+        assert token in inspect
+
+    rows = [{
+        "idx": 0, "event_type": "model_call", "role": "solver",
+        "started_at": "t", "finish_reason": "tool-calls", "error_name": None,
+        "tool_names": ["python"], "usage": {"output_tokens": 100},
+        "source_ref": "notifications.jsonl:1", "text_head": "checking a lemma",
+    }]
+    validate_scan_rows(rows)
+    evidence = make_read_evidence(
+        operation="inspect", source_round=7, command=inspect,
+        output_path="trajectory_reads/inspect-42.json", exit_code=0,
+        selected_indices=[42])
+    assert evidence["selected_indices"] == [42]
+
+    bad = dict(rows[0])
+    bad["reasoning"] = "完整正文不应进入scan"
+    try:
+        validate_scan_rows([bad])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("scan错误接受完整reasoning正文")
 
 
 def main():

@@ -19,7 +19,8 @@ Devin ACP backend。预期触点：WP-07形成的最小执行接口、Devin adap
 
 ## 二、前置认知
 
-读 057、058、060、063、064、WP-07执行记录；再读 035、042、045、048、049 和 Devin ACP
+读 057、058、060、063、064、065、WP-07执行记录和分层trajectory reader合同；再读
+035、042、045、048、049 和 Devin ACP
 实测脚本/日志。核对当前 Devin CLI 实际协议，不能只信旧文档行号。
 
 ## 三、最小后端合同
@@ -27,11 +28,14 @@ Devin ACP backend。预期触点：WP-07形成的最小执行接口、Devin adap
 两后端必须向上层提供同构的：instance/session ID、role、start/poll/stop、last activity、usage、
 finish reason、notification/trajectory路径、proof/formal路径和错误分类。后端差异留在adapter，
 observer/solver、无限Round和audit不应复制分支业务逻辑。
+“trajectory路径同构”必须提升为“分层阅读能力同构”：scan/tail/search/inspect、稳定idx、
+reasoning/tool input/result/error/usage/终因均可达；具体ATIF/ACP解析留在Devin adapter。
 
 ## 四、实施任务
 
 1. 实现 Devin ACP adapter，显式指定可用模型；Devin无effort接口时如实记录，不伪造。
 2. 权限请求、通知、终态和导出归一到WP-07资产合同。
+   同时实现Devin小型reader并满足`layered-trajectory-reader.md`；不能只返回conversation路径。
 3. backend选择来自DB/配置，不写死；默认切换策略仍由用户决定。
 4. 提供人工受控选择动作：Master检查主后端证据，经现有launch Gate让后续实例用Devin。
 5. 切换不改变题目run/Round编号，不覆盖OpenCode历史资产。
@@ -60,12 +64,14 @@ observer/solver、无限Round和audit不应复制分支业务逻辑。
 4. 人工切换reason进入Gate/flow。
 5. OpenCode恢复后不会自动切回。
 6. secret扫描和legacy回归。
+7. OpenCode/Devin reader共同能力和使用证据同构，backend切换后observer不退化。
 
 ## 八、验收 checklist
 
 - [ ] Devin ACP adapter满足最小合同
 - [ ] 不复制业务状态机
 - [ ] 资产和终因同构
+- [ ] 分层trajectory reader能力同构
 - [ ] 人工受控切换通过现有Gate
 - [ ] auto-fallback默认未启用
 - [ ] key/secret边界正确

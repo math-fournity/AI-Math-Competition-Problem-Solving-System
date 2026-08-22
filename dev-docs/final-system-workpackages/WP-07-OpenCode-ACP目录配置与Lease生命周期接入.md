@@ -19,10 +19,11 @@ legacy tmux后端。
 
 ## 二、前置认知
 
-读 057、058、060、062、064、WP-02/06执行记录；再读：
+读 057、058、060、062、064、065、WP-02/06执行记录；再读：
 
 - `src/v2_pipeline.py`、`scripts/run_v2_batch.py`；
 - 042~046 和 `dev-docs/053a-acp_v2参考实现.py`；
+- 053 §3/§4、`docs/architecture/layered-trajectory-reader.md`、reader机器合同；
 - OpenCode ACP通知/模型配置探针测试；
 - graceful shutdown、session registry、资产保留规则。
 
@@ -32,10 +33,13 @@ legacy tmux后端。
 2. lease 成功后在 cwd 原子写配置；权限限制；确保配置不被Git追踪。
 3. initialize/session/new/model/effort回显fail-fast。
 4. prompt、thought/message/tool/permission实时落盘；native export仅作为兜底并验证JSON。
+   同时实现OpenCode ACP小型reader：流式scan完整通知脉络，稳定idx，tail/search/inspect可展开
+   reasoning、message、tool/permission input/result/error、usage和终因；复制进每个observer cwd。
 5. 完成/BUDGET_STARVED/异常/优雅停止都刷新资产。
 6. 正常结束：收集后释放lease；启动失败：确认无活实例后回滚；崩溃：进入对账，不盲释放。
 7. 将 backend session 与现有 registry/DB/flow 对应；不要求一次消灭legacy tmux。
 8. 输出中只记录key内部ID，不打印secret/opencode.json正文。
+9. reader manifest和`trajectory_reads`进入round_result；export/map不能替代notification主源。
 
 ## 四、Gate
 
@@ -70,6 +74,7 @@ legacy tmux后端。
 6. launcher崩溃对账不超额复用。
 7. secret泄漏扫描。
 8. observer/solver串行，同题不持有两个活lease。
+9. observer实际scan/tail/inspect证据；大通知文件scan不展开正文且崩溃后仍可读。
 
 ## 八、验收 checklist
 
@@ -77,6 +82,7 @@ legacy tmux后端。
 - [ ] key lease正确占用/释放
 - [ ] 模型/effort回显断言
 - [ ] 通知实时落盘
+- [ ] OpenCode分层reader完整且observer可实际使用
 - [ ] 全异常路径不泄漏secret或lease
 - [ ] 现有Gate复用
 - [ ] fake ACP/sim通过

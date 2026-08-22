@@ -14,7 +14,8 @@
 > **⚠️ 2026-08-22 最终成品认知已冻结**：未来实现者先读
 > `dev-docs/057-最终成品系统大图与产品定义.md`、
 > `058-最终成品系统Feature-List与需求追踪.md`、`059~063` 专题规范和
-> `dev-docs/final-system-workpackages/README.md`。当前代码仍有与目标相反的历史语义，
+> `064-当前实现差距与实施路线总图.md`、`065-工作包分层Trajectory设计缺陷复盘与纠偏记录.md`
+> 和`dev-docs/final-system-workpackages/README.md`。当前代码仍有与目标相反的历史语义，
 > 完整差距见 `064-当前实现差距与实施路线总图.md`。这些目标文档优先于下方旧代码现状
 > 描述，但不得把“目标”谎称为“已实现”。
 
@@ -59,7 +60,7 @@ handover 完成后才启动 solve，一道题不会同时跑两个 devin cli。
 | 本次 Round 窗口额度用完 | 写 `status=window_exhausted`、`final_status=null`，不进永久终态队列 | 保存现场、释放资源、未来显式开启新窗口并从下一绝对 Round 继续 |
 
 历史 `TRUNCATED_AT_MAX` 保持只读兼容，未经用户批准不批量迁移。形式化候选/最终正确的
-剩余实施见最终工作包 WP-04/05。
+解题侧形式化交付底座WP-04已完成；生产候选接线和最终充分性审计见WP-02/05。
 
 
 ### v2 解题管线（当前开发中——与上方 p27 续传管线独立）
@@ -72,6 +73,11 @@ handover 完成后才启动 solve，一道题不会同时跑两个 devin cli。
 | 停止 | kill tmux session `v2-batch`（**continuation_control stop 不覆盖此管线**） |
 | 模型 | openrouter/stealth/ox-alpha，effort=max |
 | 架构 | 观察者/解题者两阶段轮替 + 递归消化链 + BUDGET_STARVED 指纹 |
+
+**053分层trajectory铁律**：observer必须亲自使用backend reader对上一实例的完整原始现场执行
+scan→tail→search/inspect，按稳定idx下钻reasoning/tool input/result/error；map、HANDOVER和
+notes只能作索引。只有分析笔记、没有reader实际使用证据，不能声称观察者架构已实现。合同见
+`docs/architecture/layered-trajectory-reader.md`，工作包纠偏见065。
 
 **与其他管线的关系**：
 - 上方 p27 续传管线（devin -p + tmux）：过渡期保留，最终将被 v2 替代

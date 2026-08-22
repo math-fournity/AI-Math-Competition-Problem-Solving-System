@@ -24,7 +24,8 @@ TEMPLATE_SPECS = {
         "path": TEMPLATE_ROOT / "prompt_observer_p.md",
         "fields": {
             "ROUND_NUM", "PREV_NUM", "ORIGINAL_PROBLEM", "PREV_ROUND_DIR",
-            "PREV_WORK_NOTES_PATH", "MAP_PATH", "EXPORT_PATH", "NOTES_PATH",
+            "PREV_WORK_NOTES_PATH", "TRAJECTORY_TOOL_PATH", "TRAJECTORY_ROOT",
+            "MAP_PATH", "EXPORT_PATH", "NOTES_PATH",
         },
     },
     "solver": {

@@ -34,6 +34,8 @@
         tmux.log                 # 非 tmux 后端可缺
       conversation.json          # 后端可导出时保留；不可替代实时通知流
       conversation_map.md        # observer scan/定点读取索引
+      trajectory_reader.json     # backend reader manifest/共同能力
+      trajectory_reads/          # scan/tail/search/inspect输出与使用证据
       工作笔记.md                 # solver 角色
       分析笔记.md                 # observer 角色
       proof.md                    # solver 候选成功时
@@ -78,7 +80,9 @@ DB 的 `rounds_log` 必须仍能定位同等实物，且同一 Round 的旧文�
 - 分析笔记必须有七节：全局状态、真实前沿和推导骨架、死路、单一主缺口、历史修正、
   形式化覆盖、验证欠账；
 - `round_result.json` 记录 scan/tail/search/read 的输入路径和读取区间，供 SOP 抽查是否真实
-  消化尾部；不要求自动判断笔记数学质量。
+  消化尾部；另记录 `trajectory_reader` manifest 和 `trajectory_reads` 操作证据；不要求自动
+  判断笔记数学质量。只有notes而无scan/tail/inspect证据不能证明053架构已实现。
+- reader必须能从稳定idx展开reasoning、tool input/result和error；map/export只作辅助/兜底。
 
 ### 后续 solver
 
@@ -114,3 +118,6 @@ Python 扫描默认只算旁证，除非 proof 已证明有限归约覆盖全部
 码、日志存在、是否出现 `sorry/admit` 文本。分析笔记是否真正提供可信数学供料、形式化覆盖
 是否充分等语义问题由审计 AI/Master Agent 按 SOP 判断。关键动作仍复用现有 Gate，不新增
 平行审批机制。
+
+分层reader的共同CLI、scan字段和使用证据见 `docs/architecture/layered-trajectory-reader.md`
+与 `src/trajectory_reader_contract.py`；具体backend parser由WP-02/07/12实现。

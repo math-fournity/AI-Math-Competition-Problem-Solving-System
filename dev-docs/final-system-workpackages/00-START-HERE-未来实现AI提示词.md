@@ -11,9 +11,10 @@
 3. `dev-docs/057-最终成品系统大图与产品定义.md`；
 4. `dev-docs/058-最终成品系统Feature-List与需求追踪.md`；
 5. `dev-docs/064-当前实现差距与实施路线总图.md`；
-6. 本目录 `README.md`；
-7. 你领取的 `WP-XX-*.md` 全文；
-8. WP“前置认知”列出的专题文档、代码、测试和外部只读资料。
+6. `dev-docs/065-工作包分层Trajectory设计缺陷复盘与纠偏记录.md`；
+7. 本目录 `README.md`；
+8. 你领取的 `WP-XX-*.md` 全文；
+9. WP“前置认知”列出的专题文档、代码、测试和外部只读资料。
 
 不要跳过当前代码事实复核。行号会漂移，用函数名/关键字定位。
 
@@ -43,6 +44,8 @@ git log -5 --oneline
 10. 所有失败/测试/验证资产保留；不只写 `/tmp`。
 11. 文件修改使用显式路径；破坏性动作先 dry-run。
 12. 改调度/终态/审计后跑工作包指定的 sim/测试门禁。
+13. Observer必须亲自使用分层reader读取完整原始trajectory；map/HANDOVER/notes只作索引，
+    只有notes无scan/tail/inspect使用证据不得验收。
 
 ## 第四阶段：完成定义
 

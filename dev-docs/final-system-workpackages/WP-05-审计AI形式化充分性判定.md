@@ -18,7 +18,7 @@ result_collector}.py`、审计模板、Gate docstring、SOP_04/07 checks/report�
 
 ## 二、前置认知
 
-读 057、058、061、WP-04执行记录；再读 proof audit collector/config/launcher/result
+读 057、058、061、065、WP-04执行记录和分层trajectory reader合同；再读 proof audit collector/config/launcher/result
 collector、prompt模板、四个审计 Gate、SOP_04/07、029~033 的 PARSE_ERROR 教训。
 
 ## 三、审计输入
@@ -29,6 +29,8 @@ collector、prompt模板、四个审计 Gate、SOP_04/07、029~033 的 PARSE_ERR
 - formal_verification.md；
 - 解题侧日志和版本；
 - 相关Round notes；
+- 解题实例的分层trajectory reader manifest/使用证据（核对形式化命令是否真实执行、工具输出
+  与报告是否一致；不要求审计AI通读全部reasoning）；
 - 审计自己的独立工作目录和输出日志。
 
 ## 四、实施任务
@@ -41,6 +43,7 @@ collector、prompt模板、四个审计 Gate、SOP_04/07、029~033 的 PARSE_ERR
 5. result collector 保持 PARSE_ERROR 待人工；新增语义最小映射，不为漂亮枚举膨胀schema。
 6. FINALIZE-PASS Gate 增直接检查：formal源码、独立日志、主命题、覆盖、逃逸口。
 7. 形式化不足不排除题目；生成可供下一observer消费的具体缺口。
+   缺口附formal run路径和必要trajectory idx/tool锚点，不能只给裸结论。
 8. SOP_04/07 增实物复核和不足/待人工清单，不新增STEP。
 
 ## 五、正反样本

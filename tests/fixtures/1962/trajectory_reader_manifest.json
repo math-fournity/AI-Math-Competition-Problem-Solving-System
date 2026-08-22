@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "backend": "fixture_acp",
+  "command_prefix": ["python3", "trajectory_reader.py"],
+  "trajectory_root": "inputs/round7/trajectory",
+  "capabilities": [
+    "scan",
+    "tail",
+    "search",
+    "inspect",
+    "reasoning",
+    "tool_input",
+    "tool_result",
+    "error"
+  ]
+}

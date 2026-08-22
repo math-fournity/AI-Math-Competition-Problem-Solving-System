@@ -15,6 +15,10 @@
 解题侧检查和 WP-05 独立审计的稳定入口。运行/归档方法见
 `docs/architecture/formal-delivery.md`。
 
+Observer 模板的 `TRAJECTORY_TOOL_PATH/TRAJECTORY_ROOT` 和共同CLI来自
+`docs/architecture/layered-trajectory-reader.md`。`MAP_PATH/EXPORT_PATH`只是辅助/兜底，
+不能删除reader字段或恢复成摘要驱动。
+
 ## v2 参考模板
 
 `v2/` 仍被独立 `src/v2_pipeline.py` 使用，也是 1962 方法论参考，但其形式化交付和路径合同
