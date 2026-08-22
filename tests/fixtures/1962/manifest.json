@@ -1,0 +1,37 @@
+{
+  "fixture_version": 1,
+  "answer_free": true,
+  "online_model_required": false,
+  "cases": [
+    {
+      "id": "v1_handover_contrast",
+      "role": "observer",
+      "input": "v1_handover_contrast.md",
+      "expected_behaviors": ["reject_bare_handover", "require_derivation_skeleton", "preserve_dead_end_reason"]
+    },
+    {
+      "id": "r2_scene_to_r3_observer",
+      "role": "observer",
+      "input": "r2_observer_scene.md",
+      "expected_behaviors": ["scan_tail_targeted_read", "collect_unwritten_tail", "record_verification_debt"]
+    },
+    {
+      "id": "r3_notes_to_solver",
+      "role": "solver",
+      "input": "r3_solver_input.md",
+      "expected_behaviors": ["focus_single_gap", "do_not_reverify_closed_branch", "archive_verification_assets"]
+    },
+    {
+      "id": "r4_scene_to_r5_observer",
+      "role": "observer",
+      "input": "r4_observer_scene.md",
+      "expected_behaviors": ["verify_new_theorem", "execute_or_record_debt", "correct_earlier_note"]
+    },
+    {
+      "id": "r5_notes_to_solver",
+      "role": "solver",
+      "input": "r5_solver_input.md",
+      "expected_behaviors": ["assemble_without_reopening", "candidate_not_final", "archive_verification_assets"]
+    }
+  ]
+}

@@ -82,7 +82,7 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 
 ---
 
-## 二、支撑模块（4个，被各模块依赖）
+## 二、支撑模块（5个，被各模块依赖）
 
 ### `continuation_config.py` — 全局配置常量
 
@@ -101,6 +101,16 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 **覆盖问题场景**：跨窗口继续时 Round 号重复；基础设施失败误耗数学额度；历史
 `TRUNCATED_AT_MAX` 恢复时丢失旧证据；窗口结束误进永久终态。
 **依赖**：launcher、窗口管理脚本和 sim 调用；所有入队/回收动作仍走现有 Gate。
+
+### `prompt_contract.py` — v3 三角色模板严格渲染接口
+
+冻结 round1/observer/solver 的模板路径和大写占位符集合；用逐占位符替换避开 LaTeX 普通
+花括号，缺字段、额外字段或模板漂移均 fail-fast。WP-03 只提供纯接口，尚未接生产 launcher。
+
+**覆盖问题场景**：prompt 占位符漏填；observer/solver 接线时字段名漂移；数学 LaTeX 被
+`str.format` 误解释。模板说明见 `templates/README.md`，资产合同见
+`docs/architecture/round-artifact-contract.md`。
+**依赖**：无 DB/Redis/Gate；WP-02 生产编排和 WP-10 回归可直接调用。
 
 ### `continuation_db_schema.py` — DB 连接+集合管理
 
@@ -225,6 +235,7 @@ SOLVER_BASE 不在 /Volumes/data，三重满足才执行。018事故教训：tea
 | 失控循环 / 截断误判 / 终态判定 / 并发控制 | `continuation_launcher` |
 | 结果归档 / proof 双写 | `continuation_result_collector` |
 | 配置漂移 / model 参数 / 阈值 | `continuation_config` |
+| v3 prompt 渲染 / 占位符漂移 | `prompt_contract` |
 | DB 连接 / 集合结构 | `continuation_db_schema` |
 | 队列原子性 / Redis key 结构 | `continuation_redis_queue` |
 | alert 不产生 / A类B类检查 | `monitor_continuation` |

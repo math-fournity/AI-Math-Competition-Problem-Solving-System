@@ -14,17 +14,19 @@ AI 接手时先建立这个全景，再往下读各分类法详情：
 | 资产 | 位置 | 是什么 | 入口 |
 |---|---|---|---|
 | **SOP** | `scripts/sop/` + `docs/sop/` | Master Agent 7x24 监控循环——9步循环脚本（01~07+Z+OP）+ 对应执行指令文档 + 系统级认知闭包 | `AGENTS.md`"Master Agent SOP 流程控制机制"段 → `python -m scripts.sop.run` |
-| **src** | `src/` + `src/sim/` | 续传解题管线实现代码——主管线4模块 + 支撑3模块 + 监控治理4模块 + 全流程模拟6模块 | `src/README.md`（4分组导航地图） |
+| **src** | `src/` + `src/sim/` | 续传解题管线实现代码——主管线4模块 + 支撑5模块 + 监控治理4模块 + 全流程模拟6模块 | `src/README.md`（4分组导航地图） |
 | **docs** | `docs/` | 架构/规范/模式/模板文档集——系统认知层 + 设计范式 + 架构设计 + 检查规范 + 模板 + SOP 文档 | 下方分类法第一~三节 |
 | **工作包** | `dev-docs/workpackages/` | 030~037 审计链收敛后的最终执行体系——总控 README（依赖图/铁律/状态表）+ 各 WP 执行文档 + exec-log 执行记录 | `dev-docs/workpackages/README.md` |
 | **v2 续传架构** | `dev-docs/053*.md` + `053a-*.md` | v2 观察者/解题者递归消化链——技术说明书(053)+设计简版+三模板+驱动器参考实现(053a系列) + 影响评估与行动方案(054) | `dev-docs/053-v2续传编排技术说明书-观察者做题者递归消化链.md` → `dev-docs/054-v2架构影响评估与行动方案.md` |
+| **提示词/资产合同** | `templates/v3/` + `src/prompt_contract.py` + `docs/architecture/round-artifact-contract.md` | WP-03 冻结的三角色模板、严格渲染接口、每轮资产合同和无答案1962离线回归 | `templates/README.md` |
 | **最终成品认知包** | `dev-docs/057~064` + `dev-docs/final-system-workpackages/` | 用户最终需求、大图、Feature List、无限Round、1962编排、形式化真理性、key池、Master监督/Gate及12个自包含未来实施包 | `dev-docs/057-最终成品系统大图与产品定义.md` → `dev-docs/final-system-workpackages/README.md` |
 
 > 三大运行支柱的关系：**src 实现**解题管线 → **docs 描述**架构和规范 → **SOP 监控**src 的运行。
 > AI 工作时按需加载：改代码先读 `src/README.md` 找模块 → 查规范读 `docs/specs/` → 运行监控走 `scripts/sop/`。
 
 > **当前态/目标态警示（2026-08-22）**：WP-01 已把最大 Round 数迁移为非永久调度窗口，
-> 历史 `TRUNCATED_AT_MAX` 仍只读兼容；生产观察者/解题者、形式化审计、系统 key 池、目标
+> WP-03 已冻结三角色提示词、轮次资产合同和1962离线回归；历史 `TRUNCATED_AT_MAX` 仍
+> 只读兼容。生产观察者/解题者、形式化审计、系统 key 池、目标
 > 并发30和 Supervisor stuck 闭环尚未完成。057~064 是目标认知；事实差距以064和新工作包
 > 状态表为准。
 
@@ -119,7 +121,7 @@ AI 接手时先建立这个全景，再往下读各分类法详情：
 
 ## 三、架构设计——docs/architecture/
 
-### `docs/architecture/` — 架构设计文档（10个）
+### `docs/architecture/` — 架构设计文档（11个）
 
 架构设计文档集。每个文档覆盖一个设计方面：
 
@@ -133,6 +135,7 @@ AI 接手时先建立这个全景，再往下读各分类法详情：
 - **`selfrun-workflow.md`** — selfrun工作流（⚠️ 已废弃：selfrun代码已删）。**覆盖场景**：历史参考。
 - **`solver-trajectory-schema.md`** — trajectory数据schema。**覆盖场景**：处理trajectory数据时。
 - **`solver-harness-borrowing.md`** — 解题系统借鉴分析（7个值得借鉴的设计）。**覆盖场景**：从解题系统借鉴设计到错题分析系统时、理解多模块解耦/独立服务设计时。
+- **`round-artifact-contract.md`** — v3 每轮角色/资产合同（prompt、通知流、笔记、proof/partial、formal、日志、mtime归属）。**覆盖场景**：接生产 observer/solver、形式化交付、ACP回收或资产sim时。**依赖**：模板入口 `templates/README.md`。
 
 ### `docs/specs/` — 检查规范（系统资产，3个）
 
