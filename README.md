@@ -19,7 +19,7 @@ AI 接手时先建立这个全景，再往下读各分类法详情：
 | **工作包** | `dev-docs/workpackages/` | 030~037 审计链收敛后的最终执行体系——总控 README（依赖图/铁律/状态表）+ 各 WP 执行文档 + exec-log 执行记录 | `dev-docs/workpackages/README.md` |
 | **v2 续传架构** | `dev-docs/053*.md` + `053a-*.md` | v2 观察者/解题者递归消化链——技术说明书(053)+设计简版+三模板+驱动器参考实现(053a系列) + 影响评估与行动方案(054) | `dev-docs/053-v2续传编排技术说明书-观察者做题者递归消化链.md` → `dev-docs/054-v2架构影响评估与行动方案.md` |
 | **提示词/资产合同** | `templates/v3/` + `src/prompt_contract.py` + `docs/architecture/round-artifact-contract.md` | WP-03 冻结的三角色模板、严格渲染接口、每轮资产合同和无答案1962离线回归 | `templates/README.md` |
-| **最终成品认知包** | `dev-docs/057~065` + `dev-docs/final-system-workpackages/` | 用户最终需求、大图、Feature List、专题规范、12个实施包及分层Trajectory工作包纠偏 | `dev-docs/057-最终成品系统大图与产品定义.md` → `dev-docs/065-工作包分层Trajectory设计缺陷复盘与纠偏记录.md` → 工作包README |
+| **最终成品认知包** | `dev-docs/057~066` + `dev-docs/final-system-workpackages/` | 用户最终需求、大图、专题规范、12个实施包、分层Trajectory纠偏及外部审计校准 | `dev-docs/057-最终成品系统大图与产品定义.md` → `dev-docs/065-工作包分层Trajectory设计缺陷复盘与纠偏记录.md` → `dev-docs/066-对065外部审计反馈的回应与采纳裁定.md` → 工作包README |
 
 > 三大运行支柱的关系：**src 实现**解题管线 → **docs 描述**架构和规范 → **SOP 监控**src 的运行。
 > AI 工作时按需加载：改代码先读 `src/README.md` 找模块 → 查规范读 `docs/specs/` → 运行监控走 `scripts/sop/`。
@@ -354,6 +354,7 @@ repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资�
 - `dev-docs/063-Master-Agent监督-stuck处置-SOP与Gate协作规范.md`——程序给证据、SOP发现、Master判断、现有Gate执行
 - `dev-docs/064-当前实现差距与实施路线总图.md`——当前HEAD事实、差距、依赖和12包路线
 - `dev-docs/065-工作包分层Trajectory设计缺陷复盘与纠偏记录.md`——原工作包哪里不合理、根因、逐包修正和本次落盘实物
+- `dev-docs/066-对065外部审计反馈的回应与采纳裁定.md`——采纳外部核验并校准既有语义/新增schema、严重度和责任归因
 - `dev-docs/final-system-workpackages/`——未来实现AI的自包含工作包总控、启动提示词和WP-01~12
 
 **依赖关系**：无前置依赖，可独立阅读。

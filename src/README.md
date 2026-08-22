@@ -10,7 +10,7 @@
 > **当前/目标边界（2026-08-22）**：WP-01 已把最大轮次迁移为无限可续传的调度窗口；
 > 生产 launcher 仍只有 v1/v2，专职观察者/解题者、形式化充分性审计、OpenCode key lease
 > 和目标最大并发30仍待后续工作包，见
-> `dev-docs/057~065` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
+> `dev-docs/057~066` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
 
 ---
 
