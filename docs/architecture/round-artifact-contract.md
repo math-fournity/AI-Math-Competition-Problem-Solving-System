@@ -92,6 +92,9 @@ DB 的 `rounds_log` 必须仍能定位同等实物，且同一 Round 的旧文�
 formal theorem/程序、工具和版本、精确重跑命令、日志路径、`sorry/admit/axiom` 检查、有限
 搜索边界、未覆盖项和充分性论证。具体实现与审计规则见 061、WP-04、WP-05。
 
+WP-04 的运行/归档 API、九个稳定报告 marker 和 rounds_log 字段见
+`docs/architecture/formal-delivery.md`。结构完整和命令退出 0 均不等于审计充分。
+
 这里不要求所有题使用同一种工具，也不把“命令退出 0”当充分性的全部。普遍命题的有限
 Python 扫描默认只算旁证，除非 proof 已证明有限归约覆盖全部情况。
 

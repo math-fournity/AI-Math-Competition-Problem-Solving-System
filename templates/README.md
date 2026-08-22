@@ -11,6 +11,10 @@
 占位符和严格渲染接口见 `src/prompt_contract.py`；每轮产物见
 `docs/architecture/round-artifact-contract.md`。WP-03 只冻结接口，生产接线由 WP-02 完成。
 
+`formal_verification_TEMPLATE.md` 是 WP-04 的形式化覆盖报告模板；九个 HTML marker 是
+解题侧检查和 WP-05 独立审计的稳定入口。运行/归档方法见
+`docs/architecture/formal-delivery.md`。
+
 ## v2 参考模板
 
 `v2/` 仍被独立 `src/v2_pipeline.py` 使用，也是 1962 方法论参考，但其形式化交付和路径合同

@@ -82,7 +82,7 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 
 ---
 
-## 二、支撑模块（5个，被各模块依赖）
+## 二、支撑模块（6个，被各模块依赖）
 
 ### `continuation_config.py` — 全局配置常量
 
@@ -111,6 +111,18 @@ OVERWRITE-ROUND1-SEED/KILL-SESSION/REQUEUE-TRUNCATED/FINALIZE-RUN-COMPLETED）�
 `str.format` 误解释。模板说明见 `templates/README.md`，资产合同见
 `docs/architecture/round-artifact-contract.md`。
 **依赖**：无 DB/Redis/Gate；WP-02 生产编排和 WP-10 回归可直接调用。
+
+### `formal_verification.py` — 解题侧形式化交付运行与检查
+
+归档临时验证资产，以非 shell argv 运行 Lean/Python/其他工具，保存版本、退出码、stdout/
+stderr和运行元数据；扫描明显 `sorry/admit/axiom`、secret、外部路径，并生成 WP-02 可登记
+进 rounds_log 的稳定字段。只判断结构/运行事实，始终要求独立审计，不裁定数学充分性。
+
+**覆盖问题场景**：验证脚本只留临时目录；命令不可重跑；Lean `sorry` 退出0被误当充分；
+有限 Python 扫描冒充普遍证明；后轮修复覆盖前轮失败日志。
+**用法**：`python -m src.formal_verification --help`。
+**依赖**：标准库；本机工具按命令调用，不连接 DB/Redis/Gate。详细语义见
+`docs/architecture/formal-delivery.md`。
 
 ### `continuation_db_schema.py` — DB 连接+集合管理
 
@@ -236,6 +248,7 @@ SOLVER_BASE 不在 /Volumes/data，三重满足才执行。018事故教训：tea
 | 结果归档 / proof 双写 | `continuation_result_collector` |
 | 配置漂移 / model 参数 / 阈值 | `continuation_config` |
 | v3 prompt 渲染 / 占位符漂移 | `prompt_contract` |
+| formal源码归档 / 命令日志 / rounds_log字段 | `formal_verification` |
 | DB 连接 / 集合结构 | `continuation_db_schema` |
 | 队列原子性 / Redis key 结构 | `continuation_redis_queue` |
 | alert 不产生 / A类B类检查 | `monitor_continuation` |
