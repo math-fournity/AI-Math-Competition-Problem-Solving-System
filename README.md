@@ -6,9 +6,10 @@
 
 ---
 
-## 〇、三套核心资产——先知道 repo 有什么
+## 〇、核心资产——先知道 repo 有什么
 
-本 repo 有三套核心资产，是系统的三大支柱。AI 接手时先建立这个全景，再往下读各分类法详情：
+本 repo 以 SOP/src/docs 为三大运行支柱，并有历史工作包、v2 方法论和最终成品认知包。
+AI 接手时先建立这个全景，再往下读各分类法详情：
 
 | 资产 | 位置 | 是什么 | 入口 |
 |---|---|---|---|
@@ -16,10 +17,15 @@
 | **src** | `src/` + `src/sim/` | 续传解题管线实现代码——主管线4模块 + 支撑3模块 + 监控治理4模块 + 全流程模拟6模块 | `src/README.md`（4分组导航地图） |
 | **docs** | `docs/` | 架构/规范/模式/模板文档集——系统认知层 + 设计范式 + 架构设计 + 检查规范 + 模板 + SOP 文档 | 下方分类法第一~三节 |
 | **工作包** | `dev-docs/workpackages/` | 030~037 审计链收敛后的最终执行体系——总控 README（依赖图/铁律/状态表）+ 各 WP 执行文档 + exec-log 执行记录 | `dev-docs/workpackages/README.md` |
-| **v2 续传架构** | `dev-docs/053*.md` + `053a-*.md` | v2 观察者/解题者递归消化链——技术说明书(053)+设计简版+三模板+驱动器参考实现(053a系列) + 影响评估与行动方案(054) | `dev-docs/053-v2续传编排技术说明书.md` → `dev-docs/054-v2架构影响评估与行动方案.md` |
+| **v2 续传架构** | `dev-docs/053*.md` + `053a-*.md` | v2 观察者/解题者递归消化链——技术说明书(053)+设计简版+三模板+驱动器参考实现(053a系列) + 影响评估与行动方案(054) | `dev-docs/053-v2续传编排技术说明书-观察者做题者递归消化链.md` → `dev-docs/054-v2架构影响评估与行动方案.md` |
+| **最终成品认知包** | `dev-docs/057~064` + `dev-docs/final-system-workpackages/` | 用户最终需求、大图、Feature List、无限Round、1962编排、形式化真理性、key池、Master监督/Gate及12个自包含未来实施包 | `dev-docs/057-最终成品系统大图与产品定义.md` → `dev-docs/final-system-workpackages/README.md` |
 
-> 三套资产的关系：**src 实现**解题管线 → **docs 描述**架构和规范 → **SOP 监控**src 的运行。
+> 三大运行支柱的关系：**src 实现**解题管线 → **docs 描述**架构和规范 → **SOP 监控**src 的运行。
 > AI 工作时按需加载：改代码先读 `src/README.md` 找模块 → 查规范读 `docs/specs/` → 运行监控走 `scripts/sop/`。
+
+> **当前态/目标态警示（2026-08-22）**：代码仍把最大 Round 数当永久
+> `TRUNCATED_AT_MAX`，形式化审计、系统 key 池、目标并发30和 Supervisor stuck 闭环也尚未
+> 完成。057~064 是未来目标认知，不是完成声明；事实差距以064为准。
 
 ---
 
@@ -29,9 +35,12 @@
 > 删除 Pipe 1/2/3 前的 4 Pipe 架构，已过时。**当前系统只有 Pipe 4 续传解题管线**。
 > 新 Session 接手时应优先读：
 > 1. `AGENTS.md` — 核心概念：解题管线 + 启动指令 + SOP 流程控制
-> 2. `docs/sop/SYSTEM_CLOSURE.md` — 系统级认知闭包（架构/生命周期/判定框架）
-> 3. `docs/architecture/solve-pipeline.md` — 解题管线概念详解
-> 4. `docs/sop/SOP_OP_operations_knowledge.md` — 运营知识（硬约束/外部索引/快速开始）
+> 2. `dev-docs/057-最终成品系统大图与产品定义.md` — 最终目标大图；未来实现必读
+> 3. `dev-docs/058-最终成品系统Feature-List与需求追踪.md` — 用户需求冻结表
+> 4. `dev-docs/064-当前实现差距与实施路线总图.md` — 当前代码与目标差距
+> 5. `docs/sop/SYSTEM_CLOSURE.md` — 当前系统级认知闭包（架构/生命周期/判定框架）
+> 6. `docs/architecture/solve-pipeline.md` — 当前解题管线概念详解
+> 7. `docs/sop/SOP_OP_operations_knowledge.md` — 运营知识（硬约束/外部索引/快速开始）
 >
 > 下方三个 AnalysisSystem*.md 保留作历史参考。
 
@@ -329,6 +338,15 @@ repo 全资产追溯关系的视角。trace.csv 记录整个 repo 中所有资�
 - `dev-docs/003-README三层架构与分类法设计.md`——README.md从"文档描述"重构为"分类法索引"的三层架构设计（AGENTS.md→README.md→看法文件），定义7个分类法
 - `dev-docs/017-全流程模拟系统设计方案.md`——全流程模拟（src/sim/）：devin命令行层注入剧本演员fake_devin，launcher/feeder/门闸100%真代码真跑于隔离环境（独立DB/Redis前缀/文件根）。7剧本对应launcher全部分支。首日运行捕获5个真bug（含P0：截断→重入队引擎不可达，真实截断被误判dead_session）。用法：`.venv/bin/python -m src.sim.run_sim --scenario solve3`
 - `dev-docs/018-teardown误删生产目录事故报告.md`——sim收尾清理时teardown护栏不对称误删生产D盘目录的事故报告：124份proof永久丢失、5958 work_dir已重建、teardown护栏补全+proof入库加固。防再犯规则：清场默认值不指向生产、破坏性操作先预览、成果文件必须双写
+- `dev-docs/057-最终成品系统大图与产品定义.md`——最终产品一句话、根原则、长期生命周期、资源模型和完成判据
+- `dev-docs/058-最终成品系统Feature-List与需求追踪.md`——全部用户需求的Feature ID冻结表，工作包追踪权威
+- `dev-docs/059-无限Round与调度窗口语义规范.md`——默认Round数是本次处理窗口，不是题目寿命；未解题理论无限继续
+- `dev-docs/060-观察者解题者核心编排与1962经验基线.md`——原始1962 v1失败/v2成功证据、角色合同和回归要求
+- `dev-docs/061-数学真理性形式化验证与审计合同.md`——候选成功、形式化包、审计充分性和最终Gate
+- `dev-docs/062-OpenCode-Key池与ACP实例生命周期规范.md`——外部active→deactive、内部capacity/lease、目录opencode.json和secret边界
+- `dev-docs/063-Master-Agent监督-stuck处置-SOP与Gate协作规范.md`——程序给证据、SOP发现、Master判断、现有Gate执行
+- `dev-docs/064-当前实现差距与实施路线总图.md`——当前HEAD事实、差距、依赖和12包路线
+- `dev-docs/final-system-workpackages/`——未来实现AI的自包含工作包总控、启动提示词和WP-01~12
 
 **依赖关系**：无前置依赖，可独立阅读。
 

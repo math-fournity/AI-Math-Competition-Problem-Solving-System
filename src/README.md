@@ -7,6 +7,11 @@
 > **系统级认知**：`docs/sop/SYSTEM_CLOSURE.md`（架构/生命周期/判定框架，每次SOP注入）。
 > **根目录引导地图**：`README.md`（全 repo 文档分类法索引）。
 
+> **当前/目标边界（2026-08-22）**：本文件导航的是当前代码；当前仍以最大轮次写
+> `TRUNCATED_AT_MAX`，生产 launcher 仍只有 v1/v2。最终目标已改为无限可续传的调度窗口、
+> 专职观察者/解题者、形式化充分性审计、OpenCode key lease 和目标最大并发30，见
+> `dev-docs/057~064` 与 `dev-docs/final-system-workpackages/`。不要把目标误称已实现。
+
 ---
 
 ## 目录角色
