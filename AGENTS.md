@@ -45,6 +45,23 @@ handover 完成后才启动 solve，一道题不会同时跑两个 devin cli。
 | AI 放弃 | devin cli 输出放弃信号 | `continuation_launcher.py` 状态检查逻辑 |
 | 达到最大轮次 | current_round > max_rounds（默认5）| `continuation_launcher.py:1223` → TRUNCATED_AT_MAX |
 
+
+### v2 解题管线（当前开发中——与上方 p27 续传管线独立）
+
+**v2 是当前活跃开发的解题管线**，使用 OpenCode ACP + Ox Alpha 后端，融合观察者/解题者递归消化链架构（详见 `dev-docs/053-v2续传编排技术说明书.md` 与 `dev-docs/054-v2架构影响评估与行动方案.md`）。
+
+| 维度 | 说明 |
+|---|---|
+| 启动 | `python scripts/run_v2_batch.py --batch-id v2-p27-full`（直接运行，不走 continuation_control） |
+| 停止 | kill tmux session `v2-batch`（**continuation_control stop 不覆盖此管线**） |
+| 模型 | openrouter/stealth/ox-alpha，effort=max |
+| 架构 | 观察者/解题者两阶段轮替 + 递归消化链 + BUDGET_STARVED 指纹 |
+
+**与其他管线的关系**：
+- 上方 p27 续传管线（devin -p + tmux）：过渡期保留，最终将被 v2 替代
+- 平凡解题系统 pipe-*（solver_harness）：不同 repo 的旧系统，仅知其存在
+- 三条管线各自独立启停——停一条不停其他
+
 ### 并发控制
 
 **并发数存在 DB 的 batch 记录里，launcher 每轮 poll 从 DB 读取**（`continuation_launcher.py:1041-1052`）。改并发不改代码：
