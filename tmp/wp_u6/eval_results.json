@@ -1,0 +1,80 @@
+[
+ {
+  "run_key": "p27-full-deepmath_103k_00000939",
+  "layer": "hard_2round",
+  "elapsed": 56,
+  "stopReason": "end_turn",
+  "msg_chars": 3230,
+  "thought_chars": 1967,
+  "boxed_in_message": [
+   "\\text{Minimum total"
+  ],
+  "proof_md_exists": false,
+  "boxed_in_proof": [],
+  "outputTokens_stream": null,
+  "outputTokens_response": 1346,
+  "sessionId": "ses_fda0160a3ffeiqawHIS0wdiOQe"
+ },
+ {
+  "run_key": "p27-full-deepmath_103k_00001653",
+  "layer": "dead_session",
+  "elapsed": 888,
+  "stopReason": "end_turn",
+  "msg_chars": 0,
+  "thought_chars": 82452,
+  "boxed_in_message": [],
+  "proof_md_exists": false,
+  "boxed_in_proof": [],
+  "outputTokens_stream": null,
+  "outputTokens_response": 32000,
+  "sessionId": "ses_fda0075d9ffe3fuXUdKYBuggYq"
+ },
+ {
+  "run_key": "p27-full-deepmath_103k_00003188",
+  "layer": "dead_session",
+  "elapsed": 176,
+  "stopReason": "end_turn",
+  "msg_chars": 2189,
+  "thought_chars": 14178,
+  "boxed_in_message": [
+   "-1"
+  ],
+  "proof_md_exists": false,
+  "boxed_in_proof": [],
+  "outputTokens_stream": null,
+  "outputTokens_response": 6410,
+  "sessionId": "ses_fd9f2d85bffe6KYzJnrgK3YkHN"
+ },
+ {
+  "run_key": "p27-full-deepmath_103k_00000047",
+  "layer": "trunc_history",
+  "elapsed": 32,
+  "stopReason": "end_turn",
+  "msg_chars": 2360,
+  "thought_chars": 1067,
+  "boxed_in_message": [
+   "\\text{No: "
+  ],
+  "proof_md_exists": false,
+  "boxed_in_proof": [],
+  "outputTokens_stream": null,
+  "outputTokens_response": 1165,
+  "sessionId": "ses_fd9f013c6ffezmCuit6uCkNTa2"
+ },
+ {
+  "run_key": "p27-full-deepmath_103k_00000041",
+  "layer": "trunc_history",
+  "elapsed": 94,
+  "stopReason": "end_turn",
+  "msg_chars": 6973,
+  "thought_chars": 1250,
+  "boxed_in_message": [
+   "\\text{Yes — "
+  ],
+  "proof_md_exists": false,
+  "boxed_in_proof": [],
+  "outputTokens_stream": null,
+  "outputTokens_response": 2809,
+  "sessionId": "ses_fd9ef83f7ffeXK4mXkGFnrQOV2"
+ }
+]

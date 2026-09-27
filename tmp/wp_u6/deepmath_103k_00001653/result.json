@@ -1,0 +1,14 @@
+{
+ "run_key": "p27-full-deepmath_103k_00001653",
+ "layer": "dead_session",
+ "elapsed": 888,
+ "stopReason": "end_turn",
+ "msg_chars": 0,
+ "thought_chars": 82452,
+ "boxed_in_message": [],
+ "proof_md_exists": false,
+ "boxed_in_proof": [],
+ "outputTokens_stream": null,
+ "outputTokens_response": 32000,
+ "sessionId": "ses_fda0075d9ffe3fuXUdKYBuggYq"
+}

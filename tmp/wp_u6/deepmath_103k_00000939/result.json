@@ -1,0 +1,16 @@
+{
+ "run_key": "p27-full-deepmath_103k_00000939",
+ "layer": "hard_2round",
+ "elapsed": 56,
+ "stopReason": "end_turn",
+ "msg_chars": 3230,
+ "thought_chars": 1967,
+ "boxed_in_message": [
+  "\\text{Minimum total"
+ ],
+ "proof_md_exists": false,
+ "boxed_in_proof": [],
+ "outputTokens_stream": null,
+ "outputTokens_response": 1346,
+ "sessionId": "ses_fda0160a3ffeiqawHIS0wdiOQe"
+}
