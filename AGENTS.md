@@ -1,9 +1,10 @@
 # AGENTS.md — 续传解题系统
 
-> **接手第一步**：先用 read 工具完整加载 `README.md`。它是 repo 的 AI 工作引导地图——
-> 开头"〇、核心资产"段告诉你 repo 有 SOP/src/docs 三套运行支柱及各自入口，下方分类法
-> 索引每个文档讲什么、覆盖哪些问题场景、和其他文档的关系。读完 README.md 再读本文件。
-> 本文件只放铁律 + 最小索引，文档详细定位见 `README.md`。
+> **接手第一步**：先用 read 工具完整加载 `docs/dev/AI-GUIDE.md`。它是 repo 的 AI 工作
+> 引导地图（原 README.md，2026-09-27 公开版重组时迁入）——开头"〇、核心资产"段告诉你
+> repo 有 SOP/src/docs 三套运行支柱及各自入口，下方分类法索引每个文档讲什么、覆盖哪些
+> 问题场景、和其他文档的关系。读完 AI-GUIDE.md 再读本文件。系统公开全貌（架构/使用方法/
+> 相关仓库）见根目录 `README.md`。本文件只放铁律 + 最小索引，文档详细定位见 `docs/dev/AI-GUIDE.md`。
 
 ## 核心概念：解题管线（Solve Pipeline）
 
@@ -392,7 +393,7 @@ python -m scripts.sop._set_next status    # 查看当前状态
 
 ---
 
-> **强制声明**：本 repo 的 AI 工作引导地图在 `README.md`（见本文件开头"接手第一步"）。本文件只放铁律 + 最小索引，文档详细定位见 `README.md` 引导地图。
+> **强制声明**：本 repo 的 AI 工作引导地图在 `docs/dev/AI-GUIDE.md`（见本文件开头"接手第一步"）。本文件只放铁律 + 最小索引，文档详细定位见 `docs/dev/AI-GUIDE.md` 引导地图。
 
 ---
 
@@ -400,4 +401,4 @@ python -m scripts.sop._set_next status    # 查看当前状态
 
 > 项目概况 / 硬约束10条+016/017/018新增4条 / 外部文档索引 / 快速开始 / SOP文档与报表系统详细说明
 > 已迁移到 `docs/sop/SOP_OP_operations_knowledge.md`（run.py每轮循环末尾注入）。
-> 核心铁律索引见 L0 §7（每step注入）；文档详细定位见 `README.md` 引导地图。
+> 核心铁律索引见 L0 §7（每step注入）；文档详细定位见 `docs/dev/AI-GUIDE.md` 引导地图。
