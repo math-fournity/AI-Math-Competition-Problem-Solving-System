@@ -84,6 +84,9 @@ AI 数学竞赛题持续解题系统——一个面向竞赛数学题的**长期
 
 ### 环境准备
 
+> **在新机器上从零复原完整工作环境**（任意路径布局）：按 [docs/RESTORE-GUIDE.md](docs/RESTORE-GUIDE.md)
+> 执行——拉取本仓库族的 5 个仓库、恢复 ArangoDB 三库（含全部题目本体）、挂接运行现场目录、配置 `.env`。
+
 ```bash
 # 依赖：Python 3.12+（.venv）、Redis、ArangoDB、devin cli（或 OpenCode ACP 后端）
 python -m venv .venv && source .venv/bin/activate
