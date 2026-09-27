@@ -1,0 +1,10 @@
+{
+ "sessionId": "ses_fda81fd44ffeq7xNfLjxTgVpym",
+ "elapsed": 963.3014261722565,
+ "stopReason": "end_turn",
+ "counts": {
+  "available_commands_update": 1,
+  "agent_thought_chunk": 12062,
+  "usage_update": 1
+ }
+}

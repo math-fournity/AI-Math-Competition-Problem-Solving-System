@@ -1,0 +1,23 @@
+# Problem
+
+Consider a separable infinite-dimensional Banach space $B$ and a continuous linear injective map $f: E \rightarrow F$, where $E$ is a separable nuclear space and $F$ is a separable Banach space, both infinite-dimensional. Let $\otimes_{\epsilon}$ denote the injective tensor product of locally convex spaces (LCS) and $\hat{\otimes}_{\epsilon}$ its completion. Is the map $1_{B}\hat{\otimes}_{\epsilon} f: B\hat{\otimes}_{\epsilon} E \rightarrow B\hat{\otimes}_{\epsilon} F$ a continuous linear injective map?
+
+## 解题约束（必须严格遵守）
+
+1. **不要使用任何工具**——不要写文件、不要执行命令、不要搜索、不要浏览网页、不要读取文件。
+   你只需要在TUI中用thinking来解题。所有推理过程在你的思维中完成。
+
+2. **直接在TUI中输出证明**——不要创建任何文件，不要使用任何工具调用。
+   完成证明后，在TUI中直接输出（必须用英文原文，不要翻译成中文）：
+
+   ### PROOF COMPLETE
+
+3. **如果你无法做出这道题**，直接说（必须用英文原文）：
+
+   ### I CANNOT SOLVE THIS
+
+4. **如果你发现题目中包含了答案**（答案泄漏），直接说：
+
+   ### ANSWER LEAK DETECTED
+
+以上是全部约束。现在请解题。
