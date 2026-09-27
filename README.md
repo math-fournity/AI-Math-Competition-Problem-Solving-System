@@ -73,7 +73,7 @@ AI 数学竞赛题持续解题系统——一个面向竞赛数学题的**长期
 | `monitoring/` | 运维控制面：`continuation_control`（start/stop/status/set-concurrency/resolve-alert）|
 | `scripts/sop/` + `docs/sop/` | Master Agent 9 步 SOP 循环脚本 + 对应执行指令文档 |
 | `docs/architecture/`、`docs/specs/`、`docs/patterns/` | 架构概念、监控规范、设计范式 |
-| `dev-docs/` | 编号演进文档：001~067（设计方案/复盘/最终成品认知包/工作包体系） |
+| `dev-docs/` | 编号演进文档：001~068（设计方案/复盘/最终成品认知包/工作包体系；068 为公开版整理与上传操作记录） |
 | `dev-docs/workpackages/`、`dev-docs/final-system-workpackages/` | 工作包执行体系（依赖图/状态表/exec-log） |
 | `templates/` | 三角色提示词模板 + 轮次资产合同（WP-03 冻结） |
 | `data/poc_2.7/` | 题单与早期结果 |
@@ -139,6 +139,8 @@ python -m scripts.query_progress.py                   # 进度查询（DB）
   [AI-Math-Solving-Trajectories-Archive](https://github.com/math-fournity/AI-Math-Solving-Trajectories-Archive)。
 - 敏感性说明：上述数据为 AI 解题对话与程序运行记录，不含 API 密钥/凭据（上传前已做
   凭据模式扫描）；mitm 代理原始流量捕获因可能含请求头凭据而未纳入上传。
+- 本次公开版整理与上传的操作细节（仓库划分、数据甄别与排除、批次拆分、历史身份改写、
+  故障处置与终验结果）见 [dev-docs/068-公开版整理与上传操作记录-2026-09-27.md](dev-docs/068-公开版整理与上传操作记录-2026-09-27.md)。
 
 ## 题库（开源数据集，直接引用上游）
 
