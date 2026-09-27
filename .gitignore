@@ -6,3 +6,8 @@ analysis-devin-failure-system/output/
 *.log
 .DS_Store
 log/
+# tmp/ 证据整理约定（2026-09-27，详见 tmp/README.md）：
+# WP-U6 每题完整会话捕获（约37MB）仅本地保留不入 Git，同目录 result.json 汇总仍跟踪
+tmp/wp_u6/*/*.jsonl
+# 部分下载残片
+tmp/**/*.tail
