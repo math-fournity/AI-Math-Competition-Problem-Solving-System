@@ -1,0 +1,39 @@
+你的任务：为sim_chaos_016_0001的round2 conversation.json编写HANDOVER.md交接文档。
+
+## 背景
+
+这道题的round2思考过程被截断了，需要编写交接文档供下一轮AI继续。
+
+## 你需要读取的文件
+
+1. **面包屑地图**：/Users/user/AI-Math-Competition-Problem-Solving-System/tmp/sim/solver/p27-continuation/p27sim-chaos_016-20260822-083115-sim_chaos_016_0001/round2_conversation_map.md
+2. **conversation.json**：/Users/user/AI-Math-Competition-Problem-Solving-System/tmp/sim/traj/p27-continuation/p27sim-chaos_016-20260822-083115-sim_chaos_016_0001/round2/exports/conversation.json
+3. **续传规范文档**：/Users/user/AI-Math-Competition-Problem-Solving-System/docs/patterns/续传规范文档.md
+4. **题目文本**：
+Let $f(x) = x^2 - 4x + 3$. Find all real numbers $x$ such that $f(f(x)) = 0$.
+
+## 工作流程
+
+1. 先读取面包屑地图，了解conversation.json的整体结构
+2. 读取续传规范文档，了解HANDOVER.md的8个章节要求
+3. 按地图的面包屑，逐个agent step处理
+4. 按HANDOVER.md的8个章节整理提取的内容
+5. 将HANDOVER.md写入：/Users/user/AI-Math-Competition-Problem-Solving-System/tmp/sim/solver/p27-continuation/p27sim-chaos_016-20260822-083115-sim_chaos_016_0001/round2_HANDOVER.md
+
+## HANDOVER.md的8个章节（参考续传规范文档）
+
+1. **题目**：完整的数学题目
+2. **当前状态**：已完成/截断/错误
+3. **已确认的结论**：AI在thinking中得出的数学结论
+4. **已排除的方向**：AI尝试过但失败的方向
+5. **关键文献/参考**：AI引用的文献或定理
+6. **已有的中间产物**：AI创建的文件、计算结果
+7. **当前卡在哪里**：如果是截断，AI在思考什么时被截断
+8. **下一步建议**：如何继续
+
+## 重要约束
+
+- **不要编造内容**——所有内容必须来自conversation.json
+- **保留数学公式**——LaTeX格式保留
+- **标注来源**：每个结论标注来自哪个step
+- **包含工具调用结果**：exec的observation必须包含在HANDOVER.md中

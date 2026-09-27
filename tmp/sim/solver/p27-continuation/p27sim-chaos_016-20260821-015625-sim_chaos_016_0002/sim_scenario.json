@@ -1,0 +1,7 @@
+{
+  "name": "chaos_016",
+  "solve": {
+    "*": "truncate"
+  },
+  "handover": "ok"
+}

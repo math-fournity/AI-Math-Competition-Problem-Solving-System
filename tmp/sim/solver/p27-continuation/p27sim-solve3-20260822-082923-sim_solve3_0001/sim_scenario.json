@@ -1,0 +1,8 @@
+{
+  "name": "solve3",
+  "solve": {
+    "2": "truncate",
+    "3": "complete"
+  },
+  "handover": "ok"
+}

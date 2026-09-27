@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "source": "agent",
+      "reasoning_content": "\u7ecf\u8fc7\u5b8c\u6574\u7684\u63a8\u5bfc\uff0c\u7ed3\u8bba\u5df2\u7ecf\u6e05\u6670\u3002",
+      "message": "The final answer is $\\boxed{42}$.",
+      "tool_calls": [],
+      "metrics": {
+        "completion_tokens": 8000
+      }
+    }
+  ]
+}

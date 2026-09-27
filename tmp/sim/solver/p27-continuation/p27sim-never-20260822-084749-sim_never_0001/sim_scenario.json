@@ -1,0 +1,7 @@
+{
+  "name": "never",
+  "solve": {
+    "*": "truncate"
+  },
+  "handover": "ok"
+}
