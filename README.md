@@ -25,6 +25,7 @@ AI 数学竞赛题持续解题系统——一个面向竞赛数学题的**长期
 | [AI-Math-Solving-Trajectories-Archive](https://github.com/math-fournity/AI-Math-Solving-Trajectories-Archive) | 早期世代归档：5 万+ 每题运行现场（对话录/会话轨迹/终端日志/工作目录）与 devin 失败分析现场 |
 | [AI-Math-Solving-Databases](https://github.com/math-fournity/AI-Math-Solving-Databases) | 系统数据表整体导出（ArangoDB 三库全部数据表，JSONL + manifest + 恢复脚本）与题库目录 |
 | [AI-Math-Normal-Solver](https://github.com/math-fournity/AI-Math-Normal-Solver) | 平凡解题系统（solver pipe）——早期世代的解题管线代码 |
+| [AI-Agent-Trajectory-Toolkit](https://github.com/math-fournity/AI-Agent-Trajectory-Toolkit) | 配套工具链：跨宿主（Codex/OpenCode/ZCode）AI 轨迹分析 Skill + ACP 协议文档 + 分层解析脚本 |
 
 ## 整体架构
 
