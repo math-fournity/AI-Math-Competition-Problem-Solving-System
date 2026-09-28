@@ -13,6 +13,7 @@
 | `AI-Math-Solving-Trajectories` | 当前世代（p27 续传/v2）每题运行现场：轨迹侧 + 工作目录侧 + SOP 报表 |
 | `AI-Math-Solving-Trajectories-Archive` | 早期世代全部运行现场（约 4.9 万组 run） |
 | `AI-Math-Normal-Solver` | 平凡解题系统（早期管线代码，历史复现用） |
+| `AI-Agent-Trajectory-Toolkit` | 配套工具链：跨宿主 AI 轨迹分析 Skill + ACP 协议文档 + 分层解析脚本（复现 observer 分层轨迹审查时安装；非运行必需） |
 
 ## 一、推荐目录布局（示例——你可以用任何等价布局）
 
@@ -88,7 +89,7 @@ python -m monitoring.continuation_control status --batch-id p27-full   # 应能�
    `p27_continuation_runs` 该题记录对得上；
 4. 主 repo `python -m scripts.sop.run`（SOP 循环第一步）可执行。
 
-## 五、边界： intentionally 未随仓库发布的内容
+## 五、边界：intentionally 未随仓库发布的内容
 
 | 内容 | 原因 | 影响 |
 |---|---|---|
