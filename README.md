@@ -145,20 +145,22 @@ python -m scripts.query_progress.py                   # 进度查询（DB）
 - 本次公开版整理与上传的操作细节（仓库划分、数据甄别与排除、批次拆分、历史身份改写、
   故障处置与终验结果）见 [dev-docs/068-公开版整理与上传操作记录-2026-09-27.md](dev-docs/068-公开版整理与上传操作记录-2026-09-27.md)。
 
-## 题库（开源数据集，直接引用上游）
+## 题库（开源数据集）
 
-系统题源均为公开数据集，本组织不再重复上传题目本身，仅保留题单与提取进度
-（见 `data/`、[AI-Math-Solving-Databases](https://github.com/math-fournity/AI-Math-Solving-Databases)
-的 `problem_extraction_progress` 表与题库目录文件）：
+**题目与解答本体已全量在数据仓库中**（`problem_extraction_progress` 表，246 万题全文，
+含早期 13 个来源，覆盖矩阵与逐数据集许可见
+[AI-Math-Solving-Databases](https://github.com/math-fournity/AI-Math-Solving-Databases)
+README 的"数据集覆盖矩阵"与"Data Licensing"节）。主要题源的上游地址（供对账版本与署名）：
 
-| 数据集 | 上游地址 | 用途 |
+| 数据集 | 上游地址 | 库内文档量 |
 |---|---|---|
-| Omni-MATH | https://huggingface.co/datasets/KbsdJames/Omni-MATH | 竞赛主题源之一（omni_math_*） |
-| DeepMath-103K | https://huggingface.co/datasets/zwhe99/DeepMath-103K | 高难度可验证题源（deepmath_103k_*） |
-| AMO-Bench | https://github.com/meituan-longcat/AMO-Bench | 奥赛级 50 题（amo_bench_*） |
-| AIME 2024/2025/2026 | https://huggingface.co/datasets/math-ai/aime24 · [aime25](https://huggingface.co/datasets/math-ai/aime25) · [aime26](https://huggingface.co/datasets/math-ai/aime26) | 竞赛真题（aime_2024_* 等） |
-| MathArena | https://matharena.ai/ · https://huggingface.co/datasets/MathArena | 各竞赛实时评测题源（matharena 目录） |
-| ODA-Math-460k | https://huggingface.co/datasets/OpenDataArena/ODA-Math-460k | 大规模数学题源（oda_math_460k_*） |
+| OpenMathReasoning | https://huggingface.co/datasets/nvidia/OpenMathReasoning | 724,666（CC-BY-4.0） |
+| AoPS-Instruct | https://huggingface.co/datasets/DeepStudentLlama/AoPS-Instruct | 538,954（⚠️ 上游未标注许可，见 Data Licensing） |
+| OpenR1-Math | https://huggingface.co/datasets/open-r1/OpenR1-Math-220k | 515,928（Apache-2.0） |
+| NuminaMath 系列 | https://huggingface.co/datasets/AI-MO/NuminaMath-CoT | 414,032（Apache-2.0） |
+| ODA-Math-460k | https://huggingface.co/datasets/OpenDataArena/ODA-Math-460k | 65,615（CC-BY-NC-4.0） |
+| DeepMath-103K | https://huggingface.co/datasets/zwhe99/DeepMath-103K | 32,392（MIT） |
+| 其余 33 个来源 | 见 Databases 仓库覆盖矩阵 | ~10 万 |
 
 完整题库索引（10,063 个 HF 数据集的目录元数据，含 URL/tier/题量/许可字段）随
 AI-Math-Solving-Databases 仓库发布。
